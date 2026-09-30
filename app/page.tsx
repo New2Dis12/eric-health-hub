@@ -2,7 +2,9 @@ import { cookies } from 'next/headers'
 import { ConnectionStatus } from '@/components/connection-status'
 import { FeatureGrid } from '@/components/feature-grid'
 import { OuraConnectCard } from '@/components/oura-connect-card'
+import { OuraConnectionTest } from '@/components/oura-connection-test'
 import { ACCESS_TOKEN_COOKIE } from '@/lib/oura'
+import { getOuraTestResult } from '@/lib/oura-data'
 
 export default async function HomePage({
   searchParams,
@@ -10,7 +12,9 @@ export default async function HomePage({
   searchParams: Promise<{ oura?: string }>
 }) {
   const [{ oura }, cookieStore] = await Promise.all([searchParams, cookies()])
-  const isConnected = cookieStore.has(ACCESS_TOKEN_COOKIE)
+  const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value
+  const isConnected = Boolean(accessToken)
+  const testResult = await getOuraTestResult(accessToken)
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-16 md:py-24">
@@ -26,6 +30,7 @@ export default async function HomePage({
         </p>
       </section>
       <OuraConnectCard isConnected={isConnected} />
+      <OuraConnectionTest result={testResult} />
       <FeatureGrid />
     </main>
   )
