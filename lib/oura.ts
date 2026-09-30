@@ -6,9 +6,7 @@ export const OAUTH_STATE_COOKIE = 'oura_oauth_state'
 export const ACCESS_TOKEN_COOKIE = 'oura_access_token'
 export const REFRESH_TOKEN_COOKIE = 'oura_refresh_token'
 
-export function getRedirectUri(origin: string) {
-  return process.env.OURA_REDIRECT_URI ?? `${origin}/api/oura/callback`
-}
+export const OURA_REDIRECT_URI = 'https://eric-health-hub.vercel.app/api/oura/callback'
 
 export type OuraTokenResponse = {
   access_token: string

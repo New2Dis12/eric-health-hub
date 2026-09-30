@@ -3,8 +3,8 @@ import {
   ACCESS_TOKEN_COOKIE,
   OAUTH_STATE_COOKIE,
   OURA_TOKEN_URL,
+  OURA_REDIRECT_URI,
   REFRESH_TOKEN_COOKIE,
-  getRedirectUri,
   type OuraTokenResponse,
 } from '@/lib/oura'
 
@@ -15,7 +15,7 @@ function redirectHome(request: NextRequest, status: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl
+  const { searchParams } = request.nextUrl
   const code = searchParams.get('code')
   const state = searchParams.get('state')
   const oauthError = searchParams.get('error')
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: getRedirectUri(origin),
+        redirect_uri: OURA_REDIRECT_URI,
         client_id: clientId,
         client_secret: clientSecret,
       }),

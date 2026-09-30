@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { OAUTH_STATE_COOKIE, OURA_AUTHORIZE_URL, OURA_SCOPES, getRedirectUri } from '@/lib/oura'
+import { OAUTH_STATE_COOKIE, OURA_AUTHORIZE_URL, OURA_REDIRECT_URI, OURA_SCOPES } from '@/lib/oura'
 
 export async function GET(request: NextRequest) {
   const clientId = process.env.OURA_CLIENT_ID
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   authorizeUrl.search = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,
-    redirect_uri: getRedirectUri(request.nextUrl.origin),
+    redirect_uri: OURA_REDIRECT_URI,
     scope: OURA_SCOPES.join(' '),
     state,
   }).toString()
