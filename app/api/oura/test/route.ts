@@ -1,6 +1,5 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { ACCESS_TOKEN_COOKIE } from '@/lib/oura'
-import { getOuraTestResult } from '@/lib/oura-data'
+import { NextResponse } from 'next/server'
+import { getOuraTestResultFromStore } from '@/lib/oura-data'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,8 +10,8 @@ const httpStatusByResult = {
   error: 502,
 } as const
 
-export async function GET(request: NextRequest) {
-  const result = await getOuraTestResult(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value)
+export async function GET() {
+  const result = await getOuraTestResultFromStore()
   return NextResponse.json(result, {
     status: httpStatusByResult[result.status],
     headers: { 'Cache-Control': 'no-store' },
