@@ -1,4 +1,5 @@
 import 'server-only'
+import { getValidOuraAccessToken } from '@/lib/oura-tokens'
 
 const OURA_API_BASE = 'https://api.ouraring.com/v2/usercollection'
 const LOOKBACK_DAYS = 7
@@ -109,4 +110,20 @@ export async function getOuraTestResult(accessToken: string | undefined): Promis
     console.error('Oura API test request failed', error)
     return { status: 'error', message: 'Could not reach the Oura API.' }
   }
+}
+
+export async function getOuraTestResultFromStore(): Promise<OuraTestResult> {
+  const token = await getValidOuraAccessToken()
+  if (token.status === 'not_connected') return { status: 'not_connected' }
+  if (token.status === 'refresh_failed') return { status: 'unauthorized' }
+  if (token.status === 'storage_unavailable') {
+    return { status: 'error', message: 'Could not read Oura tokens from secure storage.' }
+  }
+
+  const result = await getOuraTestResult(token.accessToken)
+  if (result.status !== 'unauthorized') return result
+
+  const refreshed = await getValidOuraAccessToken({ forceRefresh: true })
+  if (refreshed.status !== 'ok') return result
+  return getOuraTestResult(refreshed.accessToken)
 }

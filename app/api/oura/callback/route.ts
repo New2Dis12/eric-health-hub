@@ -7,6 +7,7 @@ import {
   REFRESH_TOKEN_COOKIE,
   type OuraTokenResponse,
 } from '@/lib/oura'
+import { saveOuraTokens } from '@/lib/oura-tokens'
 
 function redirectHome(request: NextRequest, status: string) {
   const response = NextResponse.redirect(new URL(`/?oura=${status}`, request.url))
@@ -61,24 +62,15 @@ export async function GET(request: NextRequest) {
     return redirectHome(request, 'error')
   }
 
+  try {
+    await saveOuraTokens(tokens)
+  } catch (error) {
+    console.error('Failed to persist Oura tokens to Redis', error)
+    return redirectHome(request, 'error')
+  }
+
   const response = redirectHome(request, 'connected')
-  const cookieOptions = {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax' as const,
-    path: '/',
-  }
-
-  response.cookies.set(ACCESS_TOKEN_COOKIE, tokens.access_token, {
-    ...cookieOptions,
-    maxAge: tokens.expires_in,
-  })
-  if (tokens.refresh_token) {
-    response.cookies.set(REFRESH_TOKEN_COOKIE, tokens.refresh_token, {
-      ...cookieOptions,
-      maxAge: 60 * 60 * 24 * 30,
-    })
-  }
-
+  response.cookies.delete({ name: ACCESS_TOKEN_COOKIE, path: '/' })
+  response.cookies.delete({ name: REFRESH_TOKEN_COOKIE, path: '/' })
   return response
 }
