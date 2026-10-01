@@ -20,7 +20,7 @@ export default async function HomePage({
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-16 md:py-24">
       {oura ? <ConnectionStatus status={oura} /> : null}
       <section className="max-w-2xl">
-        <p className="text-sm font-medium text-primary">Personal health dashboard</p>
+        <p className="text-sm font-medium text-primary">Personal health data hub</p>
         <h1 className="mt-3 text-balance text-4xl font-semibold tracking-tight md:text-5xl">
           All of Eric&apos;s health data, in one calm place.
         </h1>
