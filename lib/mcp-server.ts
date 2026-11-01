@@ -22,7 +22,7 @@ function errorResult(message: string) {
   return { isError: true, content: [{ type: 'text' as const, text: message }] }
 }
 
-export function createEricHealthMcpServer() {
+export function createEricHealthMcpServer(canReadGarmin = false) {
   const server = new McpServer({ name: 'eric-health-hub', version: '0.1.0' })
 
   server.registerTool(
@@ -69,7 +69,7 @@ export function createEricHealthMcpServer() {
   )
 
   // Garmin is disabled until MCP authentication is configured.
-  if (process.env.GARMIN_MCP_ENABLED === 'true') {
+  if (process.env.GARMIN_MCP_ENABLED === 'true' && canReadGarmin) {
     server.registerTool(
       'get_garmin_activities',
       {
