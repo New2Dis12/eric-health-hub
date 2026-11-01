@@ -39,7 +39,9 @@ async function handle(request: Request) {
     return unauthorized()
   }
 
-  const server = createEricHealthMcpServer()
+  const server = createEricHealthMcpServer(
+    token.scopes.includes('garmin.read'),
+  )
 
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
