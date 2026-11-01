@@ -1,7 +1,9 @@
+
 import 'server-only'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getOuraTestResultFromStore } from '@/lib/oura-data'
+import { getGarminActivities } from '@/lib/garmin'
 
 const measurementSchema = z.object({
   value: z.number().nullable(),
@@ -65,6 +67,42 @@ export function createEricHealthMcpServer() {
       }
     },
   )
+
+  // Garmin is disabled until MCP authentication is configured.
+  if (process.env.GARMIN_MCP_ENABLED === 'true') {
+    server.registerTool(
+      'get_garmin_activities',
+      {
+        title: 'Get Garmin activities',
+        description: 'Retrieve recent Garmin workouts.',
+        inputSchema: {
+          limit: z.number().int().min(1).max(50).default(20),
+        },
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
+      },
+      async ({ limit }) => {
+        try {
+          const activities = await getGarminActivities(limit)
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(activities),
+              },
+            ],
+          }
+        } catch (error) {
+          console.error('Garmin activity retrieval failed', error)
+          return errorResult('Unable to retrieve Garmin activities.')
+        }
+      },
+    )
+  }
 
   return server
 }
