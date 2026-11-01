@@ -1,32 +1,29 @@
 
 import 'server-only'
-import { timingSafeEqual } from 'node:crypto'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { createEricHealthMcpServer } from '@/lib/mcp-server'
+import { verifyHealthToken } from '@/lib/auth0'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function isAuthorized(request: Request) {
-  const expected = process.env.MCP_ACCESS_TOKEN
-  if (!expected) return false
-
-  const header = request.headers.get('authorization') ?? ''
-  const [scheme, provided] = header.split(' ')
-  if (scheme?.toLowerCase() !== 'bearer' || !provided) return false
-
-  const a = Buffer.from(provided)
-  const b = Buffer.from(expected)
-  return a.length === b.length && timingSafeEqual(a, b)
-}
+const RESOURCE = 'https://eric-health-hub.vercel.app/mcp'
+const METADATA = `${RESOURCE.replace(/\/mcp$/, '')}/.well-known/oauth-protected-resource`
 
 function unauthorized() {
   return Response.json(
-    { jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized' }, id: null },
+    {
+      jsonrpc: '2.0',
+      error: {
+        code: -32001,
+        message: 'Unauthorized',
+      },
+      id: null,
+    },
     {
       status: 401,
       headers: {
-        'WWW-Authenticate': 'Bearer',
+        'WWW-Authenticate': `Bearer resource_metadata="${METADATA}", scope="oura.read"`,
         'Cache-Control': 'no-store',
       },
     },
@@ -34,9 +31,16 @@ function unauthorized() {
 }
 
 async function handle(request: Request) {
-  if (!isAuthorized(request)) return unauthorized()
+  const token = await verifyHealthToken(
+    request.headers.get('authorization'),
+  )
+
+  if (!token || !token.scopes.includes('oura.read')) {
+    return unauthorized()
+  }
 
   const server = createEricHealthMcpServer()
+
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -44,13 +48,23 @@ async function handle(request: Request) {
 
   try {
     await server.connect(transport)
+
     const response = await transport.handleRequest(request)
     response.headers.set('Cache-Control', 'no-store')
+
     return response
   } catch (error) {
     console.error('MCP request failed', error)
+
     return Response.json(
-      { jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null },
+      {
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: 'Internal server error',
+        },
+        id: null,
+      },
       { status: 500 },
     )
   } finally {
