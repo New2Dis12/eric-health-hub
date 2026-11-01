@@ -3,7 +3,7 @@ import 'server-only'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getOuraTestResultFromStore } from '@/lib/oura-data'
-import { getGarminActivities } from '@/lib/garmin'
+import { getGarminActivities, getGarminActivityFit } from '@/lib/garmin'
 
 const measurementSchema = z.object({
   value: z.number().nullable(),
@@ -74,9 +74,16 @@ export function createEricHealthMcpServer(canReadGarmin = false) {
       'get_garmin_activities',
       {
         title: 'Get Garmin activities',
-        description: 'Retrieve recent Garmin workouts.',
+        description: 'List recent Garmin workouts, or supply an activityId from the list to download and decode original FIT telemetry on demand. Returns timestamp, heart rate, speed, pace, cadence, power and distance when recorded. FIT samples are bounded; use nextStartSeconds to request the next page.',
         inputSchema: {
           limit: z.number().int().min(1).max(50).default(20),
+          activityId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional()
+            .describe('When supplied, retrieve FIT telemetry for this activity instead of listing workouts.'),
+          everySeconds: z.number().int().min(1).max(300).default(1)
+            .describe('Minimum seconds between returned FIT samples; does not average records.'),
+          maxSamples: z.number().int().min(1).max(2000).default(1000),
+          startSeconds: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0)
+            .describe('Return samples at or after this elapsed time, for pagination.'),
         },
         annotations: {
           readOnlyHint: true,
@@ -85,20 +92,26 @@ export function createEricHealthMcpServer(canReadGarmin = false) {
           openWorldHint: true,
         },
       },
-      async ({ limit }) => {
+      async ({ limit, activityId, everySeconds, maxSamples, startSeconds }) => {
         try {
-          const activities = await getGarminActivities(limit)
+          const activities = activityId === undefined
+            ? await getGarminActivities(limit)
+            : await getGarminActivityFit(activityId, everySeconds, maxSamples, startSeconds)
+          const text = JSON.stringify(activities)
+          if (Buffer.byteLength(text, 'utf8') > 512 * 1024) {
+            return errorResult('Garmin response is too large. Reduce limit or maxSamples.')
+          }
           return {
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify(activities),
+                text,
               },
             ],
           }
-        } catch (error) {
-          console.error('Garmin activity retrieval failed', error)
-          return errorResult('Unable to retrieve Garmin activities.')
+        } catch {
+          // Do not expose upstream responses, credentials, or health data in logs.
+          return errorResult('Unable to retrieve Garmin data. The activity may be unavailable, the file invalid or too large, or Garmin temporarily unreachable.')
         }
       },
     )

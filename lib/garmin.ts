@@ -1,6 +1,8 @@
 
 import 'server-only'
 import { Redis } from '@upstash/redis'
+import { readLimitedResponse } from './limited-response'
+import { decodeGarminFitArchive } from './fit-activity'
 
 const BASE = 'https://personal.connectapi.garmin.com'
 const TOKEN_URL = `${BASE}/personalapitoken-service/personal-api/personal-api-key/token`
@@ -41,13 +43,15 @@ async function obtainToken(): Promise<CachedToken> {
     method: 'POST',
     headers: { Authorization: `ApiKey ${key}` },
     cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(15_000),
   })
 
   if (!response.ok) {
     throw new Error(`Garmin authentication failed: HTTP ${response.status}`)
   }
 
-  const raw = (await response.text()).trim()
+  const raw = (await readLimitedResponse(response, 16 * 1024)).toString('utf8').trim()
 
   let token = raw
   try {
@@ -113,21 +117,28 @@ async function getToken(forceRefresh = false): Promise<string> {
   }
 }
 
-async function garminGet(path: string): Promise<unknown> {
+async function garminGet(path: string, binary = false): Promise<unknown> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const token = await getToken(attempt === 1)
     const response = await fetch(`${BASE}${path}`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(30_000),
     })
 
-    if (response.status === 401 && attempt === 0) continue
+    if (response.status === 401 && attempt === 0) {
+      await response.body?.cancel()
+      continue
+    }
 
     if (!response.ok) {
+      await response.body?.cancel()
       throw new Error(`Garmin request failed: HTTP ${response.status}`)
     }
 
-    return response.json()
+    const bytes = await readLimitedResponse(response, binary ? 16 * 1024 * 1024 : 512 * 1024)
+    return binary ? bytes : JSON.parse(bytes.toString('utf8'))
   }
 
   throw new Error('Garmin authorization failed')
@@ -151,4 +162,17 @@ export async function getGarminActivity(activityId: number) {
   }
 
   return garminGet(`/activity-service/activity/${activityId}`)
+}
+
+export async function getGarminActivityFit(
+  activityId: number,
+  everySeconds = 1,
+  maxSamples = 1000,
+  startSeconds = 0,
+) {
+  if (!Number.isSafeInteger(activityId) || activityId <= 0) {
+    throw new Error('Invalid Garmin activity ID')
+  }
+  const archive = await garminGet(`/download-service/files/activity/${activityId}`, true) as Buffer
+  return { activityId, ...decodeGarminFitArchive(archive, everySeconds, maxSamples, startSeconds) }
 }
