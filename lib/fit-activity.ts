@@ -84,7 +84,7 @@ export function decodeGarminFitArchive(
     return { available: false, reason: 'No FIT file in the Garmin activity archive' }
   }
 
-  const stream = Stream.fromBuffer(fit)
+  const stream = Stream.fromByteArray([...fit])
   const decoder = new Decoder(stream)
   if (!decoder.isFIT() || !decoder.checkIntegrity()) {
     throw new Error('Garmin FIT integrity check failed')
