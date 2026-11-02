@@ -4,14 +4,20 @@ import { Encoder, Profile, CrcCalculator, type FileIdMesg } from '@garmin/fitsdk
 import { decodeGarminFitArchive } from '../lib/fit-activity'
 import { workoutFit, zipFile } from './fixtures'
 
+function decodeAvailableFit(...args: Parameters<typeof decodeGarminFitArchive>) {
+  const result = decodeGarminFitArchive(...args)
+  assert.ok(result.available)
+  return result
+}
+
 for (const method of [0, 8]) {
   test(`decodes ${method === 0 ? 'stored' : 'deflated'} FIT ZIP and exact metric units`, () => {
-    const result = decodeGarminFitArchive(zipFile(workoutFit(), { method, descriptor: true }), 1, 1000)
+    const result = decodeAvailableFit(zipFile(workoutFit(), { method, descriptor: true }), 1, 1000)
     assert.equal(result.available, true)
     assert.equal(result.fitRecordCount, 5)
-    assert.deepEqual(result.samples?.[0], ['2026-10-30T12:00:00.000Z', 0, 140, 2.5, 80.5, 200, 0, 400])
+    assert.deepEqual(result.samples?.[0].slice(0, 8), ['2026-10-30T12:00:00.000Z', 0, 140, 2.5, 80.5, 200, 0, 400])
     assert.equal(result.samples?.[1][3], 4) // enhanced speed preferred
-    assert.deepEqual(result.samples?.[2].slice(2), [null, 2.5, null, null, 5, 400])
+    assert.deepEqual(result.samples?.[2].slice(2, 8), [null, 2.5, null, null, 5, 400])
     assert.equal(result.samples?.[4][7], null) // no infinite pace when stopped
     assert.equal(result.truncated, false)
   })
@@ -19,14 +25,14 @@ for (const method of [0, 8]) {
 
 test('raw FIT, downsampling, and pagination preserve timestamps without gaps', () => {
   const fit = workoutFit()
-  const page1 = decodeGarminFitArchive(fit, 2, 2)
+  const page1 = decodeAvailableFit(fit, 2, 2)
   assert.deepEqual(page1.samples?.map(s => s[1]), [0, 2])
   assert.equal(page1.truncated, true)
   assert.equal(page1.nextStartSeconds, 4)
-  const page2 = decodeGarminFitArchive(fit, 2, 2, page1.nextStartSeconds!)
+  const page2 = decodeAvailableFit(fit, 2, 2, page1.nextStartSeconds!)
   assert.deepEqual(page2.samples?.map(s => s[1]), [4])
   assert.equal(page2.truncated, false)
-  assert.deepEqual(decodeGarminFitArchive(fit, 1, 10, 50).samples, [])
+  assert.deepEqual(decodeAvailableFit(fit, 1, 10, 50).samples, [])
 })
 
 test('no FIT and FIT without records report unavailability', () => {

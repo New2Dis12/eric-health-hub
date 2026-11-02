@@ -5,7 +5,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { getGarminActivities, getGarminActivityFit } from '../lib/garmin'
 import { readLimitedResponse } from '../lib/limited-response'
 import { createEricHealthMcpServer } from '../lib/mcp-server'
-import { workoutFit, zipFile } from './fixtures'
+import { nativeWorkoutFit, workoutFit, zipFile } from './fixtures'
 
 afterEach(() => mock.restoreAll())
 
@@ -40,6 +40,7 @@ test('FIT download reuses cached token, fixed Garmin host, no-store, redirect bl
     return new Response(zipFile(workoutFit()))
   })
   const result = await getGarminActivityFit(123)
+  assert.ok(result.available)
   assert.equal(result.activityId, 123)
   assert.equal(result.fitRecordCount, 5)
   assert.equal(downloads, 1)
@@ -105,6 +106,33 @@ test('MCP retains Oura and only exposes Garmin with feature flag AND authorized 
         assert.equal(fit.nextStartSeconds, 2)
         const invalid = await client.callTool({ name: 'get_garmin_activities', arguments: { activityId: 123, maxSamples: 2001 } })
         assert.equal(invalid.isError, true)
+        mockGarminFetch(async () => new Response(zipFile(nativeWorkoutFit({ sampleCount: 8 }))))
+        const detailed = await client.callTool({ name: 'get_garmin_activities', arguments: {
+          activityId: 123, everySeconds: 2, maxSamples: 2, startSeconds: 1,
+          lapStartIndex: 1, maxLaps: 2,
+        } })
+        assert.equal(detailed.isError, undefined)
+        const detail = JSON.parse((detailed.content as { text: string }[])[0].text)
+        assert.deepEqual(detail.samples.map((row: number[]) => row[1]), [1, 3])
+        assert.equal(detail.columns[8], 'groundContactTimeMs')
+        assert.equal(detail.samples[0][8], 255.5)
+        assert.deepEqual(detail.laps.map((lap: { lapIndex: number }) => lap.lapIndex), [1, 2])
+        assert.equal(detail.laps[0].avgVerticalOscillationCm, 10.14)
+        assert.equal(detail.nextStartSeconds, 5)
+        assert.equal(detail.nextLapStartIndex, 3)
+        assert.ok(Buffer.byteLength((detailed.content as { text: string }[])[0].text) < 512 * 1024)
+        const next = await client.callTool({ name: 'get_garmin_activities', arguments: {
+          activityId: 123, everySeconds: 2, maxSamples: 2, startSeconds: detail.nextStartSeconds,
+          lapStartIndex: detail.nextLapStartIndex, maxLaps: 2,
+        } })
+        const nextDetail = JSON.parse((next.content as { text: string }[])[0].text)
+        assert.deepEqual(nextDetail.samples.map((row: number[]) => row[1]), [5, 7])
+        assert.deepEqual(nextDetail.laps.map((lap: { lapIndex: number }) => lap.lapIndex), [3])
+        assert.equal(nextDetail.nextLapStartIndex, null)
+        for (const args of [{ maxLaps: 101 }, { lapStartIndex: -1 }]) {
+          const invalidLaps = await client.callTool({ name: 'get_garmin_activities', arguments: { activityId: 123, ...args } })
+          assert.equal(invalidLaps.isError, true)
+        }
       }
     } finally {
       await client.close()
