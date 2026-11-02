@@ -74,7 +74,7 @@ export function createEricHealthMcpServer(canReadGarmin = false) {
       'get_garmin_activities',
       {
         title: 'Get Garmin activities',
-        description: 'List recent Garmin workouts, or supply an activityId from the list to download and decode original FIT telemetry on demand. Returns timestamp, heart rate, speed, pace, cadence, power and distance when recorded. FIT samples are bounded; use nextStartSeconds to request the next page.',
+        description: 'List recent Garmin workouts, or supply an activityId from the list to download and decode original FIT telemetry on demand. Returns timestamp, heart rate, speed, pace, cadence, power, distance, running dynamics and native FIT laps when recorded. Sample and lap pages are independently bounded; use nextStartSeconds and nextLapStartIndex to continue.',
         inputSchema: {
           limit: z.number().int().min(1).max(50).default(20),
           activityId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional()
@@ -84,6 +84,10 @@ export function createEricHealthMcpServer(canReadGarmin = false) {
           maxSamples: z.number().int().min(1).max(2000).default(1000),
           startSeconds: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0)
             .describe('Return samples at or after this elapsed time, for pagination.'),
+          lapStartIndex: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0)
+            .describe('Zero-based FIT lap offset; use nextLapStartIndex for the next independent lap page.'),
+          maxLaps: z.number().int().min(1).max(100).default(100)
+            .describe('Maximum native FIT laps per response; independent of sample time and sampling interval.'),
         },
         annotations: {
           readOnlyHint: true,
@@ -92,14 +96,14 @@ export function createEricHealthMcpServer(canReadGarmin = false) {
           openWorldHint: true,
         },
       },
-      async ({ limit, activityId, everySeconds, maxSamples, startSeconds }) => {
+      async ({ limit, activityId, everySeconds, maxSamples, startSeconds, lapStartIndex, maxLaps }) => {
         try {
           const activities = activityId === undefined
             ? await getGarminActivities(limit)
-            : await getGarminActivityFit(activityId, everySeconds, maxSamples, startSeconds)
+            : await getGarminActivityFit(activityId, everySeconds, maxSamples, startSeconds, lapStartIndex, maxLaps)
           const text = JSON.stringify(activities)
           if (Buffer.byteLength(text, 'utf8') > 512 * 1024) {
-            return errorResult('Garmin response is too large. Reduce limit or maxSamples.')
+            return errorResult('Garmin response is too large. Reduce limit, maxSamples or maxLaps.')
           }
           return {
             content: [

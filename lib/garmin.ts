@@ -169,10 +169,12 @@ export async function getGarminActivityFit(
   everySeconds = 1,
   maxSamples = 1000,
   startSeconds = 0,
+  lapStartIndex = 0,
+  maxLaps = 100,
 ) {
   if (!Number.isSafeInteger(activityId) || activityId <= 0) {
     throw new Error('Invalid Garmin activity ID')
   }
   const archive = await garminGet(`/download-service/files/activity/${activityId}`, true) as Buffer
-  return { activityId, ...decodeGarminFitArchive(archive, everySeconds, maxSamples, startSeconds) }
+  return { activityId, ...decodeGarminFitArchive(archive, everySeconds, maxSamples, startSeconds, lapStartIndex, maxLaps) }
 }
