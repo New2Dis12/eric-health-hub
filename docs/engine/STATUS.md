@@ -3,7 +3,7 @@
 **As of:** 2026-11-03
 **Status:** Sprint 1 implementation ready for review; hosted configuration and live acceptance remain blocked on owner setup/approval.
 **Branch:** `feature/stunna-sprint-1`, based on `main` commit `3d204e7` (merged Sprint 0 docs).
-**PR:** pending creation; link will be recorded before handoff.
+**PR:** [#6 — Sprint 1 secure persistence](https://github.com/New2Dis12/eric-health-hub/pull/6) — open, unmerged.
 **Production:** untouched. No merge, deployment, hosted database, Auth0 settings, provider tokens, training import or real personal-data writes were performed.
 
 ## Completed in Sprint 1
