@@ -1,7 +1,9 @@
+import { requireBrowserSubject, apiError } from '@/lib/private-api'
 import { NextResponse, type NextRequest } from 'next/server'
 import { OAUTH_STATE_COOKIE, OURA_AUTHORIZE_URL, OURA_REDIRECT_URI, OURA_SCOPES } from '@/lib/oura'
 
 export async function GET(request: NextRequest) {
+  try { await requireBrowserSubject(request) } catch (error) { return apiError(error) }
   const clientId = process.env.OURA_CLIENT_ID
   if (!clientId) {
     return NextResponse.redirect(new URL('/?oura=not_configured', request.url))

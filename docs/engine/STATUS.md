@@ -1,57 +1,60 @@
 # Stunna Intelligence Engine — Current Status
 
-**As of:** 2026-11-02
-**Status:** Sprint 0 proposal in review (documentation-only branch: `docs/stunna-intelligence-sprint-0`)
-**Current production behavior:** existing Health Hub app + Garmin/Oura read-only MCP are operational, subject to the known tool-schema cache and security review. **No Stunna database, private training app, logging tools, or autonomous weekly updates have been implemented yet.**
+**As of:** 2026-11-03
+**Status:** Sprint 1 implementation ready for review; hosted configuration and live acceptance remain blocked on owner setup/approval.
+**Branch:** `feature/stunna-sprint-1`, based on `main` commit `3d204e7` (merged Sprint 0 docs).
+**PR:** pending creation; link will be recorded before handoff.
+**Production:** untouched. No merge, deployment, hosted database, Auth0 settings, provider tokens, training import or real personal-data writes were performed.
 
-## What this kickoff branch contains
+## Completed in Sprint 1
 
-- [PRODUCT.md](PRODUCT.md) — one ChatGPT coaching interface + app workout player/dashboard + unified weekly closeouts.
-- [ARCHITECTURE.md](ARCHITECTURE.md) — one Vercel project, existing Auth0 and Upstash, proposed PostgreSQL system of record, shared authenticated read/write service layer.
-- [ROADMAP.md](ROADMAP.md) — scope-based Sprints 0–7 with acceptance tests and priorities.
-- This file — current state and next action.
+- Read PRODUCT, ARCHITECTURE, ROADMAP and STATUS on `main` before implementation.
+- Added Auth0 SDK browser login with encrypted HttpOnly/Secure/SameSite cookies, PKCE/state/nonce verification, exact allowlisted subject, absolute session expiry and generic failure responses. Only `/auth/login`, `/auth/logout`, `/auth/callback` are mounted; the SDK does not intercept `/mcp` or provider routes.
+- Gated homepage data retrieval before Oura/Redis access. Protected Oura test/connect/callback and Garmin diagnostic route. Public legal pages and OAuth metadata remain public.
+- Added PostgreSQL server-only pooled runtime connection with verified remote TLS, restricted-role checks, transaction-local identity and FORCE row-level security.
+- Added typed athlete, training block, planned session, actual session, body measurement and change-audit models. Versioned SQL migration and guarded rollback include migration checksums/transaction lock; runtime grants separate owner and application privileges. No data seeded.
+- Added shared authorized read/write services and `/api/training` GET/POST, disabled unless `STUNNA_ENABLED=true`. Strict input validation, streamed 16 KiB body limit, bounded history, explicit units/timezones, atomic measurement+session+audit writes, idempotent retries, optimistic revision conflicts and unique finalization are covered.
+- Kept existing MCP tool names, schemas, Auth0 bearer behavior, Garmin/FIT implementation, Oura data/refresh implementation and Upstash keys unchanged. Added synthetic regressions for those boundaries.
+- Added [SPRINT_1_OPERATIONS.md](SPRINT_1_OPERATIONS.md) and `.env.example` with minimum owner setup, synthetic acceptance checks, grants, backup/restore and rollback instructions. Removed the pre-existing build option that skipped TypeScript errors. Added this branch to Vercel's Git deployment-disabled list.
 
-## What has NOT happened
+## Verification results
 
-- No external database or Auth0 web client provisioned.
-- No personal training data migrated, inserted, altered, or shared.
-- No working web dashboard or write MCP tools implemented.
-- No production deployment or merge.
-- No paid service subscriptions or separate AI API integration initiated.
+| Check | Result |
+|---|---|
+| Baseline `pnpm test` / typecheck | 28 existing tests passed; typecheck passed before changes |
+| Frozen dependency install | Passed; dependency lock updated for Auth0 SDK, pg, types and PGlite |
+| Final `pnpm test` | **49 passed, 0 failed, 0 skipped** |
+| `pnpm typecheck` | Passed |
+| `pnpm build` | Passed, including TypeScript validation; homepage/private APIs remain dynamic |
+| Built-app local HTTP smoke | Passed: anonymous homepage sign-in surface, Oura private routes and training GET/POST denied, all MCP methods retain OAuth challenge, browser token endpoint 404, public legal/metadata routes 200 |
+| Diff whitespace / sensitive-content review | Passed; fixtures are generated/synthetic, no live credentials or health records |
 
-## Verified repository baseline and risks
+Security coverage includes encrypted valid/wrong-account/expired/tampered cookies, real simulated Auth0 code callback, PKCE and secure-cookie flags, anonymous provider-route denial before network access, JWT signature/issuer/audience/expiry/subject checks, separate read/write training scopes, CSRF origin denial, invalid input and bounded bodies. Existing MCP scope and tool discovery pass with browser and database configuration absent.
 
-- Existing `app/mcp/route.ts` validates Auth0 token; current read scopes `oura.read` and `garmin.read`.
-- Existing `lib/mcp-server.ts` exposes Oura summary and Garmin activity FIT analysis, preserving current integration.
-- `app/page.tsx` retrieves Oura metrics on the homepage. `app/api/oura/authorize/route.ts` offers an OAuth initiation path. Need verify and implement server-side login protection for dashboard, health-data display, OAuth connect and every private API path. **Do not log private training data until gated.**
-- Current `get_garmin_activities` tool schema advertised in some ChatGPT contexts may lag the server's full FIT parameters; later integration tests must verify tool visibility and authorization.
-- Known native Garmin lap anomaly in Oct 27 activity needs quality flag/investigation before relying on final-lap end timestamps in detailed comparisons.
-- Repository is public. Documentation should remain abstract; live personal measurements and screenshots belong only in authenticated storage.
+Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime grants/RLS and service SQL. Tests prove atomic browser/API measurement+session persistence, exact replay, conflict handling, forced rollback after audit failure, cross-athlete denial and up/down/up migration execution. PGlite serializes transactions; hosted connection pooling, verified TLS and real simultaneous PostgreSQL connection behavior still need the release smoke test. Hosted Auth0/provider configuration was not contacted or changed.
 
-## Decision log
+## Production impact to review
 
-- **Selected:** ChatGPT remains the primary conversational coach (one Stunna HQ thread); the mobile web app acts as workout player, logging surface and dashboard.
-- **Selected:** shared durable database prevents forgetting across long or new conversations and removes manual weekly Markdown handoffs.
-- **Selected:** prescribed vs actual fields are separate; user-approved programming changes are recorded, not silently overwritten.
-- **Selected:** same repository, same deployed Next.js app, existing Garmin/Oura integrations; no extra app/project required.
-- **Proposed:** Neon-hosted PostgreSQL as relational system of record; provider/account provisioning and exact configuration await implementation.
-- **Deferred:** native phone app, embedded app chatbot, background sync and expanded Peloton automation.
+1. **Intentional access change:** website data and Oura connect/callback require Auth0 browser login after deployment. Until browser config is present, they fail closed; MCP remains independent and operational.
+2. **Diagnostic compatibility change:** `/api/garmin/test` now needs Auth0 browser identity or `garmin.read` bearer authorization **in addition to** `x-garmin-test-secret`. Secret-only diagnostic callers need updating. This does not alter Garmin MCP, token cache, FIT, laps or running dynamics.
+3. **Additive dependencies/migration:** Auth0 SDK and pg enter the existing app; PostgreSQL is initialized lazily only for enabled training requests. Migrations never execute during build/startup. Existing provider data and Upstash are not migrated.
+4. **Release guard:** no Vercel project or integration created. Branch Git deployment is disabled in `vercel.json`. Human approval is still required before any preview, production deployment or merge.
+5. **Rollback:** disable Stunna independently while retaining authentication; code rollback leaves additive training tables intact. Full rollback restores the old website exposure, so restrict website access during recovery. Destructive schema rollback needs a private snapshot and explicit operator flag; it never touches provider tokens.
 
-## Next implementation sprint: Sprint 1 — Secure persistence foundation
+## Outstanding owner prerequisites / acceptance limits
 
-Scope:
-1. Audit effective external routes for unauthenticated Oura/private data exposure and OAuth connection access; create Auth0 web-session protection using existing tenant/config where possible. Keep MCP bearer authorization intact.
-2. Design minimal SQL schema/migrations: athlete, current plan/session, body measurement, actual session and revision/audit log. Keep source provenance and idempotency rules.
-3. Wire a PostgreSQL connection through server-only environment variables and authenticated services; create a minimal private test read/write endpoint; validate anonymous denial and authorized behavior.
-4. Verify `pnpm test`, `pnpm typecheck`, and `pnpm build` (or repo equivalent).
-5. Open focused PR; **do not merge or deploy** until owner reviews protection and end-to-end tests.
+- Provision/approve the PostgreSQL database and restricted runtime login. Configure its URL securely; run migrations with a separate direct owner connection and apply `db/runtime-grants.sql`. Establish private backup retention and perform a hosted restore check.
+- Configure a suitable **existing** Auth0 web client on the existing tenant, callback/logout URLs, session secret and browser environment values in the existing Vercel project. Keep the MCP client/audience/grants and Garmin/Oura/Upstash credentials intact. No duplicate application is created by this work.
+- After explicit approval for a private preview/deployment, complete the runbook's synthetic login/read/write/RLS test with the actual services and the existing Health Hub v2 connector smoke test. No real training import until auth audit passes. Live production health records have not been read for this implementation.
+- `training.read`/`training.write` permissions are enforced in the new API verifier but not provisioned in Auth0. Browser sessions work without them. Add grants only for an explicitly authorized external training API test; do not modify the existing ChatGPT MCP client in Sprint 1.
+- No known unresolved automated-test failures. Hosted end-to-end acceptance remains unverified because provisioning/configuration/deployment were intentionally not performed.
 
-Owner input only when necessary: approve/create PostgreSQL instance and any required Auth0 web-app client or callback configuration. Never paste secrets into ChatGPT/GitHub; configure securely via platform environment settings.
+## Sprint 2 handoff
 
-### Suggested next Work prompt
+Do not infer existing prescriptions or import personal training Markdown into GitHub. After Sprint 1 review and hosted auth/database acceptance, implement Sprint 2: review/import the authoritative current block, schedule, exercise/interval targets, baselines, preferences and correction history into private PostgreSQL; add the mobile Today/calendar surfaces and a scoped read-only `get_training_context` MCP tool using the shared service layer. Preserve existing MCP tools and health integrations. No set-player logging, Garmin auto-matching, analytics or coaching plan-approval workflow was implemented early.
 
-> Implement Sprint 1 of Stunna Intelligence Engine according to `docs/engine/{PRODUCT,ARCHITECTURE,ROADMAP,STATUS}.md` in `New2Dis12/eric-health-hub`. Prioritize securing the Oura home page and private browser/API routes, maintaining existing MCP/Auth0 and Garmin/Oura behavior, then introduce the minimal durable training schema and authenticated services. Keep one repo/Vercel project; use the existing Auth0 tenant and Upstash. Add tests and open an unmerged PR. If external provisioning is required, implement/test as far as possible and give me the single minimal setup action needed. Update STATUS.md with what passed and what remains blocked.
+The Sprint 1 block/planned-session models are minimal and append-only. Add exercise prescription/preferences/approved-revision entities through a new migration. Actual-session correction currently covers notes/RPE only after completion; measurements have no correction endpoint yet. Audit records track actor/reason/source/entity/revisions, not old health-value snapshots. Offset history is bounded and intended as a diagnostic foundation; design cursor pagination before large history use. Never treat an in-progress session as a verified completed workout or infer missing exercise targets.
 
-## What review of Sprint 0 needs to confirm
+Suggested next prompt:
 
-Does PRODUCT.md correctly reflect daily prescribed workout format, logging responsibilities, weekly conversational closeout and approval boundaries? If yes, merge docs PR and begin Sprint 1. If not, edit the product contract before building.
+> Implement Sprint 2 of Stunna Intelligence Engine in `New2Dis12/eric-health-hub` using the current engine docs and Sprint 1 services. First verify Sprint 1 has been approved and its hosted auth/database acceptance is complete; report any remaining blocker before importing data. Review the authoritative training sources, add versioned private prescription/preferences storage and mobile Today/calendar views, then expose scoped read-only `get_training_context` without changing existing Health Hub v2 tools. Test, typecheck, build, update STATUS, and open an unmerged PR. Do not deploy without approval.

@@ -1,3 +1,4 @@
+import { requireHealthAccess, apiError } from '@/lib/private-api'
 
 import 'server-only'
 import { getGarminActivities } from '@/lib/garmin'
@@ -12,6 +13,8 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get('x-garmin-test-secret') !== secret) {
     return new Response('Not found', { status: 404 })
   }
+
+  try { await requireHealthAccess(request, 'garmin.read') } catch (error) { return apiError(error) }
 
   try {
     const result = await getGarminActivities(1)

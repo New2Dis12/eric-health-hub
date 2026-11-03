@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "feature/garmin-fit-details": false,
-      "feature/garmin-running-dynamics-laps": false
+      "feature/garmin-running-dynamics-laps": false,
+      "feature/stunna-sprint-1": false
     }
   }
 }
