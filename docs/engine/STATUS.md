@@ -4,7 +4,17 @@
 **Status:** Sprint 1 implementation ready for review; hosted configuration and live acceptance remain blocked on owner setup/approval.
 **Branch:** `feature/stunna-sprint-1`, based on `main` commit `3d204e7` (merged Sprint 0 docs).
 **PR:** [#6 — Sprint 1 secure persistence](https://github.com/New2Dis12/eric-health-hub/pull/6) — open, unmerged.
-**Production:** untouched. No merge, deployment, hosted database, Auth0 settings, provider tokens, training import or real personal-data writes were performed.
+**Production:** untouched. No merge, deployment, Auth0/MCP configuration change, provider-token change, training import or real personal-data write was performed. Separate owner-authorized Neon setup is recorded below.
+
+## External setup progress (2026-11-03)
+
+- Connected Neon and confirmed no pre-existing projects. Created one training PostgreSQL 17 project on the existing Neon Free organization in AWS us-east-1; no Vercel project or replacement identity provider was created.
+- Created isolated `sprint-1-acceptance` database branch. Main remains an empty baseline; migration `001_foundation` and its exact SHA-256 checksum were applied transactionally only to the acceptance branch.
+- Created a separate SQL-defined `stunna_runtime` login. Verified NOSUPERUSER, NOBYPASSRLS, NOCREATEDB, NOCREATEROLE, NOINHERIT and no administrator/owner memberships. A preliminary unused API-created role was replaced before schema setup because Neon management-created roles are privileged by default.
+- Applied the repository runtime grants. All seven training/ancillary tables enforce FORCE RLS, are owned by the separate migration owner, and deny runtime DELETE. No training rows or real health records were inserted.
+- Created a baseline snapshot of the empty main branch. Neon snapshots of child branches are unsupported; a restore drill and acceptance-schema recovery verification remain pending. Current project recovery history is six hours; long-term backup policy remains a release decision.
+- Runtime acceptance credentials were generated and retained privately in ignored local configuration, mode 0600. No secret values or connection strings were added to chat or GitHub. No credentials were placed in Vercel yet.
+- Next owner action: authorize access to the existing Vercel project. Then configure branch-specific Preview variables and the existing Auth0 tenant/client. **Request approval before any preview deployment.** Hosted app/authentication/persistence tests and live Health Hub v2 regressions have not yet run. Current merge recommendation remains **NO-GO pending those checks**.
 
 ## Completed in Sprint 1
 
@@ -31,7 +41,7 @@
 
 Security coverage includes encrypted valid/wrong-account/expired/tampered cookies, real simulated Auth0 code callback, PKCE and secure-cookie flags, anonymous provider-route denial before network access, JWT signature/issuer/audience/expiry/subject checks, separate read/write training scopes, CSRF origin denial, invalid input and bounded bodies. Existing MCP scope and tool discovery pass with browser and database configuration absent.
 
-Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime grants/RLS and service SQL. Tests prove atomic browser/API measurement+session persistence, exact replay, conflict handling, forced rollback after audit failure, cross-athlete denial and up/down/up migration execution. PGlite serializes transactions; hosted connection pooling, verified TLS and real simultaneous PostgreSQL connection behavior still need the release smoke test. Hosted Auth0/provider configuration was not contacted or changed.
+Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime grants/RLS and service SQL. Tests prove atomic browser/API measurement+session persistence, exact replay, conflict handling, forced rollback after audit failure, cross-athlete denial and up/down/up migration execution. PGlite serializes transactions; hosted connection pooling, verified TLS and real simultaneous PostgreSQL connection behavior still need the release smoke test. Hosted Auth0/provider configuration was not contacted or changed. The subsequent Neon setup verification above inspected schema/role settings only; it is not hosted application acceptance.
 
 ## Production impact to review
 
@@ -43,11 +53,11 @@ Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime
 
 ## Outstanding owner prerequisites / acceptance limits
 
-- Provision/approve the PostgreSQL database and restricted runtime login. Configure its URL securely; run migrations with a separate direct owner connection and apply `db/runtime-grants.sql`. Establish private backup retention and perform a hosted restore check.
+- PostgreSQL acceptance branch/schema/runtime grants are prepared. Configure its restricted URL only in the intended Preview branch environment, verify actual pooled/TLS app access, and complete private backup/restore checks. Keep the empty main database untouched until the production release sequence is approved.
 - Configure a suitable **existing** Auth0 web client on the existing tenant, callback/logout URLs, session secret and browser environment values in the existing Vercel project. Keep the MCP client/audience/grants and Garmin/Oura/Upstash credentials intact. No duplicate application is created by this work.
 - After explicit approval for a private preview/deployment, complete the runbook's synthetic login/read/write/RLS test with the actual services and the existing Health Hub v2 connector smoke test. No real training import until auth audit passes. Live production health records have not been read for this implementation.
 - `training.read`/`training.write` permissions are enforced in the new API verifier but not provisioned in Auth0. Browser sessions work without them. Add grants only for an explicitly authorized external training API test; do not modify the existing ChatGPT MCP client in Sprint 1.
-- No known unresolved automated-test failures. Hosted end-to-end acceptance remains unverified because provisioning/configuration/deployment were intentionally not performed.
+- No known unresolved automated-test failures. Hosted end-to-end acceptance remains unverified: Neon schema setup is complete for the isolated branch, but Auth0/Preview configuration, deployment approval and application checks are still pending.
 
 ## Sprint 2 handoff
 
