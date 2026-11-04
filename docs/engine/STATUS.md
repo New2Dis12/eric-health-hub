@@ -1,7 +1,7 @@
 # Stunna Intelligence Engine — Current Status
 
 **As of:** 2026-11-03
-**Status:** Protected Preview browser login/logout and synthetic persistence acceptance passed with owner assistance. Live Health Hub v2 checks passed. Hosted cross-account/CSRF and recovery verification remain incomplete. **NO-GO for merge.**
+**Status:** Protected Preview browser login/logout and synthetic persistence acceptance passed with owner assistance. Live Health Hub v2 checks passed. Hosted runtime cross-subject isolation and logical recovery verification passed. Hosted CSRF verification still awaits the owner-assisted browser result. **NO-GO for merge.**
 **Branch:** `feature/stunna-sprint-1`, based on `main` commit `3d204e7` (merged Sprint 0 docs).
 **PR:** [#6 — Sprint 1 secure persistence](https://github.com/New2Dis12/eric-health-hub/pull/6) — open, unmerged.
 **Production:** untouched. No merge, production deployment, change to the existing Auth0 MCP client/API configuration, provider-token change, training import or real personal-data write was performed. A separate protected Preview was deployed with explicit owner approval. The owner separately configured the unused Default App for browser login. Separate owner-authorized Neon setup is recorded below.
@@ -12,7 +12,7 @@
 - Created isolated `sprint-1-acceptance` database branch. Main remains an empty baseline; migration `001_foundation` and its exact SHA-256 checksum were applied transactionally only to the acceptance branch.
 - Created a separate SQL-defined `stunna_runtime` login. Verified NOSUPERUSER, NOBYPASSRLS, NOCREATEDB, NOCREATEROLE, NOINHERIT and no administrator/owner memberships. A preliminary unused API-created role was replaced before schema setup because Neon management-created roles are privileged by default.
 - Applied the repository runtime grants. All seven training/ancillary tables enforce FORCE RLS, are owned by the separate migration owner, and deny runtime DELETE. No records were inserted during schema setup. Subsequent hosted acceptance inserted synthetic training fixtures only.
-- Created a baseline snapshot of the empty main branch. Neon snapshots of child branches are unsupported; a restore drill and acceptance-schema recovery verification remain pending. Current project recovery history is six hours; long-term backup policy remains a release decision.
+- Created a baseline snapshot of the empty main branch. Neon snapshots of child branches are unsupported; a later logical export/restore drill passed for the complete acceptance schema and synthetic records (details below). Provider snapshot/PITR recovery remains unverified. Current project recovery history is six hours; long-term backup policy remains a release decision.
 - Runtime acceptance credentials were generated and retained privately in ignored local configuration, mode 0600. No secret values or connection strings were added to chat or GitHub. The restricted database URL and a fresh browser-session secret are now stored as sensitive Vercel variables scoped only to PR #6 Preview; no migration-owner URL was uploaded.
 - Connected the existing Vercel project and added seven variables scoped only to `feature/stunna-sprint-1` Preview: restricted DATABASE_URL, new AUTH0_SECRET, existing tenant domain, planned branch APP_BASE_URL, disabled Stunna/Garmin flags, and an empty branch-specific Upstash write-token override. This prevents the acceptance preview from reading or refreshing the production token store. All original variable IDs/settings and the current production deployment remain unchanged. No deployment was created at that setup step.
 - Owner converted the existing unused Auth0 Default App to a Regular Web Application and reported saving the exact Preview callback/logout URLs. Both MCP applications remain unchanged. Public client ID is configured; the owner copied the client secret and authorized User ID directly from Auth0 into branch-specific sensitive Vercel entries. Metadata confirms both placeholders were updated; their secret contents were not read. Subsequent owner-assisted login and authenticated API access verified the browser configuration.
@@ -37,17 +37,34 @@ Owner approved protected Preview-only deployment and tests, with no merge/produc
 | Invalid bearer GET/POST despite valid browser session | PASS — both returned expected 401 |
 | Browser logout and signed-out API denial | PASS — owner confirmed sign-out and subsequent /api/training response {"error":"Unauthorized"} |
 | Independent database/audit verification | PASS — synthetic counts and session revision history verified read-only |
-| Hosted alternate-account / runtime cross-subject denial | UNVERIFIED — local regression passed, hosted verification blocked |
+| Hosted runtime cross-subject denial | PASS — restricted runtime saw zero rows in all seven tables, INSERT denied and UPDATE touched zero rows |
+| Different real Auth0 account login | NOT RUN — local encrypted wrong-account session regression passed |
 | Hosted negative CSRF test | NOT RUN — local regression passed |
-| Hosted recovery / restore drill | NOT RUN — release gate remains open |
+| Hosted logical recovery / restore drill | PASS — fresh database, exact seven-table/ledger comparison, restored grants/RLS and runtime read/write/rollback |
+| Provider snapshot/PITR restore | NOT RUN — child-branch snapshots unavailable; logical restore tested instead |
 
 The synthetic browser suite verified atomic session-plus-measurement writes, exact replay, conflicting idempotency keys, stale revisions, missing-plan rollback, invalid units, concurrent duplicate completion, audited correction, completed-session protection and no-store responses. Final history had one block, one plan, one session and one measurement, with session revision 3. Independent Neon aggregate verification found one athlete, six audit events and five idempotency records. Actual-session audit transitions were null→1→2→3, once each. Only synthetic fixtures were written.
 
 The red browser-console 409/404/400/401 responses are intentional negative tests and were asserted by the script before its final PASS. The Preview's Oura token-storage error is expected from the branch-only empty Upstash token override, which isolates this Preview from production provider tokens. Existing live Oura was checked separately. Do not reconnect Oura or copy production tokens into the Preview to remove that message. The sampled FIT had no power values, so only the nullable power column was verified.
 
-The Vercel protected-fetch connection remains blocked at `read_protection_bypass` with 403. Owner-assisted browser tests proceeded without weakening protection. The owner-role SQL connection cannot SET ROLE to the runtime role under its existing membership settings. A separate direct restricted-runtime read-only check could not connect from the agent environment (DNS EAI_AGAIN). Neither limitation is evidence of failed application isolation, and neither is counted as a hosted isolation pass. Role grants were not changed for the test.
+The earlier Vercel protected-fetch connection failed at `read_protection_bypass` with 403. A later retry was rejected by automatic approval review because the fetch tool creates/reuses a share link lasting up to 23 hours. No share link was created, no protection setting was changed, and the safer owner-assisted browser path remains in use. A no-record-write CSRF probe using same-origin fetch with no-referrer policy was supplied to the owner; its result is still pending.
 
-**Remaining acceptance work:** verify hosted unauthorized-account/runtime RLS denial and negative CSRF behavior, then complete a private recovery drill restoring schema and synthetic records into an isolated destination. Keep production and the empty main database untouched. Do not rerun the create-fixture script against the now-populated acceptance branch. No merge or production deployment is authorized.
+Earlier SQL SET ROLE and direct-network limitations were resolved by the Neon connector's explicit `role_name: stunna_runtime` option. Tests connected directly as the existing restricted role without changing its grants. The unauthorized identity read zero rows from every table, a foreign-athlete INSERT raised insufficient_privilege, and an UPDATE affected zero rows. The original acceptance counts remained unchanged.
+
+## Hosted recovery drill (2026-11-03, Chicago)
+
+- Exported one consistent SQL statement's JSON view of all seven acceptance tables and the migration ledger at 2026-11-04T03:01:17Z (2026-11-03 21:01:17 CST). The private export stayed in transient tool memory and was not posted in chat or committed.
+- Created `sprint-1-recovery-drill` (`br-green-heart-bc6ghc9o`) from the acceptance branch within the existing Neon project. Created a separate **empty** database `stunna_recovery` on that branch. The branch clone alone was not counted as a restore.
+- Recreated the schema from the exact repository migration and transactionally restored exported rows into the empty database, including audit events, idempotency results and the migration ledger. Reapplied repository runtime grants. Migration checksum matched `bdd093446f714a831a4a1a5bbb9d1c3f14bb50d61999a09b4a3ecc3c821a8862`.
+- Compared every restored row/value in all seven tables and the ledger against the private export. All eight comparisons matched exactly. Counts were 1 athlete/block/plan/session/measurement, 6 audit events and 5 idempotency records.
+- Verified all seven restored tables have FORCE RLS, migration-owner ownership, runtime SELECT/INSERT and no runtime DELETE. The runtime retained NOSUPERUSER/NOBYPASSRLS/NOCREATEDB/NOCREATEROLE/NOINHERIT and zero memberships.
+- As the restricted runtime, verified authorized readback and a synthetic measurement INSERT/readback/rollback probe. No probe row remained. Changed to an unauthorized subject and confirmed zero rows. A separate transaction confirmed subject state cleared and no rows were visible without identity.
+- Rechecked original acceptance counts and revision 3, and confirmed the main database still has no training schema. Production domain still resolves to `dpl_EpDV7NVJpJYkYDkeWNK3t8H3bHrX`.
+- Retained the private recovery branch/database for review. No database URL was switched and no deployment was created. A custom suspend-timeout request was rejected by the Free plan; branch creation succeeded with default settings. An initial multi-command prepared-statement attempt rolled back; splitting the same migration into statements restored successfully.
+
+**Recovery limits:** this was a logical export/schema/data restore, not provider snapshot/PITR, an automated scheduled backup, or an application deployment pointed at the restored database. Private durable backup scheduling/retention and production release configuration still need a release decision. Child-branch provider snapshots remain unavailable. Do not treat the empty-main snapshot as a backup of acceptance records.
+
+**Remaining acceptance work:** obtain the owner-assisted hosted CSRF result. A second real Auth0 account has not been exercised on Preview; local encrypted wrong-account tests and hosted database cross-subject tests passed. Keep production and the empty main database untouched. Do not rerun the create-fixture script against the now-populated acceptance branch. No merge or production deployment is authorized.
 
 ## Completed in Sprint 1
 
@@ -74,7 +91,7 @@ The Vercel protected-fetch connection remains blocked at `read_protection_bypass
 
 Security coverage includes encrypted valid/wrong-account/expired/tampered cookies, real simulated Auth0 code callback, PKCE and secure-cookie flags, anonymous provider-route denial before network access, JWT signature/issuer/audience/expiry/subject checks, separate read/write training scopes, CSRF origin denial, invalid input and bounded bodies. Existing MCP scope and tool discovery pass with browser and database configuration absent.
 
-Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime grants/RLS and service SQL. Tests prove atomic browser/API measurement+session persistence, exact replay, conflict handling, forced rollback after audit failure, cross-athlete denial and up/down/up migration execution. PGlite serializes transactions. Subsequent owner-assisted hosted acceptance exercised pooled application persistence and concurrent duplicate requests, and real Auth0 login/logout. Those hosted results are recorded separately above. Hosted alternate-account/runtime isolation, negative CSRF and recovery checks remain pending.
+Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime grants/RLS and service SQL. Tests prove atomic browser/API measurement+session persistence, exact replay, conflict handling, forced rollback after audit failure, cross-athlete denial and up/down/up migration execution. PGlite serializes transactions. Subsequent owner-assisted hosted acceptance exercised pooled application persistence and concurrent duplicate requests, and real Auth0 login/logout. Those hosted results are recorded separately above. Hosted runtime cross-subject isolation and logical recovery now passed. Hosted negative CSRF, a different real Auth0 account and provider snapshot/PITR remain unverified.
 
 ## Production impact to review
 
@@ -86,12 +103,12 @@ Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime
 
 ## Outstanding owner prerequisites / acceptance limits
 
-- Complete hosted alternate-account/runtime RLS and negative CSRF checks. Local tests cover these cases, but hosted evidence is still required.
-- Complete private backup/restore verification with schema, grants, RLS and synthetic record counts. The empty-main snapshot alone does not prove recovery of acceptance training data. Confirm a suitable retention policy before release.
+- Hosted runtime cross-subject RLS checks passed. Complete the owner-assisted hosted negative CSRF check. Different-real-Auth0-account denial remains covered locally only.
+- Logical recovery verification passed with exact restored schema/data/ledger and restricted runtime checks. Establish durable private backup scheduling/retention before production release. Provider snapshot/PITR recovery was not tested.
 - Browser Auth0 and restricted pooled PostgreSQL access work on the approved Preview. Production browser URLs/environment configuration and any production training database setup require a separate approved release plan. Website access fails closed if browser configuration is absent after release.
 - Existing Health Hub v2 live read-only regressions passed. Provider access is intentionally isolated in Preview. Existing MCP client/audience/grants and Garmin/Oura/Upstash credentials remain unchanged.
 - `training.read`/`training.write` scopes are enforced but not provisioned for external clients. Browser sessions do not require these bearer grants. Do not modify existing ChatGPT MCP clients for a training test.
-- No known unresolved automated-test failures. **NO-GO for merge** until remaining acceptance/recovery gates pass and production readiness is reviewed. Merge and production deployment each require the owner's separate approval.
+- No known unresolved automated-test failures. **NO-GO for merge** until the hosted CSRF check and production readiness review are complete. If provider-managed snapshot/PITR is the chosen production recovery method, verify that method separately. Merge and production deployment each require the owner's separate approval.
 
 ## Sprint 2 handoff
 
