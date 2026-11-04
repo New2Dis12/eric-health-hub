@@ -1,7 +1,7 @@
 # Stunna Intelligence Engine — Current Status
 
 **As of:** 2026-11-03
-**Status:** Protected Preview browser login/logout and synthetic persistence acceptance passed with owner assistance. Live Health Hub v2 checks passed. Hosted runtime cross-subject isolation and logical recovery verification passed. Hosted CSRF verification still awaits the owner-assisted browser result. **NO-GO for merge.**
+**Status:** Protected Preview browser login/logout and synthetic persistence acceptance passed with owner assistance. Live Health Hub v2 checks passed. Hosted runtime cross-subject isolation and logical recovery verification passed. Hosted CSRF rejection passed with owner-confirmed HTTP 403 and Origin: null. **Preview acceptance PASS within the recorded coverage; immediate merge NO-GO because production browser authentication configuration is missing.**
 **Branch:** `feature/stunna-sprint-1`, based on `main` commit `3d204e7` (merged Sprint 0 docs).
 **PR:** [#6 — Sprint 1 secure persistence](https://github.com/New2Dis12/eric-health-hub/pull/6) — open, unmerged.
 **Production:** untouched. No merge, production deployment, change to the existing Auth0 MCP client/API configuration, provider-token change, training import or real personal-data write was performed. A separate protected Preview was deployed with explicit owner approval. The owner separately configured the unused Default App for browser login. Separate owner-authorized Neon setup is recorded below.
@@ -39,7 +39,7 @@ Owner approved protected Preview-only deployment and tests, with no merge/produc
 | Independent database/audit verification | PASS — synthetic counts and session revision history verified read-only |
 | Hosted runtime cross-subject denial | PASS — restricted runtime saw zero rows in all seven tables, INSERT denied and UPDATE touched zero rows |
 | Different real Auth0 account login | NOT RUN — local encrypted wrong-account session regression passed |
-| Hosted negative CSRF test | NOT RUN — local regression passed |
+| Hosted negative CSRF test | PASS — signed-in form probe returned Invalid request origin; owner confirmed Network HTTP 403 and Origin: null |
 | Hosted logical recovery / restore drill | PASS — fresh database, exact seven-table/ledger comparison, restored grants/RLS and runtime read/write/rollback |
 | Provider snapshot/PITR restore | NOT RUN — child-branch snapshots unavailable; logical restore tested instead |
 
@@ -47,7 +47,7 @@ The synthetic browser suite verified atomic session-plus-measurement writes, exa
 
 The red browser-console 409/404/400/401 responses are intentional negative tests and were asserted by the script before its final PASS. The Preview's Oura token-storage error is expected from the branch-only empty Upstash token override, which isolates this Preview from production provider tokens. Existing live Oura was checked separately. Do not reconnect Oura or copy production tokens into the Preview to remove that message. The sampled FIT had no power values, so only the nullable power column was verified.
 
-The earlier Vercel protected-fetch connection failed at `read_protection_bypass` with 403. A later retry was rejected by automatic approval review because the fetch tool creates/reuses a share link lasting up to 23 hours. No share link was created, no protection setting was changed, and the safer owner-assisted browser path remains in use. The initial fetch/no-referrer CSRF probe returned 400 Invalid training command. The owner inspected Network and confirmed Chrome retained the exact valid Preview Origin. This was an ineffective test setup, not evidence of a CSRF vulnerability or a hosted rejection pass. Replaced the probe with an invalid text/plain form submission under no-referrer policy; the owner must verify Origin: null and HTTP 403 in Network. JavaScript syntax validation passed. Local browser execution was unavailable because the browser binary download failed. Hosted CSRF remains unverified.
+The earlier Vercel protected-fetch connection failed at `read_protection_bypass` with 403. A later retry was rejected by automatic approval review because the fetch tool creates/reuses a share link lasting up to 23 hours. No share link was created, no protection setting was changed, and the safer owner-assisted browser path remains in use. The initial fetch/no-referrer CSRF probe returned 400 Invalid training command. The owner inspected Network and confirmed Chrome retained the exact valid Preview Origin. This was an ineffective test setup, not evidence of a CSRF vulnerability or a hosted rejection pass. Replaced the probe with an invalid text/plain form submission under no-referrer policy; the owner returned Invalid request origin and confirmed Origin: null and HTTP 403 in Network. JavaScript syntax validation passed. Local browser execution was unavailable because the browser binary download failed. Hosted CSRF rejection is now verified. The invalid text/plain probe cannot create training records.
 
 Earlier SQL SET ROLE and direct-network limitations were resolved by the Neon connector's explicit `role_name: stunna_runtime` option. Tests connected directly as the existing restricted role without changing its grants. The unauthorized identity read zero rows from every table, a foreign-athlete INSERT raised insufficient_privilege, and an UPDATE affected zero rows. The original acceptance counts remained unchanged.
 
@@ -64,7 +64,7 @@ Earlier SQL SET ROLE and direct-network limitations were resolved by the Neon co
 
 **Recovery limits:** this was a logical export/schema/data restore, not provider snapshot/PITR, an automated scheduled backup, or an application deployment pointed at the restored database. Private durable backup scheduling/retention and production release configuration still need a release decision. Child-branch provider snapshots remain unavailable. Do not treat the empty-main snapshot as a backup of acceptance records.
 
-**Remaining acceptance work:** obtain the owner-assisted hosted CSRF result. A second real Auth0 account has not been exercised on Preview; local encrypted wrong-account tests and hosted database cross-subject tests passed. Keep production and the empty main database untouched. Do not rerun the create-fixture script against the now-populated acceptance branch. No merge or production deployment is authorized.
+**Acceptance conclusion:** the owner-assisted hosted CSRF check passed. No unresolved application failure was found in the completed Preview checks. A second real Auth0 account has not been exercised on Preview; local encrypted wrong-account tests and hosted database cross-subject tests passed. Keep production and the empty main database untouched. Do not rerun the create-fixture script against the now-populated acceptance branch. No merge or production deployment is authorized.
 
 ## Completed in Sprint 1
 
@@ -91,7 +91,7 @@ Earlier SQL SET ROLE and direct-network limitations were resolved by the Neon co
 
 Security coverage includes encrypted valid/wrong-account/expired/tampered cookies, real simulated Auth0 code callback, PKCE and secure-cookie flags, anonymous provider-route denial before network access, JWT signature/issuer/audience/expiry/subject checks, separate read/write training scopes, CSRF origin denial, invalid input and bounded bodies. Existing MCP scope and tool discovery pass with browser and database configuration absent.
 
-Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime grants/RLS and service SQL. Tests prove atomic browser/API measurement+session persistence, exact replay, conflict handling, forced rollback after audit failure, cross-athlete denial and up/down/up migration execution. PGlite serializes transactions. Subsequent owner-assisted hosted acceptance exercised pooled application persistence and concurrent duplicate requests, and real Auth0 login/logout. Those hosted results are recorded separately above. Hosted runtime cross-subject isolation and logical recovery now passed. Hosted negative CSRF, a different real Auth0 account and provider snapshot/PITR remain unverified.
+Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime grants/RLS and service SQL. Tests prove atomic browser/API measurement+session persistence, exact replay, conflict handling, forced rollback after audit failure, cross-athlete denial and up/down/up migration execution. PGlite serializes transactions. Subsequent owner-assisted hosted acceptance exercised pooled application persistence and concurrent duplicate requests, and real Auth0 login/logout. Those hosted results are recorded separately above. Hosted runtime cross-subject isolation and logical recovery now passed. Hosted negative CSRF passed. A different real Auth0 account and provider snapshot/PITR remain unverified.
 
 ## Production impact to review
 
@@ -103,12 +103,22 @@ Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime
 
 ## Outstanding owner prerequisites / acceptance limits
 
-- Hosted runtime cross-subject RLS checks passed. Complete the owner-assisted hosted negative CSRF check. Different-real-Auth0-account denial remains covered locally only.
+- Hosted runtime cross-subject RLS and owner-assisted negative CSRF checks passed. Different-real-Auth0-account denial remains covered locally only.
 - Logical recovery verification passed with exact restored schema/data/ledger and restricted runtime checks. Establish durable private backup scheduling/retention before production release. Provider snapshot/PITR recovery was not tested.
 - Browser Auth0 and restricted pooled PostgreSQL access work on the approved Preview. Production browser URLs/environment configuration and any production training database setup require a separate approved release plan. Website access fails closed if browser configuration is absent after release.
 - Existing Health Hub v2 live read-only regressions passed. Provider access is intentionally isolated in Preview. Existing MCP client/audience/grants and Garmin/Oura/Upstash credentials remain unchanged.
 - `training.read`/`training.write` scopes are enforced but not provisioned for external clients. Browser sessions do not require these bearer grants. Do not modify existing ChatGPT MCP clients for a training test.
-- No known unresolved automated-test failures. **NO-GO for merge** until the hosted CSRF check and production readiness review are complete. If provider-managed snapshot/PITR is the chosen production recovery method, verify that method separately. Merge and production deployment each require the owner's separate approval.
+- No known unresolved automated-test failures. **Preview acceptance PASS within the recorded coverage. Immediate merge NO-GO because production browser authentication is not configured.** If provider-managed snapshot/PITR is the chosen production recovery method, verify that method separately. Merge and production deployment each require the owner's separate approval.
+
+## Final release-readiness review
+
+A read-only Vercel environment metadata review on 2026-11-03 confirmed `hiddenProductionEnvCount=0`. The existing production `AUTH0_DOMAIN` and `AUTH0_ALLOWED_SUB` entries are present. Four required browser variables exist only on the PR Preview branch and are absent from Production: `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_SECRET`, and `APP_BASE_URL`. No values were decrypted or changed. Production callback/logout registration on the existing browser application is also unverified.
+
+The application requires those four values to initialize browser authentication. Deploying the PR as currently configured would prevent website login and authenticated Oura browser flows. Existing MCP configuration is independent and its tools remain unchanged. `vercel.json` disables Git deployment for this feature branch but does not disable `main`, so a merge must not be assumed to be deployment-free.
+
+**Recommendation:** keep PR #6 open. Before an approved merge, prepare production browser configuration and its exact callback/logout URLs, or explicitly hold automatic production deployment under an approved release plan. Production training activation additionally requires its own restricted database, migrations/grants and durable backup policy; the synthetic acceptance database must not become production. Stunna can remain disabled while those training-release prerequisites are prepared. Do not copy the Preview's blank Upstash override or Garmin-disable setting into Production. No merge, deployment, production environment change or production database write was performed.
+
+The initial CSRF fetch script was an agent test-design error: Chrome retained the legitimate Preview Origin and returned input-validation 400. The corrected form probe demonstrated actual origin rejection. Only scripts and acceptance documentation changed after the tested application source commit. Existing application test/typecheck/build results remain valid for that unchanged source; corrected script syntax was checked separately.
 
 ## Sprint 2 handoff
 
