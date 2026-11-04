@@ -1,10 +1,10 @@
 # Stunna Intelligence Engine — Current Status
 
 **As of:** 2026-11-03
-**Status:** Protected Preview browser login/logout and synthetic persistence acceptance passed with owner assistance. Live Health Hub v2 checks passed. Hosted runtime cross-subject isolation and logical recovery verification passed. Hosted CSRF rejection passed with owner-confirmed HTTP 403 and Origin: null. **Preview acceptance PASS within the recorded coverage; immediate merge NO-GO because production browser authentication configuration is missing.**
+**Status:** Preview acceptance PASS within recorded coverage. Owner authorized production release preparation, with Stunna disabled and no merge/deployment. Four Production entries are now staged; production Auth0 client secret and URL registration remain pending. **NO-GO for merge/deploy until preparation is complete and separately approved.**
 **Branch:** `feature/stunna-sprint-1`, based on `main` commit `3d204e7` (merged Sprint 0 docs).
 **PR:** [#6 — Sprint 1 secure persistence](https://github.com/New2Dis12/eric-health-hub/pull/6) — open, unmerged.
-**Production:** untouched. No merge, production deployment, change to the existing Auth0 MCP client/API configuration, provider-token change, training import or real personal-data write was performed. A separate protected Preview was deployed with explicit owner approval. The owner separately configured the unused Default App for browser login. Separate owner-authorized Neon setup is recorded below.
+**Production:** live deployment unchanged. Owner-authorized release preparation added four new Production environment entries only. No merge, production deployment, change to existing Auth0 MCP client/API configuration, provider-token change, training import or real personal-data write was performed. A separate protected Preview was deployed with explicit owner approval. The owner separately configured the unused Default App for browser login. Separate owner-authorized Neon setup is recorded below.
 
 ## External setup progress (2026-11-03)
 
@@ -119,6 +119,34 @@ The application requires those four values to initialize browser authentication.
 **Recommendation:** keep PR #6 open. Before an approved merge, prepare production browser configuration and its exact callback/logout URLs, or explicitly hold automatic production deployment under an approved release plan. Production training activation additionally requires its own restricted database, migrations/grants and durable backup policy; the synthetic acceptance database must not become production. Stunna can remain disabled while those training-release prerequisites are prepared. Do not copy the Preview's blank Upstash override or Garmin-disable setting into Production. No merge, deployment, production environment change or production database write was performed.
 
 The initial CSRF fetch script was an agent test-design error: Chrome retained the legitimate Preview Origin and returned input-validation 400. The corrected form probe demonstrated actual origin rejection. Only scripts and acceptance documentation changed after the tested application source commit. Existing application test/typecheck/build results remain valid for that unchanged source; corrected script syntax was checked separately.
+
+## Production preparation checkpoint (owner-authorized, no deployment)
+
+The preceding release-readiness review records the state before this preparation step. On 2026-11-03 the owner authorized Production configuration preparation, explicitly keeping `STUNNA_ENABLED=false` and requiring separate merge/deployment approval.
+
+- Verified `eric-health-hub.vercel.app` is the existing project's verified production domain. The live rollback target remains READY deployment `dpl_EpDV7NVJpJYkYDkeWNK3t8H3bHrX`.
+- Added Production-only `APP_BASE_URL=https://eric-health-hub.vercel.app`, `STUNNA_ENABLED=false`, and the existing Default App's public `AUTH0_CLIENT_ID`.
+- Generated a fresh 32-byte production-only `AUTH0_SECRET`, stored as a sensitive/Secret variable. It was not copied from Preview, printed, or committed.
+- Re-read metadata and verified every previously existing environment entry retained its ID, scope and update timestamp. No MCP, Garmin, Oura or Upstash entry was edited. Neither Preview's blank Upstash token nor its Garmin-disable override was copied.
+- Still pending: owner registers the production callback `https://eric-health-hub.vercel.app/auth/callback` and logout `https://eric-health-hub.vercel.app` on the existing Default App, retaining Preview URLs. There is no Auth0 management connector available; dashboard confirmation is required.
+- Still pending: owner copies that same Default App's existing client secret directly from Auth0 into a Production-only Vercel Secret named `AUTH0_CLIENT_SECRET`. No secret should pass through chat or GitHub; no client-secret rotation is needed. The sensitive Preview value is not read back or reused through tooling.
+- Production Auth0 domain and allowed subject retain their pre-existing values. Hosted production login cannot be verified before a separately approved deployment. URL/settings and environment metadata can be reviewed beforehand.
+
+### Reviewed rollback plan
+
+Before release, retain the current deployment ID above and record the new deployment ID. A failed approved release should be rolled back to the retained known-good deployment only with the owner's rollback approval. This preserves the existing vendor/MCP implementation. The old version restores its former unauthenticated website exposure, so protect website access during that recovery without blocking MCP. Do not delete or rotate provider tokens. No database rollback is needed for an auth-only release while Stunna is false.
+
+A training-only problem after future activation can be contained by setting Stunna false and redeploying with approval, retaining browser auth and additive tables. Do not run destructive schema rollback during ordinary application recovery.
+
+### Required before production Stunna activation
+
+1. Use the existing Neon project with a clean production database/branch, isolated from the synthetic acceptance and recovery branches. The existing empty main branch is a candidate, but no migration or production data write has been authorized/performed in this preparation step.
+2. Create a distinct migration owner and SQL-created restricted production runtime login, with a fresh production credential. Apply the exact versioned migration/checksum and runtime grants. Verify FORCE RLS, no runtime ownership/BYPASSRLS/admin memberships and verified TLS. Store only the pooled runtime URL as a Production Secret; never place migration-owner credentials in Vercel.
+3. Establish durable private backup retention and a recovery objective. The current six-hour history and empty-main baseline snapshot do not constitute a production backup policy. Select a supported provider backup/PITR plan or scheduled encrypted logical exports, approve any paid change separately, and test the chosen method in an isolated restore destination including schema, grants, audit/idempotency records and exact counts.
+4. Complete production-configured synthetic persistence/isolation and recovery validation under explicit approval, then approve Stunna activation separately. Keep production Stunna false and production DATABASE_URL absent until that plan is approved. Do not import health/training records during setup.
+5. Preserve existing MCP/provider configuration and repeat bounded Health Hub v2 regression checks after any separately approved release.
+
+Final release checklist and separate merge/deployment approval request will follow after the two owner steps above and metadata verification. Configuration changes alone do not authorize release.
 
 ## Sprint 2 handoff
 
