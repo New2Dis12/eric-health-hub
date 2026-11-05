@@ -204,10 +204,11 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
     assert.equal(String(input), 'https://tenant.invalid/.well-known/jwks.json')
     return Response.json({ keys: [jwk] })
   })
-  const prior = { client: process.env.AUTH0_CLIENT_ID, db: process.env.DATABASE_URL, garmin: process.env.GARMIN_MCP_ENABLED }
+  const prior = { client: process.env.AUTH0_CLIENT_ID, db: process.env.DATABASE_URL, garmin: process.env.GARMIN_MCP_ENABLED, stunna: process.env.STUNNA_ENABLED }
   delete process.env.AUTH0_CLIENT_ID
   delete process.env.DATABASE_URL
   process.env.GARMIN_MCP_ENABLED = 'true'
+  process.env.STUNNA_ENABLED = 'false'
   const list = async (scope: string) => mcpPost(new Request(origin+'/mcp', {
     method: 'POST', headers: { authorization: await bearer({ scope }), 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
@@ -222,10 +223,24 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
     // Existing MCP contract still requires oura.read, even for Garmin.
     assert.equal((await list('garmin.read')).status, 401)
     assert.equal((await list('training.read training.write')).status, 401)
+
+    process.env.STUNNA_ENABLED = 'true'
+    const toolNames = async (scope: string) => {
+      const response = await list(scope)
+      assert.equal(response.status, 200)
+      return (await response.json()).result.tools.map((tool: { name: string }) => tool.name)
+    }
+    assert.deepEqual(await toolNames('oura.read garmin.read'), ['get_oura_summary', 'get_garmin_activities'])
+    assert.deepEqual(await toolNames('training.read'), ['get_training_context'])
+    assert.deepEqual(await toolNames('oura.read garmin.read training.read'), ['get_oura_summary', 'get_garmin_activities', 'get_training_context'])
+    assert.equal((await list('training.write')).status, 401)
+    assert.equal((await list('garmin.read')).status, 401)
   } finally {
     if (prior.client) process.env.AUTH0_CLIENT_ID = prior.client
     if (prior.db) process.env.DATABASE_URL = prior.db
     if (prior.garmin) process.env.GARMIN_MCP_ENABLED = prior.garmin
     else delete process.env.GARMIN_MCP_ENABLED
+    if (prior.stunna) process.env.STUNNA_ENABLED = prior.stunna
+    else delete process.env.STUNNA_ENABLED
   }
 })

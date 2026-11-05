@@ -3,6 +3,7 @@ import 'server-only'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { createEricHealthMcpServer } from '@/lib/mcp-server'
 import { verifyHealthToken } from '@/lib/auth0'
+import { verifyTrainingBearer } from '@/lib/training/auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,16 +32,18 @@ function unauthorized() {
 }
 
 async function handle(request: Request) {
-  const token = await verifyHealthToken(
-    request.headers.get('authorization'),
-  )
-
-  if (!token || !token.scopes.includes('oura.read')) {
+  const authorization = request.headers.get('authorization')
+  const token = await verifyHealthToken(authorization)
+  const canReadOura = token?.scopes.includes('oura.read') ?? false
+  const trainingToken = process.env.STUNNA_ENABLED === 'true' ? await verifyTrainingBearer(authorization) : null
+  const trainingPrincipal = trainingToken?.scopes.includes('training.read') ? trainingToken : undefined
+  if (!canReadOura && !trainingPrincipal) {
     return unauthorized()
   }
 
   const server = createEricHealthMcpServer(
-    token.scopes.includes('garmin.read'),
+    canReadOura && (token?.scopes.includes('garmin.read') ?? false),
+    { canReadOura, trainingPrincipal },
   )
 
   const transport = new WebStandardStreamableHTTPServerTransport({
