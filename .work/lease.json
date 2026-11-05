@@ -1,0 +1,8 @@
+{
+  "state": "in-progress",
+  "owner": "synthetic-abandoned",
+  "epoch": 1,
+  "spec": "synthetic-workflow-only",
+  "heartbeat": "2000-01-01T00:00:00Z",
+  "expires": "2000-01-01T01:00:00Z"
+}
