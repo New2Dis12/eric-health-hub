@@ -4,6 +4,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getOuraTestResultFromStore } from '@/lib/oura-data'
 import { getGarminActivities, getGarminActivityFit } from '@/lib/garmin'
+import { getTrainingContext } from '@/lib/training/context'
+import { contextDate } from '@/lib/training/context-models'
+import type { TrainingPrincipal } from '@/lib/training/auth'
 
 const measurementSchema = z.object({
   value: z.number().nullable(),
@@ -22,10 +25,13 @@ function errorResult(message: string) {
   return { isError: true, content: [{ type: 'text' as const, text: message }] }
 }
 
-export function createEricHealthMcpServer(canReadGarmin = false) {
+export function createEricHealthMcpServer(canReadGarmin = false, options: {
+  canReadOura?: boolean
+  trainingPrincipal?: TrainingPrincipal
+} = {}) {
   const server = new McpServer({ name: 'eric-health-hub', version: '0.1.0' })
 
-  server.registerTool(
+  if (options.canReadOura !== false) server.registerTool(
     'get_oura_summary',
     {
       title: 'Get Oura summary',
@@ -119,6 +125,23 @@ export function createEricHealthMcpServer(canReadGarmin = false) {
         }
       },
     )
+  }
+
+  const principal = options.trainingPrincipal
+  if (process.env.STUNNA_ENABLED === 'true' && principal?.scopes.includes('training.read')) {
+    server.registerTool('get_training_context', {
+      title: 'Get training context',
+      description: 'Read the saved approved training prescription and calendar for a date. Defaults to today in the athlete’s training time zone. Missing targets or previous performance remain null.',
+      inputSchema: { date: contextDate.optional().describe('Training date in YYYY-MM-DD format') },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, async input => {
+      try {
+        const context = await getTrainingContext(principal, input)
+        return { structuredContent: context, content: [{ type: 'text' as const, text: JSON.stringify(context) }] }
+      } catch {
+        return errorResult('The saved training plan could not be loaded.')
+      }
+    })
   }
 
   return server

@@ -57,9 +57,16 @@ test('migrations are repeatable; down/up recreates the schema and tracks version
   try {
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'up'))
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
+    assert.equal((await fresh.query("SELECT column_name FROM information_schema.columns WHERE table_schema='stunna' AND table_name='prescription_revisions' AND column_name='overview'")).rows.length, 0)
+    await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
+    assert.equal((await fresh.query<{ tab: string | null }>("SELECT to_regclass('stunna.block_context_revisions') AS tab")).rows[0].tab, null)
+    await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
+    assert.equal((await fresh.query<{ tab: string | null }>("SELECT to_regclass('stunna.prescription_revisions') AS tab")).rows[0].tab, null)
+    assert.ok((await fresh.query<{ tab: string | null }>("SELECT to_regclass('stunna.actual_sessions') AS tab")).rows[0].tab)
+    await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
     assert.equal((await fresh.query<{ tab: string | null }>("SELECT to_regclass('stunna.actual_sessions') AS tab")).rows[0].tab, null)
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'up'))
-    assert.equal((await fresh.query('SELECT * FROM public.stunna_schema_migrations')).rows.length, 1)
+    assert.equal((await fresh.query('SELECT * FROM public.stunna_schema_migrations')).rows.length, 4)
   } finally { await fresh.close() }
 })
 

@@ -1,0 +1,30 @@
+# Sprint 2 review and Preview plan
+
+Stunna lives at `/app` in the existing Health Hub. The app and `get_training_context({ date })` read the same approved PostgreSQL prescription. The default date is today in the athlete's saved time zone. The week starts Monday. Prior evidence matches a stable exercise key and comes from before the selected training day. Targets retain their stored units. Missing values are explicit.
+
+Approved snapshots contain a title, ordered typed exercise objects, revision number, approval timestamp, source and reason. The runtime can only read them. An authorized operator can append a higher, complete revision as the migration owner after review. The reader selects the highest approved revision. Reuse a stable exercise key only when the evidence remains comparable. No client or MCP mutation can edit prescriptions, preferences or benchmarks.
+
+## Protected Preview after approval
+
+1. Use the existing Vercel project and the `feature/stunna-sprint-2` branch. Git deployments are disabled for this branch. Approve an explicit protected Preview of the reviewed commit before creating it.
+2. Use only the existing Neon project's isolated `sprint-2-development` branch. All four migrations and the restricted runtime grants have been applied. Use a fresh branch-scoped Preview connection for `stunna_runtime`; keep the migration-owner connection outside Vercel. Never reuse an acceptance, recovery or production database URL.
+3. Set `STUNNA_ENABLED=true` only for that Preview branch. Follow the existing Auth0 Preview setup with exact callback/logout URLs and a fresh session secret. Leave production browser and MCP settings intact. Isolate vendor token access in Preview using the Sprint 1 pattern, including its branch-specific Upstash write-token isolation and Garmin disable flag.
+4. A synthetic plan has been seeded for the authorized browser identity on the development branch. For another browser identity, seed a second synthetic plan for the allowlisted Preview browser subject on the development branch only. Use the trusted Neon SQL interface as the migration owner. In one transaction, set `stunna.allow_synthetic_seed` to `on`, set `stunna.fixture_subject` to the authorized subject privately, and execute [the fixture](../../db/fixtures/sprint-2-synthetic.sql). Set `stunna.fixture_date` to a chosen ISO date if needed. The default anchor is today in Chicago. The fixture refuses to seed an existing subject. Keep the subject and credentials out of GitHub and chat.
+5. At iPhone width, open `/app` signed out and confirm the sign-in screen. Sign in, check Today's workout and the selected calendar day, then navigate to the run, rest day and session with no approved prescription. Verify the strength target is 40 lb in approved revision 2, previous comparable performance is 35 lb, the run target is 6 mph, and unset targets remain explicit. Also open the representative demo dates: 2026-11-05 for the combined running/strength day, 2026-11-06 for rowing, and 2026-11-08 for cycling. Verify segment order, repeat counts, RPE, rowing split/spm and cycling watts/rpm. Try previous/next week and sign out.
+6. For a tool demonstration, use an authorized test token for the existing Auth0 audience and the allowlisted subject with explicit `training.read`. Send MCP `tools/list` and `tools/call` against the protected Preview, then compare the date, revision, exercise order, units, rest and prior performance to the signed-in page. A health-only token must omit the tool. Review approval is required for any Auth0 scope grant or connector reauthorization. Existing Production health clients retain their current grants. Actual ChatGPT discovery is pending, and cached tool schemas may need refreshing.
+
+The repository includes only synthetic examples. Production activation remains a separate release decision. Roll back the UI and tool independently by leaving Stunna disabled. Reverting the app does not require dropping the additive tables. The migration runner requires explicit destructive rollback opt-in before removing the latest migration. Back up any approved persistent records first and reapply grants after an upgrade.
+
+## Methodology correction fixtures
+
+Migration 003 adds versioned block guidance and explicit evidence verification/comparison context. After the base fixture, execute `db/fixtures/sprint-2-representative.sql` in the same development-only opt-in transaction. It refuses repeat seeding. Existing benchmark rows default to unverified after migration 003 and require reviewed status before they appear as previous performance.
+
+The four supplied reference documents informed the representation only. Real import, automatic recurrence scheduling, recovery decisions and coaching approval workflows remain separate work. See [the model review](SPRINT_2_MODEL_REVIEW.md).
+
+## Calendar and overview review
+
+Open `/app` for Today. All selected-day workout overviews appear directly below the existing weekly calendar. Selecting another calendar date immediately displays that day's overviews on the same page. Multiple workouts each have their own summary and disabled Start Workout action. Scheduled clock times and intermediate workout-card navigation are omitted.
+
+Each overview uses the saved objective/rationale, duration range and intended RPE. Major exercises and interval structure appear before adjustment rules. Detailed targets and prior performance remain available in a collapsed read-only section. Start Workout sits at the bottom of each overview and is disabled until Sprint 3. The UI contains no actual-set or interval logging controls.
+
+The read-only `scripts/browser-sprint-2-acceptance.js` checks Today, selected calendar dates, all inline overviews, absent clock times, collapsed details, no data-entry controls and independent disabled Start Workout buttons. Use this version instead of the earlier card-navigation test.

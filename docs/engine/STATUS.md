@@ -1,10 +1,86 @@
 # Stunna Intelligence Engine — Current Status
 
-**As of:** 2026-11-04
-**Status:** Preview acceptance PASS within recorded coverage. Production browser configuration is prepared, with Auth0 URL registration owner-confirmed and Vercel variable scope/type verified. **GO recommendation for an approved release of PR #6 with STUNNA_ENABLED=false. Awaiting separate merge/deployment approval. Stunna activation remains NO-GO pending production database and backups.**
-**Branch:** `feature/stunna-sprint-1`, based on `main` commit `3d204e7` (merged Sprint 0 docs).
-**PR:** [#6 — Sprint 1 secure persistence](https://github.com/New2Dis12/eric-health-hub/pull/6) — open, unmerged.
-**Production:** live deployment unchanged. Owner-authorized release preparation added five new Production environment entries only. No merge, production deployment, change to existing Auth0 MCP client/API configuration, provider-token change, training import or real personal-data write was performed. A separate protected Preview was deployed with explicit owner approval. The owner separately configured the unused Default App for browser login. Separate owner-authorized Neon setup is recorded below.
+**As of:** 2026-11-05
+**Sprint 2:** Final iPhone interface approved by owner. Release authorized with Stunna disabled; final review and checks passed. Production verification follows the squash merge.
+**Review:** [PR #7](https://github.com/New2Dis12/eric-health-hub/pull/7).
+**Sprint 1 production:** PR #6 was squash-merged and Vercel deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` was verified READY. Production Auth0 login/callback/logout, signed-out denial, Garmin original FIT/dynamics/native laps and Oura passed. Production Stunna is disabled and production training data remains unconnected. The detailed release record from the Sprint 1 branch is preserved below.
+
+## Sprint 2 — Stunna Workout Interface
+
+- Private, responsive `/app` in the existing Health Hub, with Today, week calendar, day/week navigation, ordered exercises, prescriptions, rest, prior comparable performance and explicit empty/missing states.
+- Migration `002_prescriptions` adds append-only approved prescription snapshots with reasons, athlete display preferences, and reviewed prior-performance benchmarks. Stable exercise keys link comparisons. Session order follows saved times and exercise order follows the snapshot array. The existing Sprint 1 planned-session revision remains independent of the approved prescription revision.
+- The browser and read-only `get_training_context` MCP tool use the same server service. The tool requires the allowlisted subject, `training.read` and `STUNNA_ENABLED=true`. Existing Oura and Garmin tool grants remain independent. The page requires an authorized Auth0 browser session. The server limits results to one week and the first eight workouts on the selected date, with an explicit overflow indicator.
+- Production configuration and integrations were preserved. The branch is excluded from Vercel Git deployments. Sprint 3 set entry and RPE logging, a plan approval editor, and real Markdown import are deferred.
+
+## Sprint 2 verification
+
+| Check | Result |
+|---|---|
+| `pnpm test` | 58 passed, 0 failed, 0 skipped. Covers corrected revisions, previous performance, timezone/calendar behavior, cross-subject RLS, read-only permissions, migration down/up and MCP scope/flag discovery. |
+| `pnpm typecheck` and `pnpm build` | Passed. `/app` is server-rendered on demand. |
+| Built-app HTTP smoke | Disabled `/app` and training returned 404. Enabled signed-out `/app` showed only the private sign-in screen, training returned 401, and MCP retained 401. |
+| Hosted Neon development checks | Applied both migrations and ledger entries to `sprint-2-development` (`br-patient-cell-bcl0go17`) in the existing project. The restricted runtime saw 3 scheduled workouts, 3 revisions, 2 benchmarks and 1 preference row for the synthetic subject. Revision 2 had the corrected 40 lb target. All 3 new tables enforce FORCE RLS with read-only runtime grants. An unrelated subject saw zero rows. |
+
+Hosted browser login and ChatGPT discovery for Sprint 2 await an approved protected Preview. The isolated database contains only synthetic fixtures. The demonstration and approval steps are in [Sprint 2 operations](SPRINT_2_OPERATIONS.md).
+
+## Methodology review and protected Preview checkpoint
+
+Reviewed the four privately supplied methodology references without importing their records. [Model assessment](SPRINT_2_MODEL_REVIEW.md) documents the fit and scope boundaries. The model now supports typed target ranges, target RPE, warm-ups, ordered repeated interval blocks, optional exercises, equipment conventions, conditional alternatives, and versioned weekly guidance. Migration 003 preserves the applied migration 002 checksum and defaults prior evidence to unverified until explicitly reviewed.
+
+Hosted restricted-role checks on the same Sprint 2 development branch passed. The synthetic subject has six dated workouts, including two on the combined training day, seven prescription revisions and one block-context revision. Four new read-only tables enforce FORCE RLS; an unrelated subject saw zero prescriptions and weekly guidance. Added a separate synthetic fixture for the authorized browser identity so the signed-in Preview can read demo content. No supplied personal prescriptions or health history were imported.
+
+Preview config is scoped to `feature/stunna-sprint-2` in the existing Vercel project. The existing Default App and tenant are reused. Nine entries were prepared, including a fresh session secret, the isolated runtime database URL, Stunna enabled only for Preview, and vendor-token isolation. The owner has saved the Default App client secret as a Preview-only branch Secret and reported registering the exact Preview callback/logout URLs. Existing Production entries and the Sprint 1 Preview entries were not edited. Production Stunna stays false.
+
+The Preview remains under Vercel Authentication. Hosted browser and MCP acceptance remain pending until callback/client-secret configuration and a scoped test token are available. The local build initially encountered a corrupt Turbopack cache; a clean rebuild passed. Subsequent model changes are covered by the final checks reported with the Preview.
+
+## Approved Sprint 2 Preview deployment
+
+Protected Preview: https://eric-health-hub-git-feature-stunna-sprint-2-stunna4.vercel.app/app
+
+Initial Vercel deployment `dpl_91Tngocs3ZdY9LCXVNdCmtrJd3jj` was superseded by refreshed protected Preview `dpl_FBYmXCx3q6u2DnjCehugZyfGx3i9`, READY on source commit `19e7e98f0d73f41d076fd8986cd9aab28c3ff4eb`. Application code matches tested `de72fa6`; intervening changes are documentation only. The existing project uses Vercel Authentication for Preview deployments, and the exact branch alias is assigned. Production remains READY deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` at the Sprint 1 commit. Existing Production environment metadata was re-read and is unchanged, including `STUNNA_ENABLED=false`. Sprint 1 Preview entries were also preserved.
+
+Final local verification passed 58 tests, typecheck, and build. Hosted restricted runtime verified the two-workout combined day, seven synthetic prescription versions, one methodology revision and four read-only FORCE RLS tables per subject. An unrelated subject saw zero prescriptions and guidance. All fixtures are synthetic. The supplied four files were used only to evaluate the model.
+
+The owner reported saving the Preview Auth0 settings. Metadata showed the newly added `AUTH0_CLIENT_SECRET` was scoped to all Preview branches. Its scope was narrowed to `feature/stunna-sprint-2` without reading or replacing its value. Re-read metadata confirms type sensitive/Secret, target Preview only and the exact branch. The Production client-secret entry and all other Production environment metadata remain unchanged.
+
+The approved Preview was refreshed so it receives that secret. The exact branch alias resolves to the new READY deployment. Callback/logout registration is owner-reported saved; real login/callback/logout and signed-in page acceptance still require the owner's browser session. No protected share link or deployment-protection bypass was created.
+
+A syntax-checked, read-only [browser acceptance script](../../scripts/browser-sprint-2-acceptance.js) exercises five dated pages, expected workout titles/counts, approved revisions, strength and interval targets, missing prescriptions and selected calendar state. It prints only pass/fail with synthetic dates. Its hosted result remains pending. Hosted MCP parity still requires a scoped test token. PR #7 remains open and unmerged.
+
+iPhone review routes after configuration:
+- `/app?date=2026-11-04` — strength, approved correction and previous evidence.
+- `/app?date=2026-11-05` — ordered run plus strength, work/recovery segments, rep/RPE ranges and an authored substitution.
+- `/app?date=2026-11-06` — distance-based rowing, seconds/500m and strokes/min.
+- `/app?date=2026-11-07` — explicit missing prescription.
+- `/app?date=2026-11-08` — cycling watts and rpm.
+
+Hosted MCP discovery/call also awaits an authorized test token with `training.read`; no existing Production MCP grant or client setting was changed. Keep PR #7 unmerged until signed-in app/MCP parity and owner iPhone review pass. Weekly recurrence materialization, coaching proposal/approval decisions, automatic recovery adjustments and actual-set logging remain future work. See [the model assessment](SPRINT_2_MODEL_REVIEW.md).
+
+## Calendar and inline Workout Overviews
+
+The final owner-requested UX is Calendar → Workout Overview → Start Workout, with Calendar and Workout Overview on the same screen. `/app` defaults to Today, and selecting a date immediately renders every scheduled workout's overview below the calendar. The intermediate card and workout-selection navigation were removed. Older URLs carrying a workout parameter still display that date's overviews.
+
+The existing calendar, dark green/lime design and clock-free presentation are retained. Each overview shows objective, saved rationale, duration estimate, intended intensity, major exercises/interval structure and adjustment/substitution rules. Prescribed details and previous performance remain collapsed by default. Each workout has an independent disabled Start Workout action at the bottom, with a unique accessible status description.
+
+This refinement changes presentation only. The existing shared service and authored overview metadata remain the source of truth, and database records were not changed. Browser authentication and the Stunna flag still guard the route. All 58 tests, typecheck and build passed. The read-only browser acceptance script now checks Today, calendar selection, all inline overviews, collapsed details, absence of card navigation/clock times/data entry, and independent disabled Start Workout controls across six synthetic workouts.
+
+The refreshed protected Preview is READY: [open Stunna](https://eric-health-hub-git-feature-stunna-sprint-2-stunna4.vercel.app/app). Deployment `dpl_jbjZ3MFLQzexpptsnVFtUxj2jBBT` serves application commit `2415b5bdfaf17651d4b03dceb7b6f686397198ea` and owns the Sprint 2 branch alias. Signed-in visual acceptance of this final inline layout and the read-only browser script remain pending owner review; deployment readiness does not establish those results. PR #7 remains open and unmerged.
+
+After refresh, Production still serves Sprint 1 deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` at commit `c6d11c3fcba9651ac40420a6f197866e08ee2a92`. Production environment IDs/scopes/update timestamps match the pre-refinement snapshot, and `STUNNA_ENABLED=false`. No database, credential, provider integration or Production deployment change was made.
+
+## Final Sprint 2 release review — 2026-11-05
+
+The owner completed the protected iPhone Preview review and approved the final interface and squash merge of PR #7, with normal Production deployment and `STUNNA_ENABLED=false`. No further UX changes were made. Final application source `2415b5bdfaf17651d4b03dceb7b6f686397198ea` and documentation head `035d73f04b04976a2fa553af4263e78c9acff17f` passed all 58 tests, typecheck and production build in the release review. GitHub reported mergeable with no unresolved review threads. The focused review found no material security blocker: training routes/tool remain flag-gated, browser and bearer authorization remain separate, database access is subject-scoped, and legacy health-tool behavior has regression coverage.
+
+Production metadata was checked before merge: Stunna is false; no Production DATABASE_URL exists; browser-auth variables are present; existing health/provider/MCP environment entries are unchanged. No Production database migration, personal-record import, scope expansion or Stunna activation is authorized.
+
+Owner visual approval is recorded; the console browser acceptance harness was not reported as executed. Hosted `get_training_context` discovery/call parity remains blocked by an authorized test token with explicit `training.read`. Local browser/API principal parity tests pass. The owner expressly approved deferring hosted parity until before activation, so this limitation does not block the disabled-feature release. Earlier unmerged/pending-review checkpoints below are historical.
+
+Merge commit and resulting Production deployment and functional checks will be recorded after the release. Sprint 3 is plan-only until owner review; it must retain one ChatGPT coaching conversation, one Stunna app and one shared PostgreSQL truth, preserving the existing methodology and prescribed-versus-actual separation.
+
+## Sprint 1 release history
+
+The following checkpoints preserve the Sprint 1 acceptance, recovery, configuration and production verification record. Pre-release notes describe the state at those checkpoints.
 
 ## External setup progress (2026-11-03)
 
@@ -110,7 +186,7 @@ Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime
 - `training.read`/`training.write` scopes are enforced but not provisioned for external clients. Browser sessions do not require these bearer grants. Do not modify existing ChatGPT MCP clients for a training test.
 - No known unresolved automated-test failures. **Preview acceptance PASS within the recorded coverage. GO recommendation for a separately approved release with Stunna disabled; production preparation is now complete as documented below.** If provider-managed snapshot/PITR is the chosen production recovery method, verify that method separately. Merge and production deployment each require the owner's separate approval.
 
-## Final release-readiness review (2026-11-04)
+## Pre-release readiness review (2026-11-04, historical)
 
 **Recommendation: GO for PR #6 release with `STUNNA_ENABLED=false`, subject to separate owner approval for merge and production deployment. NO-GO for activating production Stunna.** This is release readiness, not a claim that production login has already been tested.
 
@@ -130,8 +206,8 @@ Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime
 - [x] Local tests/typecheck/build and hosted Preview auth, CSRF, persistence, isolation and logical restore passed within documented limits.
 - [x] Existing Health Hub v2 live regression checks passed during Preview acceptance.
 - [x] Known-good production deployment and rollback procedure recorded.
-- [ ] Owner explicitly approves merge and resulting Production deployment. Feature-branch Git deployment is disabled, but main deployment is not disabled; merging must be treated as potentially deploying.
-- [ ] After approved deployment, verify real production login/callback/logout, signed-out private API denial, training API disabled, and public legal/MCP metadata behavior. Repeat bounded Oura/Garmin FIT/dynamics/laps regressions through existing read-only tools. Do not connect/reconnect providers or mutate production health records.
+- [x] Owner explicitly approved merge and resulting Production deployment. Feature-branch Git deployment is disabled, but main deployment is not disabled; merging must be treated as potentially deploying.
+- [x] Verified production login/callback/logout, signed-out private API denial, disabled training, public legal routes and MCP OAuth challenge. Bounded Oura/Garmin FIT/dynamics/laps regression checks passed through the existing read-only tools.
 - [ ] If release verification fails, stop and report; request approval before reverting to the recorded deployment.
 
 Intentional production changes remain browser login protection on the website/Oura browser routes and added Auth0 authorization for the Garmin diagnostic endpoint alongside its existing diagnostic secret. Existing MCP tool names and provider implementations remain unchanged.
@@ -166,12 +242,27 @@ A training-only problem after future activation can be contained by setting Stun
 
 The two owner setup steps and metadata verification are complete. The final checklist above is ready for separate merge/deployment approval. Configuration changes alone do not authorize release.
 
-## Sprint 2 handoff
+## Production release verification (2026-11-04, Chicago)
 
-Do not infer existing prescriptions or import personal training Markdown into GitHub. After Sprint 1 review and hosted auth/database acceptance, implement Sprint 2: review/import the authoritative current block, schedule, exercise/interval targets, baselines, preferences and correction history into private PostgreSQL; add the mobile Today/calendar surfaces and a scoped read-only `get_training_context` MCP tool using the shared service layer. Preserve existing MCP tools and health integrations. No set-player logging, Garmin auto-matching, analytics or coaching plan-approval workflow was implemented early.
+Owner approved the Sprint 1 foundation release with Stunna disabled. GitHub squash-merged PR #6 into main at `c6d11c3fcba9651ac40420a6f197866e08ee2a92`. Vercel built that exact commit as Production deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz`, reported READY, and assigned the production domain. [Deployment details](https://vercel.com/stunna4/eric-health-hub/62ywMnN3hzybcUJgpyZtxz3vJfQz).
 
-The Sprint 1 block/planned-session models are minimal and append-only. Add exercise prescription/preferences/approved-revision entities through a new migration. Actual-session correction currently covers notes/RPE only after completion; measurements have no correction endpoint yet. Audit records track actor/reason/source/entity/revisions, not old health-value snapshots. Offset history is bounded and intended as a diagnostic foundation; design cursor pagination before large history use. Never treat an in-progress session as a verified completed workout or infer missing exercise targets.
+| Check | Result |
+|---|---|
+| Production environment | `STUNNA_ENABLED=false`, required browser-auth keys present, no Production `DATABASE_URL` |
+| Auth0 login/callback/logout | PASS. Login redirected to Auth0 with the exact production callback URL. Owner confirmed return to Health Hub with Sign out visible and return to the private sign-in screen after logout. |
+| Unauthorized requests | PASS. Signed-out homepage showed Private Health Hub. Oura test and authorize endpoints returned 401. Garmin diagnostic endpoint returned 404 without its diagnostic secret. |
+| Disabled training | PASS. `GET /api/training` returned 404. |
+| MCP and public pages | PASS. Anonymous `/mcp` returned a bearer challenge with 401. Privacy and terms returned 200. |
+| Garmin listing and original FIT | PASS. Existing tool returned five activities and a bounded 12-sample FIT page. Heart rate, pace, cadence and distance were populated. The sample contained no recorded power values. |
+| Garmin running dynamics and native laps | PASS. Ground contact time, vertical oscillation, ground contact time balance and vertical ratio populated. Two native laps and separate continuation requests for samples and laps passed. |
+| Oura | PASS. Existing tool returned all four populated summary fields. |
 
-Suggested next prompt:
+The Health Hub v2 connector requested reauthentication on the initial calls and accepted it. The retry passed. Vercel runtime log access returned 403, so observability was limited to deployment metadata and direct functional checks. No critical functional check failed. No provider configuration or credentials were edited during release, no production training database was connected or migrated, and no rollback was performed.
 
-> Implement Sprint 2 of Stunna Intelligence Engine in `New2Dis12/eric-health-hub` using the current engine docs and Sprint 1 services. First verify Sprint 1 has been approved and its hosted auth/database acceptance is complete; report any remaining blocker before importing data. Review the authoritative training sources, add versioned private prescription/preferences storage and mobile Today/calendar views, then expose scoped read-only `get_training_context` without changing existing Health Hub v2 tools. Test, typecheck, build, update STATUS, and open an unmerged PR. Do not deploy without approval.
+Before Stunna activation, complete the clean production database, restricted runtime role, migration/grant verification, durable backups and restore drill described above. Activation and Sprint 2 each require separate authorization. The rollback target remains `dpl_EpDV7NVJpJYkYDkeWNK3t8H3bHrX`. Request owner approval before invoking rollback.
+
+This post-release record is committed on the deployment-disabled Sprint 1 branch to avoid a second production build from a documentation-only push to main.
+
+## Handoff after Sprint 2 review
+
+Review the protected Preview first. Production activation requires separate approval, a clean production database with restricted credentials and verified grants/RLS, durable private backups and a tested production recovery method. Sprint 3 may add the player and actual set logging against stable prescription/exercise identities after authorization. Review real training sources before any separately authorized import.

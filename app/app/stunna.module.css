@@ -1,0 +1,90 @@
+.shell {
+  color-scheme: dark;
+  color: #f4f7f4;
+  background: radial-gradient(ellipse at top right, #17332b 0, transparent 32rem), #0d1714;
+  flex: 1;
+  padding: 24px 16px 56px;
+}
+
+.content { max-width: 780px; margin: auto; }
+.topline, .calendarHead, .dayNav, .scheduleLabel { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.brand { display: inline-flex; gap: 8px; align-items: center; font-weight: 750; font-size: 20px; }
+.brand svg, .eyebrow { color: #c9f779; }
+.hubLink { padding: 12px 0 12px 12px; color: #c6d6cd; font-size: 14px; }
+.hero { margin: 28px 0 24px; }
+.content h1 { font-size: clamp(35px, 8vw, 62px); line-height: 1.02; letter-spacing: -.055em; font-weight: 750; margin: 7px 0 12px; }
+.eyebrow { display: flex; align-items: center; gap: 7px; text-transform: uppercase; font-size: 11px; font-weight: 750; letter-spacing: .105em; }
+.muted, .cue { color: #c3d2c9; overflow-wrap: anywhere; }
+.calendar, .workout, .empty { border: 1px solid #344a40; border-radius: 20px; background: #172621; }
+.calendar { padding: 14px; }
+.calendarHead p + p { font-size: 13px; margin-top: 4px; color: #e1e9e3; }
+.arrows { display: flex; gap: 6px; }
+.iconButton, .button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: #293c33; }
+.iconButton { width: 44px; }
+.button { padding: 0 14px; margin-top: 10px; }
+.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 14px 0 3px; list-style: none; padding: 0; }
+.days a { display: flex; align-items: center; flex-direction: column; padding: 7px 0; border-radius: 10px; gap: 2px; background: #22342b; }
+.days a span { font-size: 10px; }
+.days strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+.days a[aria-current] { background: #c9f779; color: #142417; }
+.marker { height: 5px; width: 5px; border-radius: 50%; background: transparent; }
+.marker[data-scheduled=true] { background: #c9f779; }
+.days a[aria-current] .marker[data-scheduled=true] { background: #28442d; }
+.dayNav a { min-height: 44px; display: inline-flex; align-items: center; font-size: 13px; color: #d2e4d8; }
+.scheduleLabel { margin: 23px 3px 8px; color: #b8cbbf; font-size: 12px; }
+.schedule { display: grid; gap: 14px; }
+.workout { overflow: hidden; }
+.workoutHeader, .exerciseList, .revision, .empty { padding: 16px; }
+.workoutHeader h2, .empty h2 { margin: 4px 0; font-size: 24px; font-weight: 700; letter-spacing: -.025em; }
+.block { margin-top: 9px; font-size: 13px; color: #c7d7cd; overflow-wrap: anywhere; }
+.exerciseList { padding-top: 0; padding-bottom: 0; margin: 0; list-style: none; }
+.exercise { display: grid; grid-template-columns: 29px minmax(0, 1fr); gap: 9px; padding: 15px 0; border-top: 1px solid #344a40; }
+.position { color: #c9f779; font-variant-numeric: tabular-nums; font-size: 13px; padding-top: 3px; }
+.exercise h3 { font-weight: 700; font-size: 17px; overflow-wrap: anywhere; }
+.targets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+.targets div { padding: 7px 6px; background: #24362e; border-radius: 8px; overflow-wrap: anywhere; }
+.targets dt { font-size: 10px; color: #c0d2c6; text-transform: uppercase; letter-spacing: .04em; }
+.targets dd { font-size: 13px; font-weight: 650; margin: 2px 0 0; }
+.cue, .previous { font-size: 13px; margin: 5px 0 0; }
+.previous { color: #c8d9ce; }
+.previous strong { color: #e8f3ea; margin-right: 4px; }
+.revision { background: #213229; color: #c4d8cb; font-size: 12px; overflow-wrap: anywhere; }
+.revision span { font-weight: 700; }
+.revision p { margin: 3px 0 0; }
+.workout > .empty { margin: 0 16px 16px; }
+.shell a:focus-visible { outline: 2px solid #dbff9d; outline-offset: 3px; }
+
+@media (min-width: 560px) {
+  .shell { padding: 36px 28px 72px; }
+  .calendar, .workoutHeader, .revision, .empty { padding: 20px; }
+  .exerciseList { padding-inline: 20px; }
+  .days { gap: 8px; }
+}
+
+.segments, .condition { margin: 10px 0; padding: 10px; border-radius: 8px; background: #1d3027; font-size: 13px; overflow-wrap: anywhere; }
+.segments h4 { color: #d3f6a6; font-weight: 700; }
+.segments ol { list-style: decimal; padding-left: 18px; display: grid; gap: 6px; margin-top: 5px; }
+.condition { border-left: 2px solid #c9f779; }
+.methodology { margin-top: 18px; padding: 14px; border: 1px solid #344a40; border-radius: 12px; font-size: 13px; }
+.methodology summary { cursor: pointer; min-height: 32px; }
+.methodology ul, .methodology ol { padding-left: 18px; list-style: disc; display: grid; gap: 5px; }
+
+.overviewBody { padding: 0 20px 20px; }
+.overviewMetrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
+.overviewMetrics div { padding: 12px; border: 1px solid #3b5145; border-radius: 12px; background: #21382c; }
+.overviewMetrics dt { color: #bfd1c4; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.overviewMetrics dd { font-size: 16px; font-weight: 650; margin-top: 5px; }
+.overviewSection { margin: 20px 0; }
+.overviewSection h3 { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+.overviewSection p { color: #c9d9cf; line-height: 1.6; overflow-wrap: anywhere; }
+.planOutline { list-style: decimal; padding-left: 21px; display: grid; gap: 13px; color: #c9f779; }
+.planOutline strong, .planOutline span { display: block; color: #edf5ef; }
+.planOutline span { font-size: 13px; color: #c0d4c7; margin-top: 3px; }
+.adjustmentOutline { display: grid; gap: 12px; list-style: none; padding: 0; }
+.adjustmentOutline li { border-left: 2px solid #94b96a; padding-left: 12px; font-size: 14px; }
+.startArea { border-top: 1px solid #344a40; padding: 20px; }
+.startWorkout { width: 100%; min-height: 52px; border-radius: 12px; background: #c9f779; color: #142417; font-size: 16px; font-weight: 750; }
+.startWorkout:disabled { cursor: not-allowed; background: #435540; color: #d0dfc8; }
+.startArea p { color: #c0d0c4; font-size: 12px; text-align: center; margin-top: 9px; }
+.prescriptionDetails { border-top: 1px solid #344a40; }
+.prescriptionDetails summary { cursor: pointer; padding: 16px 20px; min-height: 48px; color: #c7d9cb; font-size: 13px; }

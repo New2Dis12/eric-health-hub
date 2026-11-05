@@ -29,6 +29,7 @@ export default async function HomePage({
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-16 md:py-24">
       <a href="/auth/logout">Sign out</a>
+      {process.env.STUNNA_ENABLED === 'true' && <a href="/app" className="ml-4 font-semibold text-primary">Open Stunna</a>}
       {oura ? <ConnectionStatus status={oura} /> : null}
       <section className="max-w-2xl">
         <p className="text-sm font-medium text-primary">Personal health data hub</p>
