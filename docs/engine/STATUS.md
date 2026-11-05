@@ -300,3 +300,7 @@ This post-release record is committed on the deployment-disabled Sprint 1 branch
 ## Handoff after Sprint 2 review
 
 Review the protected Preview first. Production activation requires separate approval, a clean production database with restricted credentials and verified grants/RLS, durable private backups and a tested production recovery method. Sprint 3 may add the player and actual set logging against stable prescription/exercise identities after authorization. Review real training sources before any separately authorized import.
+
+## Workflow #8 orchestration update — 2026-11-05
+
+Prepared the [development workflow](DEVELOPMENT_WORKFLOW.md), cooperative per-issue branch leases with expected-head fencing, 12 synthetic policy tests and a configured hourly scanner that distinguishes active/stale/legacy/blocked/review/done. Old comments no longer imply perpetual activity. PR #11 demonstrated real event review; unattended scanner discovery/skip was observed. Live recovery and duplicate-event evidence and remaining limits are recorded in issue #8. No Sprint 3, merge, deployment or Production changes are included. Workflow changes remain on a review branch until separately approved.
