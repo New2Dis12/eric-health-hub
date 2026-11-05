@@ -1,7 +1,7 @@
 # Stunna Intelligence Engine — Current Status
 
 **As of:** 2026-11-05
-**Sprint 2:** Methodology review corrections implemented; protected Preview preparation approved. Review ready on `feature/stunna-sprint-2`, based on `main` commit `c6d11c3fcba9651ac40420a6f197866e08ee2a92`.
+**Sprint 2:** Final iPhone interface approved by owner. Release authorized with Stunna disabled; final review and checks passed. Production verification follows the squash merge.
 **Review:** [PR #7](https://github.com/New2Dis12/eric-health-hub/pull/7).
 **Sprint 1 production:** PR #6 was squash-merged and Vercel deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` was verified READY. Production Auth0 login/callback/logout, signed-out denial, Garmin original FIT/dynamics/native laps and Oura passed. Production Stunna is disabled and production training data remains unconnected. The detailed release record from the Sprint 1 branch is preserved below.
 
@@ -67,6 +67,16 @@ This refinement changes presentation only. The existing shared service and autho
 The refreshed protected Preview is READY: [open Stunna](https://eric-health-hub-git-feature-stunna-sprint-2-stunna4.vercel.app/app). Deployment `dpl_jbjZ3MFLQzexpptsnVFtUxj2jBBT` serves application commit `2415b5bdfaf17651d4b03dceb7b6f686397198ea` and owns the Sprint 2 branch alias. Signed-in visual acceptance of this final inline layout and the read-only browser script remain pending owner review; deployment readiness does not establish those results. PR #7 remains open and unmerged.
 
 After refresh, Production still serves Sprint 1 deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` at commit `c6d11c3fcba9651ac40420a6f197866e08ee2a92`. Production environment IDs/scopes/update timestamps match the pre-refinement snapshot, and `STUNNA_ENABLED=false`. No database, credential, provider integration or Production deployment change was made.
+
+## Final Sprint 2 release review — 2026-11-05
+
+The owner completed the protected iPhone Preview review and approved the final interface and squash merge of PR #7, with normal Production deployment and `STUNNA_ENABLED=false`. No further UX changes were made. Final application source `2415b5bdfaf17651d4b03dceb7b6f686397198ea` and documentation head `035d73f04b04976a2fa553af4263e78c9acff17f` passed all 58 tests, typecheck and production build in the release review. GitHub reported mergeable with no unresolved review threads. The focused review found no material security blocker: training routes/tool remain flag-gated, browser and bearer authorization remain separate, database access is subject-scoped, and legacy health-tool behavior has regression coverage.
+
+Production metadata was checked before merge: Stunna is false; no Production DATABASE_URL exists; browser-auth variables are present; existing health/provider/MCP environment entries are unchanged. No Production database migration, personal-record import, scope expansion or Stunna activation is authorized.
+
+Owner visual approval is recorded; the console browser acceptance harness was not reported as executed. Hosted `get_training_context` discovery/call parity remains blocked by an authorized test token with explicit `training.read`. Local browser/API principal parity tests pass. The owner expressly approved deferring hosted parity until before activation, so this limitation does not block the disabled-feature release. Earlier unmerged/pending-review checkpoints below are historical.
+
+Merge commit and resulting Production deployment and functional checks will be recorded after the release. Sprint 3 is plan-only until owner review; it must retain one ChatGPT coaching conversation, one Stunna app and one shared PostgreSQL truth, preserving the existing methodology and prescribed-versus-actual separation.
 
 ## Sprint 1 release history
 
