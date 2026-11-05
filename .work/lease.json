@@ -1,8 +1,9 @@
 {
-  "state": "in-progress",
-  "owner": "synthetic-abandoned",
-  "epoch": 1,
+  "state": "review",
+  "owner": "synthetic-resumer",
+  "epoch": 2,
   "spec": "synthetic-workflow-only",
-  "heartbeat": "2000-01-01T00:00:00Z",
-  "expires": "2000-01-01T01:00:00Z"
+  "heartbeat": "2026-11-05T20:03:27.061Z",
+  "expires": "2026-11-05T21:03:27.061Z",
+  "evidence": "Synthetic recovery only; no feature execution."
 }
