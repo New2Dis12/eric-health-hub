@@ -1,10 +1,10 @@
 # Stunna Intelligence Engine — Current Status
 
 **As of:** 2026-11-04
-**Status:** Preview acceptance PASS within recorded coverage. Production browser configuration is prepared, with Auth0 URL registration owner-confirmed and Vercel variable scope/type verified. **GO recommendation for an approved release of PR #6 with STUNNA_ENABLED=false. Awaiting separate merge/deployment approval. Stunna activation remains NO-GO pending production database and backups.**
+**Status:** Sprint 1 foundation released to Production on 2026-11-04. Production browser authentication and Health Hub v2 checks passed. `STUNNA_ENABLED=false`. Production training activation and Sprint 2 require separate authorization.
 **Branch:** `feature/stunna-sprint-1`, based on `main` commit `3d204e7` (merged Sprint 0 docs).
-**PR:** [#6 — Sprint 1 secure persistence](https://github.com/New2Dis12/eric-health-hub/pull/6) — open, unmerged.
-**Production:** live deployment unchanged. Owner-authorized release preparation added five new Production environment entries only. No merge, production deployment, change to existing Auth0 MCP client/API configuration, provider-token change, training import or real personal-data write was performed. A separate protected Preview was deployed with explicit owner approval. The owner separately configured the unused Default App for browser login. Separate owner-authorized Neon setup is recorded below.
+**PR:** [#6 — Sprint 1 secure persistence](https://github.com/New2Dis12/eric-health-hub/pull/6), squash-merged into `main` as `c6d11c3fcba9651ac40420a6f197866e08ee2a92`.
+**Production:** deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` is READY on https://eric-health-hub.vercel.app. The prior deployment `dpl_EpDV7NVJpJYkYDkeWNK3t8H3bHrX` is retained as the rollback target. See the production verification record below.
 
 ## External setup progress (2026-11-03)
 
@@ -110,7 +110,7 @@ Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime
 - `training.read`/`training.write` scopes are enforced but not provisioned for external clients. Browser sessions do not require these bearer grants. Do not modify existing ChatGPT MCP clients for a training test.
 - No known unresolved automated-test failures. **Preview acceptance PASS within the recorded coverage. GO recommendation for a separately approved release with Stunna disabled; production preparation is now complete as documented below.** If provider-managed snapshot/PITR is the chosen production recovery method, verify that method separately. Merge and production deployment each require the owner's separate approval.
 
-## Final release-readiness review (2026-11-04)
+## Pre-release readiness review (2026-11-04, historical)
 
 **Recommendation: GO for PR #6 release with `STUNNA_ENABLED=false`, subject to separate owner approval for merge and production deployment. NO-GO for activating production Stunna.** This is release readiness, not a claim that production login has already been tested.
 
@@ -130,8 +130,8 @@ Database integration uses PostgreSQL-in-WASM (PGlite), actual migrations/runtime
 - [x] Local tests/typecheck/build and hosted Preview auth, CSRF, persistence, isolation and logical restore passed within documented limits.
 - [x] Existing Health Hub v2 live regression checks passed during Preview acceptance.
 - [x] Known-good production deployment and rollback procedure recorded.
-- [ ] Owner explicitly approves merge and resulting Production deployment. Feature-branch Git deployment is disabled, but main deployment is not disabled; merging must be treated as potentially deploying.
-- [ ] After approved deployment, verify real production login/callback/logout, signed-out private API denial, training API disabled, and public legal/MCP metadata behavior. Repeat bounded Oura/Garmin FIT/dynamics/laps regressions through existing read-only tools. Do not connect/reconnect providers or mutate production health records.
+- [x] Owner explicitly approved merge and resulting Production deployment. Feature-branch Git deployment is disabled, but main deployment is not disabled; merging must be treated as potentially deploying.
+- [x] Verified production login/callback/logout, signed-out private API denial, disabled training, public legal routes and MCP OAuth challenge. Bounded Oura/Garmin FIT/dynamics/laps regression checks passed through the existing read-only tools.
 - [ ] If release verification fails, stop and report; request approval before reverting to the recorded deployment.
 
 Intentional production changes remain browser login protection on the website/Oura browser routes and added Auth0 authorization for the Garmin diagnostic endpoint alongside its existing diagnostic secret. Existing MCP tool names and provider implementations remain unchanged.
@@ -165,6 +165,27 @@ A training-only problem after future activation can be contained by setting Stun
 5. Preserve existing MCP/provider configuration and repeat bounded Health Hub v2 regression checks after any separately approved release.
 
 The two owner setup steps and metadata verification are complete. The final checklist above is ready for separate merge/deployment approval. Configuration changes alone do not authorize release.
+
+## Production release verification (2026-11-04, Chicago)
+
+Owner approved the Sprint 1 foundation release with Stunna disabled. GitHub squash-merged PR #6 into main at `c6d11c3fcba9651ac40420a6f197866e08ee2a92`. Vercel built that exact commit as Production deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz`, reported READY, and assigned the production domain. [Deployment details](https://vercel.com/stunna4/eric-health-hub/62ywMnN3hzybcUJgpyZtxz3vJfQz).
+
+| Check | Result |
+|---|---|
+| Production environment | `STUNNA_ENABLED=false`, required browser-auth keys present, no Production `DATABASE_URL` |
+| Auth0 login/callback/logout | PASS. Login redirected to Auth0 with the exact production callback URL. Owner confirmed return to Health Hub with Sign out visible and return to the private sign-in screen after logout. |
+| Unauthorized requests | PASS. Signed-out homepage showed Private Health Hub. Oura test and authorize endpoints returned 401. Garmin diagnostic endpoint returned 404 without its diagnostic secret. |
+| Disabled training | PASS. `GET /api/training` returned 404. |
+| MCP and public pages | PASS. Anonymous `/mcp` returned a bearer challenge with 401. Privacy and terms returned 200. |
+| Garmin listing and original FIT | PASS. Existing tool returned five activities and a bounded 12-sample FIT page. Heart rate, pace, cadence and distance were populated. The sample contained no recorded power values. |
+| Garmin running dynamics and native laps | PASS. Ground contact time, vertical oscillation, ground contact time balance and vertical ratio populated. Two native laps and separate continuation requests for samples and laps passed. |
+| Oura | PASS. Existing tool returned all four populated summary fields. |
+
+The Health Hub v2 connector requested reauthentication on the initial calls and accepted it. The retry passed. Vercel runtime log access returned 403, so observability was limited to deployment metadata and direct functional checks. No critical functional check failed. No provider configuration or credentials were edited during release, no production training database was connected or migrated, and no rollback was performed.
+
+Before Stunna activation, complete the clean production database, restricted runtime role, migration/grant verification, durable backups and restore drill described above. Activation and Sprint 2 each require separate authorization. The rollback target remains `dpl_EpDV7NVJpJYkYDkeWNK3t8H3bHrX`. Request owner approval before invoking rollback.
+
+This post-release record is committed on the deployment-disabled Sprint 1 branch to avoid a second production build from a documentation-only push to main.
 
 ## Sprint 2 handoff
 
