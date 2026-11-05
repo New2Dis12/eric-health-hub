@@ -1,6 +1,6 @@
 # Stunna Intelligence Engine — Current Status
 
-**As of:** 2026-11-04
+**As of:** 2026-11-05
 **Sprint 2:** Methodology review corrections implemented; protected Preview preparation approved. Review ready on `feature/stunna-sprint-2`, based on `main` commit `c6d11c3fcba9651ac40420a6f197866e08ee2a92`.
 **Review:** [PR #7](https://github.com/New2Dis12/eric-health-hub/pull/7).
 **Sprint 1 production:** PR #6 was squash-merged and Vercel deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` was verified READY. Production Auth0 login/callback/logout, signed-out denial, Garmin original FIT/dynamics/native laps and Oura passed. Production Stunna is disabled and production training data remains unconnected. The detailed release record from the Sprint 1 branch is preserved below.
@@ -16,7 +16,7 @@
 
 | Check | Result |
 |---|---|
-| `pnpm test` | 56 passed, 0 failed, 0 skipped. Covers corrected revisions, previous performance, timezone/calendar behavior, cross-subject RLS, read-only permissions, migration down/up and MCP scope/flag discovery. |
+| `pnpm test` | 58 passed, 0 failed, 0 skipped. Covers corrected revisions, previous performance, timezone/calendar behavior, cross-subject RLS, read-only permissions, migration down/up and MCP scope/flag discovery. |
 | `pnpm typecheck` and `pnpm build` | Passed. `/app` is server-rendered on demand. |
 | Built-app HTTP smoke | Disabled `/app` and training returned 404. Enabled signed-out `/app` showed only the private sign-in screen, training returned 401, and MCP retained 401. |
 | Hosted Neon development checks | Applied both migrations and ledger entries to `sprint-2-development` (`br-patient-cell-bcl0go17`) in the existing project. The restricted runtime saw 3 scheduled workouts, 3 revisions, 2 benchmarks and 1 preference row for the synthetic subject. Revision 2 had the corrected 40 lb target. All 3 new tables enforce FORCE RLS with read-only runtime grants. An unrelated subject saw zero rows. |
@@ -39,7 +39,7 @@ Protected Preview: https://eric-health-hub-git-feature-stunna-sprint-2-stunna4.v
 
 Initial Vercel deployment `dpl_91Tngocs3ZdY9LCXVNdCmtrJd3jj` was superseded by refreshed protected Preview `dpl_FBYmXCx3q6u2DnjCehugZyfGx3i9`, READY on source commit `19e7e98f0d73f41d076fd8986cd9aab28c3ff4eb`. Application code matches tested `de72fa6`; intervening changes are documentation only. The existing project uses Vercel Authentication for Preview deployments, and the exact branch alias is assigned. Production remains READY deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` at the Sprint 1 commit. Existing Production environment metadata was re-read and is unchanged, including `STUNNA_ENABLED=false`. Sprint 1 Preview entries were also preserved.
 
-Final local verification passed 56 tests, typecheck, and build. Hosted restricted runtime verified the two-workout combined day, seven synthetic prescription versions, one methodology revision and four read-only FORCE RLS tables per subject. An unrelated subject saw zero prescriptions and guidance. All fixtures are synthetic. The supplied four files were used only to evaluate the model.
+Final local verification passed 58 tests, typecheck, and build. Hosted restricted runtime verified the two-workout combined day, seven synthetic prescription versions, one methodology revision and four read-only FORCE RLS tables per subject. An unrelated subject saw zero prescriptions and guidance. All fixtures are synthetic. The supplied four files were used only to evaluate the model.
 
 The owner reported saving the Preview Auth0 settings. Metadata showed the newly added `AUTH0_CLIENT_SECRET` was scoped to all Preview branches. Its scope was narrowed to `feature/stunna-sprint-2` without reading or replacing its value. Re-read metadata confirms type sensitive/Secret, target Preview only and the exact branch. The Production client-secret entry and all other Production environment metadata remain unchanged.
 
@@ -55,6 +55,16 @@ iPhone review routes after configuration:
 - `/app?date=2026-11-08` — cycling watts and rpm.
 
 Hosted MCP discovery/call also awaits an authorized test token with `training.read`; no existing Production MCP grant or client setting was changed. Keep PR #7 unmerged until signed-in app/MCP parity and owner iPhone review pass. Weekly recurrence materialization, coaching proposal/approval decisions, automatic recovery adjustments and actual-set logging remain future work. See [the model assessment](SPRINT_2_MODEL_REVIEW.md).
+
+## Home and Workout Overview refinement
+
+The owner approved continued protected Preview testing and asked to preserve the existing calendar and visual design. `/app` remains the Today landing page. The selected date lists compact workout cards. Selecting a card opens its overview on the same authenticated route with date and workout selection in the URL. Calendar navigation clears workout selection, and Back to day's workouts retains the selected date. Workout IDs are resolved only inside the authorized selected-day context.
+
+Scheduled clock times are omitted from the UI. An overview shows objective, saved coaching rationale, approximate expected duration, intended effort, major exercises/interval structure and authored adjustment/substitution rules. The full read-only prescription and previous performance are collapsed by default. Start Workout is a disabled button explaining that the player/logging arrives in Sprint 3.
+
+Migration 004 adds optional overview JSON to versioned prescription snapshots. Older prescriptions remain readable with explicit missing duration/rationale. The isolated development branch received this migration and ten new synthetic overview revisions, preserving prior snapshots and exercise targets. No actual-session or set-entry records were created by the refinement. MCP returns the same authored overview metadata through its existing read service.
+
+All 58 tests, typecheck and build passed, including migration up/down compatibility, summary-range validation, preserved prior prescriptions and shared API/browser content. The read-only browser acceptance script now checks Home → Overview → Back navigation, calendar state, absent clock times, collapsed details and disabled Start Workout across six synthetic workouts. Updated hosted visual/navigation acceptance awaits the refreshed Preview and owner browser review.
 
 ## Sprint 1 release history
 

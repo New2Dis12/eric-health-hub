@@ -3,7 +3,7 @@ import { ApiError } from '../private-api'
 import { assertTrainingAccess, type TrainingPrincipal } from './auth'
 import { getTrainingDatabase, type TrainingDatabase } from './database'
 import {
-  benchmarkPerformance, blockMethodology, contextInput, localTrainingDate, moveTrainingDate, prescriptionExercises, trainingWeek,
+  benchmarkPerformance, blockMethodology, workoutOverview, contextInput, localTrainingDate, moveTrainingDate, prescriptionExercises, trainingWeek,
 } from './context-models'
 
 type ScheduleRow = {
@@ -15,6 +15,7 @@ type ScheduleRow = {
   block_goal: string
   revision: number | null
   title: string | null
+  overview: unknown
   exercises: unknown
   change_reason: string | null
   approved_at: Date | string | null
@@ -56,11 +57,11 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
       const calendar = dates.map(day => ({ date: day, workoutCount: days.find(row => row.day === day)?.count ?? 0 }))
       const { rows } = athlete ? await tx.query<ScheduleRow>(`
         SELECT p.id, p.kind, p.purpose, p.scheduled_at, b.title AS block_title, b.goal AS block_goal,
-          r.revision, r.title, r.exercises, r.change_reason, r.approved_at, r.source, m.context AS methodology, m.revision AS methodology_revision
+          r.revision, r.title, r.overview, r.exercises, r.change_reason, r.approved_at, r.source, m.context AS methodology, m.revision AS methodology_revision
         FROM stunna.planned_sessions p
         JOIN stunna.training_blocks b ON b.athlete_id=p.athlete_id AND b.id=p.block_id
         LEFT JOIN LATERAL (
-          SELECT revision, title, exercises, change_reason, approved_at, source
+          SELECT revision, title, overview, exercises, change_reason, approved_at, source
           FROM stunna.prescription_revisions
           WHERE athlete_id=p.athlete_id AND planned_session_id=p.id AND approved_at <= transaction_timestamp()
           ORDER BY revision DESC LIMIT 1
@@ -107,6 +108,7 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
           prescription: row.revision === null ? null : {
             revision: row.revision,
             title: row.title!,
+            overview: row.overview === null ? null : workoutOverview.parse(row.overview),
             reason: row.change_reason!,
             approvedAt: new Date(row.approved_at!).toISOString(),
             source: row.source!,

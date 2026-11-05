@@ -18,6 +18,16 @@ const range = z.strictObject({ min: z.number().nonnegative(), max: z.number().no
   .refine(value => value.min <= value.max)
 const rpe = z.strictObject({ min: z.number().min(0).max(10), max: z.number().min(0).max(10) })
   .refine(value => value.min <= value.max)
+export const workoutOverview = z.strictObject({
+  rationale: text.nullable(),
+  expectedDurationMinutes: z.strictObject({
+    min: z.number().int().min(1).max(1440),
+    max: z.number().int().min(1).max(1440),
+  }).refine(value => value.min <= value.max).nullable(),
+  rpe: rpe.nullable(),
+})
+export const stunnaPageInput = contextInput.extend({ workout: z.uuid().optional() })
+
 const metricUnits = [
   ['speed', ['mph', 'km/h', 'm/s']],
   ['pace', ['sec/km', 'sec/mi']],

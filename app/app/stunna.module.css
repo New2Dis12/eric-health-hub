@@ -68,3 +68,29 @@
 .methodology { margin-top: 18px; padding: 14px; border: 1px solid #344a40; border-radius: 12px; font-size: 13px; }
 .methodology summary { cursor: pointer; min-height: 32px; }
 .methodology ul, .methodology ol { padding-left: 18px; list-style: disc; display: grid; gap: 5px; }
+
+.workoutCardLink { display: block; padding: 20px; min-height: 44px; }
+.workoutCardLink:hover { background: #1b3026; }
+.workoutCardLink h2 { font-size: 24px; font-weight: 700; letter-spacing: -.025em; margin: 5px 0 8px; }
+.cardMeta { color: #c6d7cc; font-size: 13px; margin-top: 12px; }
+.viewWorkout { display: inline-flex; gap: 8px; align-items: center; color: #c9f779; font-weight: 650; margin-top: 18px; }
+.backToDay { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; color: #d0dfd5; margin-bottom: 8px; font-size: 14px; }
+.overviewBody { padding: 0 20px 20px; }
+.overviewMetrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
+.overviewMetrics div { padding: 12px; border: 1px solid #3b5145; border-radius: 12px; background: #21382c; }
+.overviewMetrics dt { color: #bfd1c4; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.overviewMetrics dd { font-size: 16px; font-weight: 650; margin-top: 5px; }
+.overviewSection { margin: 20px 0; }
+.overviewSection h3 { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+.overviewSection p { color: #c9d9cf; line-height: 1.6; overflow-wrap: anywhere; }
+.planOutline { list-style: decimal; padding-left: 21px; display: grid; gap: 13px; color: #c9f779; }
+.planOutline strong, .planOutline span { display: block; color: #edf5ef; }
+.planOutline span { font-size: 13px; color: #c0d4c7; margin-top: 3px; }
+.adjustmentOutline { display: grid; gap: 12px; list-style: none; padding: 0; }
+.adjustmentOutline li { border-left: 2px solid #94b96a; padding-left: 12px; font-size: 14px; }
+.startArea { border-top: 1px solid #344a40; padding-top: 20px; margin-top: 24px; }
+.startWorkout { width: 100%; min-height: 52px; border-radius: 12px; background: #c9f779; color: #142417; font-size: 16px; font-weight: 750; }
+.startWorkout:disabled { cursor: not-allowed; background: #435540; color: #d0dfc8; }
+.startArea p { color: #c0d0c4; font-size: 12px; text-align: center; margin-top: 9px; }
+.prescriptionDetails { border-top: 1px solid #344a40; }
+.prescriptionDetails summary { cursor: pointer; padding: 16px 20px; min-height: 48px; color: #c7d9cb; font-size: 13px; }

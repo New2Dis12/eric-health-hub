@@ -2,7 +2,8 @@ import { ArrowLeft, ArrowRight, CalendarDays, Dumbbell } from 'lucide-react'
 import { notFound } from 'next/navigation'
 import { getWebSubject } from '@/lib/web-auth'
 import { getTrainingContext, type TrainingContext } from '@/lib/training/context'
-import { contextInput, moveTrainingDate, type Dose, type MetricTarget, type Segment } from '@/lib/training/context-models'
+import { stunnaPageInput, moveTrainingDate, type Dose, type MetricTarget, type Segment } from '@/lib/training/context-models'
+import { durationEstimate, effortSummary, exerciseSummary, workoutLink, type Workout } from '@/lib/training/workout-summary'
 import styles from './stunna.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -47,23 +48,11 @@ function SegmentLine({ segment }: { segment: Segment }) {
   </li>
 }
 
-function Workout({ workout, timeZone, showPrevious }: {
-  workout: TrainingContext['workouts'][number]
-  timeZone: string
-  showPrevious: boolean
-}) {
+function PrescriptionDetails({ workout, showPrevious }: { workout: Workout; showPrevious: boolean }) {
   const prescription = workout.prescription
-  const time = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' })
-    .format(new Date(workout.scheduledAt))
-  return (
-    <article className={styles.workout}>
-      <div className={styles.workoutHeader}>
-        <p className={styles.eyebrow}>{workout.kind} · {time}</p>
-        <h2>{prescription?.title ?? 'Scheduled workout'}</h2>
-        <p className={styles.muted}>{workout.purpose}</p>
-        <p className={styles.block}><strong>{workout.block.title}</strong> · {workout.block.goal}</p>
-      </div>
-      {prescription ? <>
+  if (!prescription) return null
+  return <details className={styles.prescriptionDetails}>
+    <summary>Prescription details & previous performance</summary>
         <ol className={styles.exerciseList}>
           {prescription.exercises.map(exercise => (
             <li className={styles.exercise} key={exercise.position}>
@@ -102,9 +91,65 @@ function Workout({ workout, timeZone, showPrevious }: {
           <span>Approved revision {prescription.revision}{prescription.source === 'synthetic' ? ' · Demo' : ''}</span>
           <p>{prescription.reason}</p>
         </footer>
-      </> : <p className={styles.empty}>No approved exercise prescription is available for this workout.</p>}
+
+  </details>
+}
+
+function WorkoutCard({ workout, date }: { workout: Workout; date: string }) {
+  return <article className={styles.workout} data-workout-card>
+    <a className={styles.workoutCardLink} href={workoutLink(date, workout.id)}>
+      <p className={styles.eyebrow}>{workout.kind}</p>
+      <h2>{workout.prescription?.title ?? 'Scheduled workout'}</h2>
+      <p className={styles.muted}>{workout.purpose}</p>
+      <p className={styles.cardMeta}>{durationEstimate(workout)} · {effortSummary(workout)}</p>
+      <span className={styles.viewWorkout}>View workout <ArrowRight size={16} aria-hidden="true" /></span>
+    </a>
+  </article>
+}
+
+function WorkoutOverview({ workout, date, showPrevious }: { workout: Workout; date: string; showPrevious: boolean }) {
+  const prescription = workout.prescription
+  const rules = prescription?.exercises.flatMap(exercise =>
+    (exercise.adjustments ?? []).map(adjustment => ({ ...adjustment, exercise: exercise.name }))) ?? []
+  return <section data-workout-overview>
+    <a className={styles.backToDay} href={dateLink(date)}><ArrowLeft size={16} aria-hidden="true" /> Back to day’s workouts</a>
+    <article className={styles.workout}>
+      <div className={styles.workoutHeader}>
+        <p className={styles.eyebrow}>{workout.kind} · Workout overview</p>
+        <h2>{prescription?.title ?? 'Scheduled workout'}</h2>
+        <p className={styles.block}>{workout.block.title}</p>
+      </div>
+      <div className={styles.overviewBody}>
+        <dl className={styles.overviewMetrics}>
+          <div><dt>Expected duration</dt><dd>{durationEstimate(workout)}</dd></div>
+          <div><dt>Intended intensity</dt><dd>{effortSummary(workout)}</dd></div>
+        </dl>
+        <section className={styles.overviewSection}><h3>Objective</h3><p>{workout.purpose}</p></section>
+        <section className={styles.overviewSection}><h3>Why this workout</h3>
+          <p>{prescription?.overview?.rationale ?? 'Coaching rationale not specified.'}</p>
+        </section>
+        {prescription ? <>
+          <section className={styles.overviewSection}><h3>The plan</h3>
+            <ol className={styles.planOutline}>{prescription.exercises.map(exercise => <li key={exercise.position}>
+              <strong>{exercise.name}{exercise.optional ? ' · Optional' : ''}</strong>
+              <span>{exerciseSummary(exercise)}</span>
+            </li>)}</ol>
+          </section>
+          <section className={styles.overviewSection}><h3>Adjustments & alternatives</h3>
+            {rules.length ? <ul className={styles.adjustmentOutline}>{rules.map((rule, i) => <li key={i}>
+              <strong>{rule.exercise}</strong><p>{rule.condition}. {rule.action}</p>
+              {rule.substitution && <p>Alternative · {rule.substitution.name} · {rule.substitution.equipment}</p>}
+            </li>)}</ul> : <p>No additional adjustment rules specified.</p>}
+          </section>
+        </> : <p className={styles.empty}>No approved exercise prescription is available for this workout.</p>}
+        <div className={styles.startArea}>
+          <button className={styles.startWorkout} type="button" disabled aria-describedby="player-status">Start Workout</button>
+          <p id="player-status">The workout player and logging arrive in Sprint 3.</p>
+        </div>
+      </div>
+      <PrescriptionDetails workout={workout} showPrevious={showPrevious} />
     </article>
-  )
+  </section>
 }
 
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
@@ -113,7 +158,7 @@ function Notice({ title, children }: { title: string; children: React.ReactNode 
   </div></main>
 }
 
-export default async function StunnaPage({ searchParams }: { searchParams: Promise<{ date?: string | string[] }> }) {
+export default async function StunnaPage({ searchParams }: { searchParams: Promise<{ date?: string | string[]; workout?: string | string[] }> }) {
   if (process.env.STUNNA_ENABLED !== 'true') notFound()
   let subject: string | null = null
   try { subject = await getWebSubject() } catch {
@@ -123,21 +168,23 @@ export default async function StunnaPage({ searchParams }: { searchParams: Promi
     <a className={styles.button} href="/auth/login?returnTo=%2Fapp">Sign in to Health Hub</a>
   </Notice>
 
-  const { date } = await searchParams
-  const input = contextInput.safeParse({ date })
-  if (!input.success) return <Notice title="Invalid training date">
+  const { date, workout } = await searchParams
+  const input = stunnaPageInput.safeParse({ date, workout })
+  if (!input.success) return <Notice title="Invalid workout selection">
     <a className={styles.button} href="/app">Return to today</a>
   </Notice>
 
   let context: TrainingContext
   try {
-    context = await getTrainingContext({ subject, scopes: ['training.read'], source: 'browser' }, input.data)
+    context = await getTrainingContext({ subject, scopes: ['training.read'], source: 'browser' }, { date: input.data.date })
   } catch {
     return <Notice title="Training plan unavailable">
       <p>The saved plan could not be loaded.</p><a className={styles.button} href={dateLink(input.data.date)}>Retry</a>
     </Notice>
   }
 
+  const selectedWorkout = input.data.workout ? context.workouts.find(item => item.id === input.data.workout) : undefined
+  if (input.data.workout && !selectedWorkout) notFound()
   const isToday = context.date === context.today
   return (
     <main className={styles.shell}>
@@ -148,7 +195,7 @@ export default async function StunnaPage({ searchParams }: { searchParams: Promi
         </div>
         <header className={styles.hero}>
           <p className={styles.eyebrow}>{label(context.date, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-          <h1>{isToday ? 'Today’s workout' : 'Scheduled workouts'}</h1>
+          <h1>{selectedWorkout ? 'Workout overview' : isToday ? 'Today’s workouts' : 'Planned workouts'}</h1>
           <p className={styles.muted}>{context.preferences.trainingFocus ?? 'Your saved training prescription'}</p>
         </header>
 
@@ -189,12 +236,13 @@ export default async function StunnaPage({ searchParams }: { searchParams: Promi
           <ol>{context.workouts[0].block.methodology.weeklyStructure.map((day, i) => <li key={i}>Day {day.weekday} · {day.slots.join(' → ')}</li>)}</ol>
         </details>}
         <div className={styles.scheduleLabel}>
-          <span>Prescription</span><span>{context.timeZone}</span>
+          <span>{selectedWorkout ? 'Workout overview' : 'Planned workouts'}</span>
         </div>
         <div className={styles.schedule}>
-          {context.workouts.length
-            ? context.workouts.map(workout => <Workout key={workout.id} workout={workout} timeZone={context.timeZone} showPrevious={context.preferences.showPrevious} />)
-            : <section className={styles.empty}><h2>No workouts scheduled</h2><p>Select another day to view its saved plan.</p></section>}
+          {selectedWorkout ? <WorkoutOverview workout={selectedWorkout} date={context.date} showPrevious={context.preferences.showPrevious} />
+            : context.workouts.length
+              ? context.workouts.map(workout => <WorkoutCard key={workout.id} workout={workout} date={context.date} />)
+              : <section className={styles.empty}><h2>No workouts scheduled</h2><p>Select another day to view its saved plan.</p></section>}
           {context.hasMoreWorkouts && <p className={styles.muted}>Showing the first eight workouts scheduled for this day.</p>}
         </div>
       </div>

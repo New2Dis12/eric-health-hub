@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { readFile } from 'node:fs/promises'
 import { PGlite } from '@electric-sql/pglite'
-import { metricTarget } from '../lib/training/context-models'
+import { durationEstimate, effortSummary, exerciseSummary } from '../lib/training/workout-summary'
+import { metricTarget, workoutOverview, stunnaPageInput } from '../lib/training/context-models'
 import { createTrainingContextReader } from '../lib/training/context'
 import type { Queryable, TrainingDatabase } from '../lib/training/database'
 import type { TrainingPrincipal } from '../lib/training/auth'
@@ -29,6 +30,7 @@ before(async () => {
   await db.exec(await file('../db/migrations/001_foundation.up.sql'))
   await db.exec(await file('../db/migrations/002_prescriptions.up.sql'))
   await db.exec(await file('../db/migrations/003_methodology.up.sql'))
+  await db.exec(await file('../db/migrations/004_workout_overviews.up.sql'))
   await db.exec('CREATE ROLE stunna_runtime')
   await db.exec(await file('../db/runtime-grants.sql'))
   const fixture = await file('../db/fixtures/sprint-2-synthetic.sql')
@@ -129,4 +131,33 @@ test('typed targets reject conflicting modalities and inverted ranges', () => {
   assert.equal(metricTarget.safeParse({ metric: 'stroke_rate', unit: 'rpm', range: { min: 20, max: 22 } }).success, false)
   assert.equal(metricTarget.safeParse({ metric: 'rowing_split', unit: 'sec/500m', range: { min: 170, max: 160 } }).success, false)
   assert.equal(metricTarget.safeParse({ metric: 'power', unit: 'W', range: null }).success, true)
+})
+
+test('overview revisions preserve prior prescriptions and share authored summaries with API callers', async () => {
+  const before = await read(principal, { date: '2026-11-05' })
+  const first = before.workouts[0]
+  assert.equal(first.prescription!.overview, null)
+  assert.equal(durationEstimate(first), 'Duration not specified')
+  assert.equal(effortSummary(first), 'Intensity not specified')
+  assert.match(exerciseSummary(first.prescription!.exercises[0]), /3 rounds.*90 sec work.*75 sec recovery/)
+  await db.transaction(async tx => {
+    await tx.exec("SET LOCAL stunna.allow_synthetic_seed='on'")
+    await tx.exec(await file('../db/fixtures/sprint-2-overviews.sql'))
+  })
+  const after = await read(principal, { date: '2026-11-05' })
+  const updated = after.workouts[0]
+  assert.equal(updated.prescription!.revision, first.prescription!.revision + 1)
+  assert.deepEqual(updated.prescription!.exercises, first.prescription!.exercises)
+  assert.equal(durationEstimate(updated), 'About 15–20 min')
+  assert.equal(effortSummary(updated), 'RPE 6–7')
+  assert.ok(updated.prescription!.overview!.rationale)
+  assert.deepEqual(await read({ ...principal, source: 'api' }, { date: '2026-11-05' }), after)
+  assert.equal((await db.query('SELECT * FROM stunna.actual_sessions')).rows.length, 0)
+})
+
+test('overview input validates duration ranges and workout selection', () => {
+  assert.equal(workoutOverview.safeParse({
+    rationale: null, expectedDurationMinutes: { min: 20, max: 10 }, rpe: null,
+  }).success, false)
+  assert.equal(stunnaPageInput.safeParse({ date: '2026-11-05', workout: 'foreign-id' }).success, false)
 })
