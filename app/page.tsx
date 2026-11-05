@@ -1,3 +1,5 @@
+import { getWebSubject } from '@/lib/web-auth'
+
 import { ConnectionStatus } from '@/components/connection-status'
 import { FeatureGrid } from '@/components/feature-grid'
 import { OuraConnectCard } from '@/components/oura-connect-card'
@@ -5,11 +7,19 @@ import { OuraConnectionTest } from '@/components/oura-connection-test'
 import { getOuraTestResultFromStore } from '@/lib/oura-data'
 import { hasStoredOuraTokens } from '@/lib/oura-tokens'
 
+export const dynamic = 'force-dynamic'
+
 export default async function HomePage({
   searchParams,
 }: {
   searchParams: Promise<{ oura?: string }>
 }) {
+  let subject: string | null = null
+  try { subject = await getWebSubject() } catch { /* Fail closed until configured. */ }
+  if (!subject) {
+    return <main className="mx-auto max-w-4xl px-6 py-16"><h1>Private Health Hub</h1><p>Sign in with your authorized account to view your data.</p><a href="/auth/login">Sign in</a></main>
+  }
+
   const [{ oura }, isConnected, testResult] = await Promise.all([
     searchParams,
     hasStoredOuraTokens(),
@@ -18,6 +28,7 @@ export default async function HomePage({
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-16 md:py-24">
+      <a href="/auth/logout">Sign out</a>
       {oura ? <ConnectionStatus status={oura} /> : null}
       <section className="max-w-2xl">
         <p className="text-sm font-medium text-primary">Personal health data hub</p>

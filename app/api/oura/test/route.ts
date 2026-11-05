@@ -1,3 +1,4 @@
+import { requireHealthAccess, apiError } from '@/lib/private-api'
 import { NextResponse } from 'next/server'
 import { getOuraTestResultFromStore } from '@/lib/oura-data'
 
@@ -10,7 +11,8 @@ const httpStatusByResult = {
   error: 502,
 } as const
 
-export async function GET() {
+export async function GET(request: Request) {
+  try { await requireHealthAccess(request, 'oura.read') } catch (error) { return apiError(error) }
   const result = await getOuraTestResultFromStore()
   return NextResponse.json(result, {
     status: httpStatusByResult[result.status],

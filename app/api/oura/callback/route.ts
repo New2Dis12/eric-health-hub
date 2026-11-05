@@ -1,3 +1,4 @@
+import { requireBrowserSubject, apiError } from '@/lib/private-api'
 import { NextResponse, type NextRequest } from 'next/server'
 import {
   ACCESS_TOKEN_COOKIE,
@@ -16,6 +17,7 @@ function redirectHome(request: NextRequest, status: string) {
 }
 
 export async function GET(request: NextRequest) {
+  try { await requireBrowserSubject(request) } catch (error) { return apiError(error) }
   const { searchParams } = request.nextUrl
   const code = searchParams.get('code')
   const state = searchParams.get('state')
