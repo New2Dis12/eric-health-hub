@@ -2,6 +2,7 @@
 
 **As of:** 2026-11-04
 **Sprint 2:** Review ready on `feature/stunna-sprint-2`, based on `main` commit `c6d11c3fcba9651ac40420a6f197866e08ee2a92`.
+**Review:** [PR #7](https://github.com/New2Dis12/eric-health-hub/pull/7).
 **Sprint 1 production:** PR #6 was squash-merged and Vercel deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` was verified READY. Production Auth0 login/callback/logout, signed-out denial, Garmin original FIT/dynamics/native laps and Oura passed. Production Stunna is disabled and production training data remains unconnected. The detailed release record from the Sprint 1 branch is preserved below.
 
 ## Sprint 2 — Stunna Workout Interface
