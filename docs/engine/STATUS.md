@@ -64,7 +64,9 @@ The existing calendar, dark green/lime design and clock-free presentation are re
 
 This refinement changes presentation only. The existing shared service and authored overview metadata remain the source of truth, and database records were not changed. Browser authentication and the Stunna flag still guard the route. All 58 tests, typecheck and build passed. The read-only browser acceptance script now checks Today, calendar selection, all inline overviews, collapsed details, absence of card navigation/clock times/data entry, and independent disabled Start Workout controls across six synthetic workouts.
 
-The protected Preview is being refreshed for iPhone review. PR #7 remains open and unmerged.
+The refreshed protected Preview is READY: [open Stunna](https://eric-health-hub-git-feature-stunna-sprint-2-stunna4.vercel.app/app). Deployment `dpl_jbjZ3MFLQzexpptsnVFtUxj2jBBT` serves application commit `2415b5bdfaf17651d4b03dceb7b6f686397198ea` and owns the Sprint 2 branch alias. Signed-in visual acceptance of this final inline layout and the read-only browser script remain pending owner review; deployment readiness does not establish those results. PR #7 remains open and unmerged.
+
+After refresh, Production still serves Sprint 1 deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` at commit `c6d11c3fcba9651ac40420a6f197866e08ee2a92`. Production environment IDs/scopes/update timestamps match the pre-refinement snapshot, and `STUNNA_ENABLED=false`. No database, credential, provider integration or Production deployment change was made.
 
 ## Sprint 1 release history
 
