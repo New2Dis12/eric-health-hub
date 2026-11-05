@@ -1,15 +1,18 @@
 {
   "state": "in-progress",
-  "owner": "workflow-8-correction-clock",
-  "epoch": 2,
+  "owner": "backlog-recovery-clock-epoch3",
+  "epoch": 3,
   "spec": "c9bdb8a1016c35341082e2ecc4e11acb10d77d88ed93645865c84b8dcb59c206",
-  "heartbeat": "2026-11-05T21:33:58.909Z",
-  "expires": "2026-11-05T22:33:58.909Z",
-  "checkpoint": "Correcting review 6668132687 within approved workflow scope",
+  "heartbeat": "2026-11-05T22:38:22.990Z",
+  "expires": "2026-11-05T23:38:22.990Z",
+  "checkpoint": "Recover abandoned correction attempt 1; unchanged implementation finding independently verified",
   "correction": {
-    "attempts": 1,
+    "attempts": 2,
     "reviewId": 6668132687,
     "reviewHead": "cfceed8b3d794dc1a0fbb83e6ed8bb2b6d303fa7",
-    "finding": "invalid-clock"
+    "finding": "invalid-clock",
+    "lastAttemptedHead": "8e1103a8ab76b3e0ef4b10303a77383852325370",
+    "result": "in-progress",
+    "nextAction": "publish minimal clock guard and tests"
   }
 }
