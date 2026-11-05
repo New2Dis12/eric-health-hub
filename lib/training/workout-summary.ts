@@ -41,7 +41,3 @@ export function exerciseSummary(exercise: Exercise) {
   ]
   return parts.filter(Boolean).join(' · ') || 'Dose not specified'
 }
-
-export function workoutLink(date: string, id: string) {
-  return '/app?date=' + date + '&workout=' + id
-}

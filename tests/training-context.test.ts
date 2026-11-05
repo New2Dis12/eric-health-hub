@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test'
 import { readFile } from 'node:fs/promises'
 import { PGlite } from '@electric-sql/pglite'
 import { durationEstimate, effortSummary, exerciseSummary } from '../lib/training/workout-summary'
-import { metricTarget, workoutOverview, stunnaPageInput } from '../lib/training/context-models'
+import { metricTarget, workoutOverview } from '../lib/training/context-models'
 import { createTrainingContextReader } from '../lib/training/context'
 import type { Queryable, TrainingDatabase } from '../lib/training/database'
 import type { TrainingPrincipal } from '../lib/training/auth'
@@ -155,9 +155,9 @@ test('overview revisions preserve prior prescriptions and share authored summari
   assert.equal((await db.query('SELECT * FROM stunna.actual_sessions')).rows.length, 0)
 })
 
-test('overview input validates duration ranges and workout selection', () => {
+test('overview input validates authored duration and effort ranges', () => {
   assert.equal(workoutOverview.safeParse({
     rationale: null, expectedDurationMinutes: { min: 20, max: 10 }, rpe: null,
   }).success, false)
-  assert.equal(stunnaPageInput.safeParse({ date: '2026-11-05', workout: 'foreign-id' }).success, false)
+  assert.equal(workoutOverview.safeParse({ rationale: null, expectedDurationMinutes: null, rpe: { min: 8, max: 6 } }).success, false)
 })

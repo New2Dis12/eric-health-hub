@@ -26,7 +26,6 @@ export const workoutOverview = z.strictObject({
   }).refine(value => value.min <= value.max).nullable(),
   rpe: rpe.nullable(),
 })
-export const stunnaPageInput = contextInput.extend({ workout: z.uuid().optional() })
 
 const metricUnits = [
   ['speed', ['mph', 'km/h', 'm/s']],

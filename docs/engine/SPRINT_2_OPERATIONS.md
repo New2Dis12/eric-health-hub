@@ -21,10 +21,10 @@ Migration 003 adds versioned block guidance and explicit evidence verification/c
 
 The four supplied reference documents informed the representation only. Real import, automatic recurrence scheduling, recovery decisions and coaching approval workflows remain separate work. See [the model review](SPRINT_2_MODEL_REVIEW.md).
 
-## Home and overview review
+## Calendar and overview review
 
-Open `/app` for Today, then select a date in the existing weekly calendar. Cards show that day's planned workouts without scheduled clock times. Select View workout to open the overview, then use Back to day's workouts to retain the date. Calendar links return to the selected day's list.
+Open `/app` for Today. All selected-day workout overviews appear directly below the existing weekly calendar. Selecting another calendar date immediately displays that day's overviews on the same page. Multiple workouts each have their own summary and disabled Start Workout action. Scheduled clock times and intermediate workout-card navigation are omitted.
 
-The overview uses saved objective/rationale, duration range and intended RPE. Major exercises and interval structure appear before adjustment rules. Detailed targets and prior performance remain available in a collapsed read-only section. Start Workout is disabled for Sprint 2. The UI contains no actual-set or interval logging controls.
+Each overview uses the saved objective/rationale, duration range and intended RPE. Major exercises and interval structure appear before adjustment rules. Detailed targets and prior performance remain available in a collapsed read-only section. Start Workout sits at the bottom of each overview and is disabled until Sprint 3. The UI contains no actual-set or interval logging controls.
 
-After migration 004, execute `db/fixtures/sprint-2-overviews.sql` under the synthetic-seed development opt-in to append authored overview revisions. It preserves all previous prescription snapshots and only selects synthetic sources. Missing metadata on older prescriptions stays explicit. The read-only `scripts/browser-sprint-2-acceptance.js` now follows card links and checks overview/back navigation, absent clock times, no data-entry controls, and disabled Start Workout. Do not use the older script expectations for execution details on Home.
+The read-only `scripts/browser-sprint-2-acceptance.js` checks Today, selected calendar dates, all inline overviews, absent clock times, collapsed details, no data-entry controls and independent disabled Start Workout buttons. Use this version instead of the earlier card-navigation test.
