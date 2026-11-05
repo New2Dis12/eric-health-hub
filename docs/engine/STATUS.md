@@ -33,6 +33,25 @@ Preview config is scoped to `feature/stunna-sprint-2` in the existing Vercel pro
 
 The Preview remains under Vercel Authentication. Hosted browser and MCP acceptance remain pending until callback/client-secret configuration and a scoped test token are available. The local build initially encountered a corrupt Turbopack cache; a clean rebuild passed. Subsequent model changes are covered by the final checks reported with the Preview.
 
+## Approved Sprint 2 Preview deployment
+
+Protected Preview: https://eric-health-hub-git-feature-stunna-sprint-2-stunna4.vercel.app/app
+
+Vercel deployment `dpl_91Tngocs3ZdY9LCXVNdCmtrJd3jj` is READY on application commit `de72fa6f3497d6ca7d321f2e503f1d8124cb0302`. The existing project uses Vercel Authentication for Preview deployments, and the exact branch alias is assigned. Production remains READY deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` at the Sprint 1 commit. Existing Production environment metadata was re-read and is unchanged, including `STUNNA_ENABLED=false`. Sprint 1 Preview entries were also preserved.
+
+Final local verification passed 56 tests, typecheck, and build. Hosted restricted runtime verified the two-workout combined day, seven synthetic prescription versions, one methodology revision and four read-only FORCE RLS tables per subject. An unrelated subject saw zero prescriptions and guidance. All fixtures are synthetic. The supplied four files were used only to evaluate the model.
+
+Signed-in Preview acceptance is **BLOCKED** until the owner saves `AUTH0_CLIENT_SECRET` as a Secret scoped only to Preview / `feature/stunna-sprint-2` and appends this branch's exact callback/logout URLs on the existing Default App. Secret values are entered directly between Auth0 and Vercel. Nine other Preview variables are prepared. After the secret is saved, an updated Preview deployment must pick it up. The existing Preview approval covers that continuation.
+
+iPhone review routes after configuration:
+- `/app?date=2026-11-04` — strength, approved correction and previous evidence.
+- `/app?date=2026-11-05` — ordered run plus strength, work/recovery segments, rep/RPE ranges and an authored substitution.
+- `/app?date=2026-11-06` — distance-based rowing, seconds/500m and strokes/min.
+- `/app?date=2026-11-07` — explicit missing prescription.
+- `/app?date=2026-11-08` — cycling watts and rpm.
+
+Hosted MCP discovery/call also awaits an authorized test token with `training.read`; no existing Production MCP grant or client setting was changed. Keep PR #7 unmerged until signed-in app/MCP parity and owner iPhone review pass. Weekly recurrence materialization, coaching proposal/approval decisions, automatic recovery adjustments and actual-set logging remain future work. See [the model assessment](SPRINT_2_MODEL_REVIEW.md).
+
 ## Sprint 1 release history
 
 The following checkpoints preserve the Sprint 1 acceptance, recovery, configuration and production verification record. Pre-release notes describe the state at those checkpoints.
