@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { readFile } from 'node:fs/promises'
 import { PGlite } from '@electric-sql/pglite'
+import { metricTarget } from '../lib/training/context-models'
 import { createTrainingContextReader } from '../lib/training/context'
 import type { Queryable, TrainingDatabase } from '../lib/training/database'
 import type { TrainingPrincipal } from '../lib/training/auth'
@@ -27,6 +28,7 @@ before(async () => {
   process.env.STUNNA_ENABLED = 'true'
   await db.exec(await file('../db/migrations/001_foundation.up.sql'))
   await db.exec(await file('../db/migrations/002_prescriptions.up.sql'))
+  await db.exec(await file('../db/migrations/003_methodology.up.sql'))
   await db.exec('CREATE ROLE stunna_runtime')
   await db.exec(await file('../db/runtime-grants.sql'))
   const fixture = await file('../db/fixtures/sprint-2-synthetic.sql')
@@ -85,4 +87,46 @@ test('context validates dates, scope and feature flag before connecting', async 
   process.env.STUNNA_ENABLED = 'false'
   try { await assert.rejects(neverConnect(principal, {}), status(404)) }
   finally { process.env.STUNNA_ENABLED = 'true' }
+})
+
+test('structured methodology survives reads for combined days, rowing and cycling', async () => {
+  const fixture = await file('../db/fixtures/sprint-2-representative.sql')
+  await db.transaction(async tx => {
+    await tx.exec("SET LOCAL stunna.allow_synthetic_seed='on'")
+    await tx.exec(fixture)
+  })
+  const combined = await read(principal, { date: '2026-11-05' })
+  assert.equal(combined.workouts.length, 2)
+  assert.equal(combined.workouts[0].kind, 'run')
+  assert.equal(combined.workouts[1].kind, 'strength')
+  const press = combined.workouts[1].prescription!.exercises[0]
+  assert.equal(press.loadBasis, 'per_hand')
+  assert.deepEqual(press.repsRange, { min: 8, max: 10 })
+  assert.deepEqual(press.rpe, { min: 6, max: 7 })
+  assert.ok(press.adjustments?.[0].substitution)
+  assert.equal(combined.workouts[1].prescription!.exercises[1].optional, true)
+  const run = combined.workouts[0].prescription!.exercises[0]
+  assert.equal(run.warmups?.[0].phase, 'warmup')
+  assert.equal(run.intervalBlocks?.[0].repeat, 3)
+  assert.deepEqual(run.intervalBlocks?.[0].segments.map(segment => segment.phase), ['work', 'recovery'])
+  assert.equal(run.intervalBlocks?.[0].segments[1].targets[0].range, null)
+  assert.ok(combined.workouts[0].block.methodology?.weeklyStructure.length)
+  const row = await read(principal, { date: '2026-11-06' })
+  const targets = row.workouts[0].prescription!.exercises[0].intervalBlocks![0].segments[0].targets
+  assert.deepEqual(targets.map(target => target.unit), ['m', 'sec/500m', 'spm'])
+  const bike = await read(principal, { date: '2026-11-08' })
+  assert.equal(bike.workouts[0].kind, 'bike')
+  assert.equal(bike.workouts[0].prescription!.exercises[0].intervalBlocks![0].segments[0].targets[0].unit, 'W')
+})
+
+test('unknown or unverified evidence cannot become a verified comparison', async () => {
+  await db.exec("UPDATE stunna.exercise_benchmarks SET verification_status='unverified' WHERE source='synthetic'")
+  const context = await read(principal, { date: '2026-11-04' })
+  assert.equal(context.workouts[0].prescription!.exercises[0].previous, null)
+})
+
+test('typed targets reject conflicting modalities and inverted ranges', () => {
+  assert.equal(metricTarget.safeParse({ metric: 'stroke_rate', unit: 'rpm', range: { min: 20, max: 22 } }).success, false)
+  assert.equal(metricTarget.safeParse({ metric: 'rowing_split', unit: 'sec/500m', range: { min: 170, max: 160 } }).success, false)
+  assert.equal(metricTarget.safeParse({ metric: 'power', unit: 'W', range: null }).success, true)
 })

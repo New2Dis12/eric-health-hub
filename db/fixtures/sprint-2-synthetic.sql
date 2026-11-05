@@ -36,9 +36,9 @@ BEGIN
       {"key":"easy-warmup","name":"Easy warm-up","sets":1,"reps":null,"durationSeconds":300,"target":{"value":4.5,"unit":"mph"},"restSeconds":0,"notes":null},
       {"key":"treadmill-repeat","name":"Steady repeat","sets":4,"reps":null,"durationSeconds":120,"target":{"value":6,"unit":"mph"},"restSeconds":60,"notes":"Walk during recovery."}
     ]', 'Initial synthetic interval prescription.', 'synthetic', now());
-  INSERT INTO stunna.exercise_benchmarks(id, athlete_id, exercise_key, performed_at, performance, source) VALUES
+  INSERT INTO stunna.exercise_benchmarks(id, athlete_id, exercise_key, performed_at, performance, source, verification_status) VALUES
     (gen_random_uuid(), athlete, 'goblet-squat', (day-3 + time '07:00') AT TIME ZONE 'America/Chicago',
-     '{"sets":3,"reps":8,"durationSeconds":null,"target":{"value":35,"unit":"lb"}}', 'synthetic'),
+     '{"sets":3,"reps":8,"durationSeconds":null,"target":{"value":35,"unit":"lb"}}', 'synthetic', 'verified'),
     (gen_random_uuid(), athlete, 'treadmill-repeat', (day-4 + time '07:00') AT TIME ZONE 'America/Chicago',
-     '{"sets":4,"reps":null,"durationSeconds":120,"target":{"value":5.8,"unit":"mph"}}', 'synthetic');
+     '{"sets":4,"reps":null,"durationSeconds":120,"target":{"value":5.8,"unit":"mph"}}', 'synthetic', 'verified');
 END $$;

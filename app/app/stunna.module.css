@@ -60,3 +60,11 @@
   .exerciseList { padding-inline: 20px; }
   .days { gap: 8px; }
 }
+
+.segments, .condition { margin: 10px 0; padding: 10px; border-radius: 8px; background: #1d3027; font-size: 13px; overflow-wrap: anywhere; }
+.segments h4 { color: #d3f6a6; font-weight: 700; }
+.segments ol { list-style: decimal; padding-left: 18px; display: grid; gap: 6px; margin-top: 5px; }
+.condition { border-left: 2px solid #c9f779; }
+.methodology { margin-top: 18px; padding: 14px; border: 1px solid #344a40; border-radius: 12px; font-size: 13px; }
+.methodology summary { cursor: pointer; min-height: 32px; }
+.methodology ul, .methodology ol { padding-left: 18px; list-style: disc; display: grid; gap: 5px; }

@@ -13,14 +13,76 @@ const dose = z.strictObject({
   durationSeconds: z.number().int().min(1).max(86400).nullable(),
   target: target.nullable(),
 })
-export const benchmarkPerformance = dose.refine(value => Object.values(value).some(part => part !== null))
+const text = z.string().trim().min(1).max(400)
+const range = z.strictObject({ min: z.number().nonnegative(), max: z.number().nonnegative() })
+  .refine(value => value.min <= value.max)
+const rpe = z.strictObject({ min: z.number().min(0).max(10), max: z.number().min(0).max(10) })
+  .refine(value => value.min <= value.max)
+const metricUnits = [
+  ['speed', ['mph', 'km/h', 'm/s']],
+  ['pace', ['sec/km', 'sec/mi']],
+  ['distance', ['m', 'km', 'mi']],
+  ['power', ['W']],
+  ['rowing_split', ['sec/500m']],
+  ['stroke_rate', ['spm']],
+  ['cycling_cadence', ['rpm']],
+] as const
+
+export const metricTarget = z.strictObject({
+  metric: z.enum(['speed', 'pace', 'distance', 'power', 'rowing_split', 'stroke_rate', 'cycling_cadence']),
+  unit: z.enum(['mph', 'km/h', 'm/s', 'sec/km', 'sec/mi', 'm', 'km', 'mi', 'W', 'sec/500m', 'spm', 'rpm']),
+  range: range.nullable(),
+}).refine(value => metricUnits.some(([metric, units]) =>
+  metric === value.metric && (units as readonly string[]).includes(value.unit)), 'Metric and unit must agree')
+const segment = z.strictObject({
+  phase: z.enum(['warmup', 'work', 'recovery', 'transition', 'cooldown']),
+  modality: z.enum(['run', 'row', 'bike', 'ski', 'strength', 'mobility', 'other']),
+  label: text,
+  durationSeconds: z.number().int().min(1).max(86400).nullable(),
+  targets: z.array(metricTarget).max(8),
+  rpe: rpe.nullable(),
+  strength: dose.extend({ loadBasis: z.enum(['total', 'per_hand', 'added', 'bodyweight', 'unverified']) }).optional(),
+})
+export const blockMethodology = z.strictObject({
+  weeklyStructure: z.array(z.strictObject({
+    weekday: z.number().int().min(1).max(7),
+    slots: z.array(text).min(1).max(8),
+  })).max(7),
+  progressionRules: z.array(text).max(12),
+  sourceReferences: z.array(text).max(12),
+})
+export const benchmarkPerformance = dose.extend({
+  targets: z.array(metricTarget).max(8).optional(),
+  rpe: rpe.optional(),
+}).refine(value => Object.values(value).some(part => part !== null && part !== undefined))
 export const prescriptionExercises = z.array(dose.extend({
   key: exerciseKey,
   name: z.string().trim().min(1).max(100),
   restSeconds: z.number().int().min(0).max(3600).nullable(),
-  notes: z.string().trim().min(1).max(400).nullable(),
+  notes: text.nullable(),
+  rpe: rpe.optional(),
+  repsRange: z.strictObject({ min: z.number().int().min(1).max(500), max: z.number().int().min(1).max(500) })
+    .refine(value => value.min <= value.max).optional(),
+  loadBasis: z.enum(['total', 'per_hand', 'added', 'bodyweight', 'unverified']).optional(),
+  optional: z.boolean().optional(),
+  equipment: text.optional(),
+  comparisonContext: text.optional(),
+  sourceReferences: z.array(text).max(8).optional(),
+  warmups: z.array(segment).max(8).optional(),
+  intervalBlocks: z.array(z.strictObject({
+    repeat: z.number().int().min(1).max(30),
+    segments: z.array(segment).min(1).max(12),
+  })).max(8).optional(),
+  targets: z.array(metricTarget).max(8).optional(),
+  adjustments: z.array(z.strictObject({
+    condition: text,
+    action: text,
+    substitution: z.strictObject({ exerciseKey, name: text, equipment: text }).optional(),
+  })).max(8).optional(),
 })).min(1).max(24)
 
+export type Segment = z.infer<typeof segment>
+export type MetricTarget = z.infer<typeof metricTarget>
 export type Dose = z.infer<typeof dose>
 
 export function localTrainingDate(instant: Date, timeZone: string) {

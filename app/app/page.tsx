@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowRight, CalendarDays, Dumbbell } from 'lucide-react'
 import { notFound } from 'next/navigation'
 import { getWebSubject } from '@/lib/web-auth'
 import { getTrainingContext, type TrainingContext } from '@/lib/training/context'
-import { contextInput, moveTrainingDate, type Dose } from '@/lib/training/context-models'
+import { contextInput, moveTrainingDate, type Dose, type MetricTarget, type Segment } from '@/lib/training/context-models'
 import styles from './stunna.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +27,26 @@ function doseLabel(dose: Dose) {
   ].filter(Boolean).join(' · ')
 }
 
+function metricLabel(target: MetricTarget) {
+  if (!target.range) return target.metric.replaceAll('_', ' ') + ' · Unspecified'
+  const clock = (value: number) => Math.floor(Math.round(value) / 60) + ':' + String(Math.round(value) % 60).padStart(2, '0')
+  const pace = ['sec/km', 'sec/mi', 'sec/500m'].includes(target.unit)
+  const number = (value: number) => pace ? clock(value) : String(value)
+  const values = target.range.min === target.range.max
+    ? number(target.range.min) : number(target.range.min) + '–' + number(target.range.max)
+  return values + ' ' + (pace ? target.unit.replace('sec/', '/') : target.unit)
+}
+
+function SegmentLine({ segment }: { segment: Segment }) {
+  return <li>
+    <strong>{segment.label}</strong> · {segment.modality} · {segment.phase}
+    {segment.durationSeconds !== null && <> · {duration(segment.durationSeconds)}</>}
+    {segment.targets.map((target, i) => <span key={i}> · {metricLabel(target)}</span>)}
+    {segment.rpe && <> · RPE {segment.rpe.min}–{segment.rpe.max}</>}
+    {segment.strength && <> · {doseLabel(segment.strength)} · {segment.strength.loadBasis.replaceAll('_', ' ')}</>}
+  </li>
+}
+
 function Workout({ workout, timeZone, showPrevious }: {
   workout: TrainingContext['workouts'][number]
   timeZone: string
@@ -49,16 +69,29 @@ function Workout({ workout, timeZone, showPrevious }: {
             <li className={styles.exercise} key={exercise.position}>
               <span className={styles.position} aria-hidden="true">{String(exercise.position).padStart(2, '0')}</span>
               <div>
-                <h3>{exercise.name}</h3>
+                <h3>{exercise.name}{exercise.optional && <small> · Optional</small>}</h3>
                 <dl className={styles.targets}>
-                  <div><dt>Work</dt><dd>{doseLabel({ ...exercise, target: null }) || 'Unspecified'}</dd></div>
+                  <div><dt>Work</dt><dd>{(exercise.repsRange ? [exercise.sets === null ? '' : exercise.sets + ' sets', exercise.repsRange.min + '–' + exercise.repsRange.max + ' reps'].filter(Boolean).join(' · ') : doseLabel({ ...exercise, target: null })) || 'Unspecified'}</dd></div>
                   <div><dt>Target</dt><dd>{exercise.target ? `${exercise.target.value} ${exercise.target.unit}` : 'Unspecified'}</dd></div>
                   <div><dt>Rest</dt><dd>{exercise.restSeconds === null ? 'Unspecified' : duration(exercise.restSeconds)}</dd></div>
                 </dl>
+                {exercise.loadBasis && <p className={styles.cue}>Load convention · {exercise.loadBasis.replaceAll('_', ' ')}</p>}
+                {exercise.rpe && <p className={styles.cue}>Target RPE {exercise.rpe.min}–{exercise.rpe.max}</p>}
+                {exercise.equipment && <p className={styles.cue}>Equipment · {exercise.equipment}</p>}
+                {exercise.targets?.map((target, i) => <p className={styles.cue} key={i}>{metricLabel(target)}</p>)}
+                {!!exercise.warmups?.length && <div className={styles.segments}><h4>Warm-up</h4><ol>{exercise.warmups.map((segment, i) => <SegmentLine key={i} segment={segment} />)}</ol></div>}
+                {exercise.intervalBlocks?.map((block, i) => <div className={styles.segments} key={i}>
+                  <h4>{block.repeat} {block.repeat === 1 ? 'round' : 'rounds'}</h4>
+                  <ol>{block.segments.map((segment, j) => <SegmentLine key={j} segment={segment} />)}</ol>
+                </div>)}
+                {exercise.adjustments?.map((adjustment, i) => <div className={styles.condition} key={i}>
+                  <strong>{adjustment.condition}</strong><p>{adjustment.action}</p>
+                  {adjustment.substitution && <p>Alternative · {adjustment.substitution.name} · {adjustment.substitution.equipment}</p>}
+                </div>)}
                 {exercise.notes && <p className={styles.cue}>{exercise.notes}</p>}
                 {showPrevious && <p className={styles.previous}>
                   <strong>Previous</strong> {exercise.previous
-                    ? `${doseLabel(exercise.previous.performance)} · ${label(exercise.previous.date, { month: 'short', day: 'numeric', year: 'numeric' })}${exercise.previous.source === 'synthetic' ? ' · Demo' : ''}`
+                    ? `${[doseLabel(exercise.previous.performance), ...(exercise.previous.performance.targets ?? []).map(metricLabel)].filter(Boolean).join(' · ')} · ${label(exercise.previous.date, { month: 'short', day: 'numeric', year: 'numeric' })}${exercise.previous.source === 'synthetic' ? ' · Demo' : ''}`
                     : 'No comparable performance recorded'}
                 </p>}
               </div>
@@ -150,6 +183,11 @@ export default async function StunnaPage({ searchParams }: { searchParams: Promi
           </div>
         </nav>
 
+        {context.workouts[0]?.block.methodology && <details className={styles.methodology}>
+          <summary>Block guidance & weekly structure</summary>
+          <ul>{context.workouts[0].block.methodology.progressionRules.map((rule, i) => <li key={i}>{rule}</li>)}</ul>
+          <ol>{context.workouts[0].block.methodology.weeklyStructure.map((day, i) => <li key={i}>Day {day.weekday} · {day.slots.join(' → ')}</li>)}</ol>
+        </details>}
         <div className={styles.scheduleLabel}>
           <span>Prescription</span><span>{context.timeZone}</span>
         </div>

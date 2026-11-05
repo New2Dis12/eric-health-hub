@@ -1,7 +1,7 @@
 # Stunna Intelligence Engine — Current Status
 
 **As of:** 2026-11-04
-**Sprint 2:** Review ready on `feature/stunna-sprint-2`, based on `main` commit `c6d11c3fcba9651ac40420a6f197866e08ee2a92`.
+**Sprint 2:** Methodology review corrections implemented; protected Preview preparation approved. Review ready on `feature/stunna-sprint-2`, based on `main` commit `c6d11c3fcba9651ac40420a6f197866e08ee2a92`.
 **Review:** [PR #7](https://github.com/New2Dis12/eric-health-hub/pull/7).
 **Sprint 1 production:** PR #6 was squash-merged and Vercel deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` was verified READY. Production Auth0 login/callback/logout, signed-out denial, Garmin original FIT/dynamics/native laps and Oura passed. Production Stunna is disabled and production training data remains unconnected. The detailed release record from the Sprint 1 branch is preserved below.
 
@@ -16,12 +16,22 @@
 
 | Check | Result |
 |---|---|
-| `pnpm test` | 53 passed, 0 failed, 0 skipped. Covers corrected revisions, previous performance, timezone/calendar behavior, cross-subject RLS, read-only permissions, migration down/up and MCP scope/flag discovery. |
+| `pnpm test` | 56 passed, 0 failed, 0 skipped. Covers corrected revisions, previous performance, timezone/calendar behavior, cross-subject RLS, read-only permissions, migration down/up and MCP scope/flag discovery. |
 | `pnpm typecheck` and `pnpm build` | Passed. `/app` is server-rendered on demand. |
 | Built-app HTTP smoke | Disabled `/app` and training returned 404. Enabled signed-out `/app` showed only the private sign-in screen, training returned 401, and MCP retained 401. |
 | Hosted Neon development checks | Applied both migrations and ledger entries to `sprint-2-development` (`br-patient-cell-bcl0go17`) in the existing project. The restricted runtime saw 3 scheduled workouts, 3 revisions, 2 benchmarks and 1 preference row for the synthetic subject. Revision 2 had the corrected 40 lb target. All 3 new tables enforce FORCE RLS with read-only runtime grants. An unrelated subject saw zero rows. |
 
 Hosted browser login and ChatGPT discovery for Sprint 2 await an approved protected Preview. The isolated database contains only synthetic fixtures. The demonstration and approval steps are in [Sprint 2 operations](SPRINT_2_OPERATIONS.md).
+
+## Methodology review and protected Preview checkpoint
+
+Reviewed the four privately supplied methodology references without importing their records. [Model assessment](SPRINT_2_MODEL_REVIEW.md) documents the fit and scope boundaries. The model now supports typed target ranges, target RPE, warm-ups, ordered repeated interval blocks, optional exercises, equipment conventions, conditional alternatives, and versioned weekly guidance. Migration 003 preserves the applied migration 002 checksum and defaults prior evidence to unverified until explicitly reviewed.
+
+Hosted restricted-role checks on the same Sprint 2 development branch passed. The synthetic subject has six dated workouts, including two on the combined training day, seven prescription revisions and one block-context revision. Four new read-only tables enforce FORCE RLS; an unrelated subject saw zero prescriptions and weekly guidance. Added a separate synthetic fixture for the authorized browser identity so the signed-in Preview can read demo content. No supplied personal prescriptions or health history were imported.
+
+Preview config is scoped to `feature/stunna-sprint-2` in the existing Vercel project. The existing Default App and tenant are reused. Nine entries were prepared, including a fresh session secret, the isolated runtime database URL, Stunna enabled only for Preview, and vendor-token isolation. The owner must add the existing Default App client secret as a Preview-only branch Secret and register the exact Preview callback/logout URLs. Existing Production entries and the Sprint 1 Preview entries were not edited. Production Stunna stays false.
+
+The Preview remains under Vercel Authentication. Hosted browser and MCP acceptance remain pending until callback/client-secret configuration and a scoped test token are available. The local build initially encountered a corrupt Turbopack cache; a clean rebuild passed. Subsequent model changes are covered by the final checks reported with the Preview.
 
 ## Sprint 1 release history
 

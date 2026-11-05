@@ -57,12 +57,14 @@ test('migrations are repeatable; down/up recreates the schema and tracks version
   try {
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'up'))
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
+    assert.equal((await fresh.query<{ tab: string | null }>("SELECT to_regclass('stunna.block_context_revisions') AS tab")).rows[0].tab, null)
+    await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
     assert.equal((await fresh.query<{ tab: string | null }>("SELECT to_regclass('stunna.prescription_revisions') AS tab")).rows[0].tab, null)
     assert.ok((await fresh.query<{ tab: string | null }>("SELECT to_regclass('stunna.actual_sessions') AS tab")).rows[0].tab)
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
     assert.equal((await fresh.query<{ tab: string | null }>("SELECT to_regclass('stunna.actual_sessions') AS tab")).rows[0].tab, null)
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'up'))
-    assert.equal((await fresh.query('SELECT * FROM public.stunna_schema_migrations')).rows.length, 2)
+    assert.equal((await fresh.query('SELECT * FROM public.stunna_schema_migrations')).rows.length, 3)
   } finally { await fresh.close() }
 })
 

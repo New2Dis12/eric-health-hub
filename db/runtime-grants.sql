@@ -16,7 +16,7 @@ GRANT UPDATE(started_at,completed_at,status,notes,rpe,revision,updated_at,source
 DO $$
 DECLARE tab text;
 BEGIN
-  FOREACH tab IN ARRAY ARRAY['prescription_revisions','training_preferences','exercise_benchmarks'] LOOP
+  FOREACH tab IN ARRAY ARRAY['prescription_revisions','training_preferences','exercise_benchmarks','block_context_revisions'] LOOP
     IF to_regclass(format('stunna.%I', tab)) IS NOT NULL THEN
       EXECUTE format('REVOKE INSERT, UPDATE, DELETE ON stunna.%I FROM stunna_runtime', tab);
       EXECUTE format('GRANT SELECT ON stunna.%I TO stunna_runtime', tab);
