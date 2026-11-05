@@ -1,9 +1,43 @@
 # Stunna Intelligence Engine — Current Status
 
 **As of:** 2026-11-05
-**Sprint 2:** Final iPhone interface approved by owner. Release authorized with Stunna disabled; final review and checks passed. Production verification follows the squash merge.
+**Sprint 2:** Squash-merged and released with Stunna disabled. Final iPhone interface approved; final checks and bounded Production functional verification passed. Sprint 3 is plan-only, pending owner review.
 **Review:** [PR #7](https://github.com/New2Dis12/eric-health-hub/pull/7).
 **Sprint 1 production:** PR #6 was squash-merged and Vercel deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz` was verified READY. Production Auth0 login/callback/logout, signed-out denial, Garmin original FIT/dynamics/native laps and Oura passed. Production Stunna is disabled and production training data remains unconnected. The detailed release record from the Sprint 1 branch is preserved below.
+
+## Sprint 2 Production release — 2026-11-05 (Chicago)
+
+Owner approved the final protected iPhone Preview, PR #7 squash merge and normal Production deployment with `STUNNA_ENABLED=false`. PR #7 merged into `main` as `3c579fd2ffb621791fe0f0849aca334d98882f27`. The existing Vercel project automatically built that exact commit as READY Production deployment `dpl_E2bjsX5rQakjhk5DmryW8DMKTzd3` and assigned `eric-health-hub.vercel.app`. [Release deployment](https://vercel.com/stunna4/eric-health-hub/E2bjsX5rQakjhk5DmryW8DMKTzd3).
+
+| Final check | Result |
+|---|---|
+| PR review | No merge conflicts, unresolved review threads or material security blocker found. No further UX changes. |
+| Automated verification | All 58 tests passed, zero failures/skips. `npm run typecheck`, `npm run build` and diff whitespace checks passed on final application code; subsequent changes are documentation only. Includes legacy health tools, token refresh, Auth0/CSRF, RLS/isolation, migrations and shared prescription reads. |
+| Production configuration | `STUNNA_ENABLED=false`; no Production `DATABASE_URL`. Environment IDs, types, scopes and update timestamps match the pre-release snapshot. No Production database migration, provider-credential change, Auth0 scope expansion or personal-record import. |
+| Auth0 login/callback | PASS. Production Sign in reached the existing Default App and tenant with callback `https://eric-health-hub.vercel.app/auth/callback`. Owner completed secure Google authentication; browser returned to Production with Sign out and connected Oura visible. No credentials were read or committed. |
+| Auth0 logout and private homepage | PASS. Sign out returned to the private sign-in screen. Anonymous homepage contained no health values. Logout uses `https://eric-health-hub.vercel.app` as its post-logout destination. |
+| Disabled training | PASS. `/app` and `/api/training` returned 404; Stunna link absent on the signed-in Health Hub. No production training database is required or contacted. |
+| Unauthorized provider/MCP access | PASS. Signed-out Oura test/authorize returned 401. Garmin diagnostic returned 404 without its diagnostic secret. Anonymous `/mcp` returned 401 with bearer challenge. Public privacy/terms returned 200. |
+| Existing authenticated MCP tools | PASS. Existing Health Hub v2 Garmin listing and Oura summary tools responded. All four Oura summary fields were populated; browser also showed Oura connected/API success. |
+| Garmin original FIT | PASS. Bounded original FIT download/decode returned 12 samples with timestamps, heart rate, speed/pace, cadence and distance. Power was absent in this source and stayed null. |
+| Running dynamics and native laps | PASS. Ground contact time, vertical oscillation, balance and vertical ratio populated; two native laps returned. Independent continuation returned two more samples and one more native lap. No activity identifiers or personal values are included here. |
+
+**Release assessment:** GO for the approved disabled-feature release. Health Hub v2 remains operational within the checks above. No critical functional failure or rollback occurred. Stunna activation remains NO-GO pending its separate database, backup, scope/parity and owner-approval gates.
+
+### Remaining limitations and recovery
+
+- Hosted `get_training_context` discovery/call parity remains blocked by test-token configuration requiring explicit `training.read`. The owner approved deferral for this release. Local browser/API shared-reader parity and tool scope/flag tests pass; complete the real hosted test before activation. Do not expand Production Auth0 grants to resolve it now.
+- The owner approved the final iPhone layout. The read-only browser acceptance console harness has not been reported as run; do not conflate visual approval with that automated hosted result.
+- Vercel runtime error-log retrieval returned 403; no independent runtime error scan can be claimed. No CLI credential fallback is configured. Deployment metadata, direct HTTP/browser checks and live tools provide the recorded functional coverage.
+- A callback requested without any OAuth transaction/code returned the Auth0 SDK's 500 response and did not authenticate. The genuine signed-in callback passed. Consider friendlier malformed-callback error handling separately; it is not a regression introduced by Sprint 2.
+- Production training remains unconnected and unmigrated. Before activation, prepare a clean database, restricted runtime role, reviewed migrations/grants/FORCE RLS, durable private backups and an isolated restore drill. Real-record import and activation require separate approval.
+- Rollback candidate is the preceding verified Sprint 1 deployment `dpl_62ywMnN3hzybcUJgpyZtxz3vJfQz`. Stop on a critical regression and request owner approval before rollback. Preserve existing credentials/tokens and additive schema; do not run destructive down migrations for application recovery.
+
+### Sprint 3 readiness
+
+[Sprint 3 implementation plan](SPRINT_3_PLAN.md) is prepared for review only. It covers actual strength sets/reps/loads/RPE, ordered interval actuals, confirmed adjustments, reliable save/resume, audited corrections and idempotent completion, plus shared app/MCP reads and logging. Preserve the approved calendar/inline overviews, immutable prescriptions, one coaching conversation, existing methodology and one PostgreSQL truth. No Sprint 3 application, migration or scope implementation has begun.
+
+This post-release documentation is published to main so the next sprint sees the complete handoff. Its normal Git-triggered build, if created, contains identical application code to the release above; verify the resulting deployment metadata rather than treating it as a new feature release. The earlier Sprint 2 Preview and unmerged checkpoints below are historical.
 
 ## Sprint 2 — Stunna Workout Interface
 
