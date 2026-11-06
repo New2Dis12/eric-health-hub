@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { WorkoutSession } from '@/lib/training/session'
 import styles from './stunna.module.css'
+import { confirmStartedWorkout, SessionConflict } from '@/lib/training/session-client'
 
 export function SessionStart({ workoutId, prescriptionRevision }: { workoutId: string; prescriptionRevision: number | null }) {
   const [workout, setWorkout] = useState<WorkoutSession | null>(null)
@@ -26,15 +27,21 @@ export function SessionStart({ workoutId, prescriptionRevision }: { workoutId: s
     setState('saving'); setMessage('Starting or resuming…')
     const command = retry.current ?? { idempotencyKey: crypto.randomUUID(), expectedSessionRevision: workout?.revision ?? 0 }
     retry.current = command
+    // Do not keep displaying a potentially superseded session while reconciling.
+    setWorkout(null); setOpened(false)
     try {
-      const r = await fetch('/api/training/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      const current = await confirmStartedWorkout(fetch, workoutId, {
         operation: 'start_workout', reason: 'Start or resume workout', plannedSessionId: workoutId,
         expectedPrescriptionRevision: prescriptionRevision, ...command,
-      }) })
-      if (!r.ok) { if (r.status === 409) { retry.current = null; setMessage('The saved plan or session changed. Reload this page before retrying.'); setState('error'); return } throw new Error() }
-      const body = await r.json()
-      setWorkout(body.workout); setOpened(true); retry.current = null; setState('ready'); setMessage('Session confirmed on the server.')
-    } catch { setState('ready'); setMessage('Could not confirm the session. Retry safely; no success is assumed.') }
+      })
+      setWorkout(current); setOpened(true); retry.current = null; setState('ready'); setMessage('Current session confirmed on the server.')
+    } catch (error) {
+      if (error instanceof SessionConflict) {
+        retry.current = null; setMessage('The saved plan or session changed. Reload this page before retrying.'); setState('error')
+      } else {
+        setState('ready'); setMessage('Could not confirm the current session. Retry safely; no success is assumed.')
+      }
+    }
   }
   return <div className={styles.startArea}>
     <button className={styles.startWorkout} type="button" disabled={state !== 'ready' || (prescriptionRevision === null && !workout)}

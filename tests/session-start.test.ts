@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { generateSessionCookie } from '@auth0/nextjs-auth0/testing'
 import { PGlite } from '@electric-sql/pglite'
+import { confirmStartedWorkout } from '../lib/training/session-client'
 import { createTrainingService } from '../lib/training/service'
 import { createSessionHandlers } from '../lib/training/session-http'
 import { requireTrainingPrincipal } from '../lib/training/auth'
@@ -112,4 +113,41 @@ test('two encrypted browser sessions resume server truth; CSRF, anonymous and in
   assert.equal((await handler.POST(request({cookie:first,origin:'null'}))).status,403)
   assert.equal((await handler.POST(request({cookie:first,origin,authorization:'Bearer invalid'}))).status,401)
   assert.equal((await handler.GET(new Request(origin+'/api/training/session?workout='+run))).status,401)
+})
+
+// The client helper is the exact write/read sequence used by SessionStart.
+test('lost Start response followed by finalization reconciles current state without changing exact replay',async()=>{
+  const input=start(run)
+  const handlers=createSessionHandlers({enabled:()=>true,principal:async()=>principal,service:()=>service})
+  let loseResponse=true
+  const transport=async(url:string,init?:RequestInit)=>{
+    const request=new Request('https://session.invalid'+url,init)
+    if(init?.method==='POST') {
+      const response=await handlers.POST(request)
+      if(loseResponse) {loseResponse=false; throw new Error('Synthetic lost reply after commit')}
+      return response
+    }
+    return handlers.GET(request)
+  }
+  await assert.rejects(confirmStartedWorkout(transport,run,input))
+  const original=await service.workout(principal,run)
+  await db.query("UPDATE stunna.actual_sessions SET status='completed',completed_at=started_at,revision=revision+1 WHERE id=$1",[original!.id])
+  assert.equal((await service.write(principal,input)).workout!.status,'in_progress')
+  const confirmed=await confirmStartedWorkout(transport,run,input)
+  assert.equal(confirmed.status,'completed')
+  assert.equal(confirmed.revision,original!.revision+1)
+  assert.equal(confirmed.id,original!.id)
+})
+test('successful write with failed reconciliation remains unconfirmed and retries the same receipt safely',async()=>{
+  const input=start(run)
+  let failRead=true
+  const handlers=createSessionHandlers({enabled:()=>true,principal:async()=>principal,service:()=>service})
+  const transport=async(url:string,init?:RequestInit)=>{
+    if(init?.method==='POST') return handlers.POST(new Request('https://session.invalid'+url,init))
+    if(failRead) return new Response('{}',{status:503})
+    return handlers.GET(new Request('https://session.invalid'+url,init))
+  }
+  await assert.rejects(confirmStartedWorkout(transport,run,input))
+  failRead=false
+  assert.equal((await confirmStartedWorkout(transport,run,input)).status,'completed')
 })
