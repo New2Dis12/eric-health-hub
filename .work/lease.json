@@ -1,15 +1,24 @@
 {
-  "state": "review",
-  "owner": "issue16-worker-1793977337905",
-  "epoch": 1,
+  "state": "in-progress",
+  "owner": "issue16-correction-abd08a4c-383b-407e-819e-708307587a4f",
+  "epoch": 2,
   "spec": "6ad2a3179500688e6a301dd8e6aa83a6b528a47b1fb9fc4f5134fc23ef1af50e",
-  "heartbeat": "2026-11-06T15:08:55Z",
-  "expires": "2026-11-06T15:53:55Z",
-  "checkpoint": "Start/resume source delivered; 64 app tests + 20 workflow tests, typecheck/build/whitespace passed; pending independent review",
-  "attempts": 0,
+  "heartbeat": "2026-11-06T16:03:15Z",
+  "expires": "2026-11-06T16:48:15Z",
+  "checkpoint": "Reserved correction attempt1 for current-head resume-retry-current-state before editing",
+  "attempts": 1,
   "correction": {
-    "attempts": 0,
-    "findings": []
+    "attempts": 1,
+    "findings": [
+      {
+        "key": "resume-retry-current-state",
+        "reviewComment": 6688240149,
+        "reviewedHead": "8805ba1f1114a80c003b2f68764bafbc80a33e42",
+        "lastAttemptedHead": "8805ba1f1114a80c003b2f68764bafbc80a33e42",
+        "result": "in-progress",
+        "nextAction": "Reconcile current authenticated GET after start/retry; add regression"
+      }
+    ]
   },
   "validation": {
     "appTests": 64,
@@ -20,5 +29,31 @@
     "hosted": "not authorized/not tested",
     "database": "local synthetic PGlite restricted role"
   },
-  "nextAction": "Independent current-head technical review; no merge/deploy/hosted migration"
+  "nextAction": "Independent current-head technical review; no merge/deploy/hosted migration",
+  "history": [
+    {
+      "state": "review",
+      "owner": "issue16-worker-1793977337905",
+      "epoch": 1,
+      "spec": "6ad2a3179500688e6a301dd8e6aa83a6b528a47b1fb9fc4f5134fc23ef1af50e",
+      "heartbeat": "2026-11-06T15:08:55Z",
+      "expires": "2026-11-06T15:53:55Z",
+      "checkpoint": "Start/resume source delivered; 64 app tests + 20 workflow tests, typecheck/build/whitespace passed; pending independent review",
+      "attempts": 0,
+      "correction": {
+        "attempts": 0,
+        "findings": []
+      },
+      "validation": {
+        "appTests": 64,
+        "workflowTests": 20,
+        "typecheck": "PASS",
+        "build": "PASS",
+        "whitespace": "PASS",
+        "hosted": "not authorized/not tested",
+        "database": "local synthetic PGlite restricted role"
+      },
+      "nextAction": "Independent current-head technical review; no merge/deploy/hosted migration"
+    }
+  ]
 }
