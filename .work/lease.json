@@ -1,12 +1,12 @@
 {
-  "state": "review",
-  "owner": "pilot13-inline-correction-1793935311729-9ac7d5b9788f98",
-  "epoch": 3,
+  "state": "in-progress",
+  "owner": "scheduled-pilot13-3d071e3b-1795-4c20-bc69-299115fc1e5d",
+  "epoch": 4,
   "spec": "e90ec1404141e21fa80446813ff4076edbc1e90a5282d502972017ec8bbb79a6",
-  "heartbeat": "2026-11-06T03:21:51.729Z",
-  "expires": "2026-11-06T03:51:51.729Z",
-  "checkpoint": "P3 pilot review evidence refreshed; inline correction published only after JSON/whitespace/scope validation; independent corrected-head review pending",
-  "attempts": 1,
+  "heartbeat": "2026-11-06T05:05:40.670Z",
+  "expires": "2026-11-06T05:35:40.670Z",
+  "checkpoint": "Reserved new current-head pilot-terminal-skip-evidence correction; terminal expiry is not takeover authority",
+  "attempts": 2,
   "synthetic": true,
   "recovery": {
     "fromEpoch": 1,
@@ -22,13 +22,26 @@
     "whitespace": "PASS"
   },
   "correction": {
-    "attempts": 1,
+    "attempts": 2,
     "reviewId": 6675858045,
-    "reviewHead": "ae7a48001a5a287561a945c5367a27b3a8c26aaa",
-    "finding": "pilot-review-evidence-refresh",
-    "lastAttemptedHead": "ae7a48001a5a287561a945c5367a27b3a8c26aaa",
-    "result": "awaiting-review",
-    "execution": "Run now returned inline; unattended pickup is not proved",
-    "nextAction": "Existing PR commit event must trigger independent review; unattended coding pickup remains unproven"
-  }
+    "reviewHead": "b1cebed0a1742d5b533f792cacfceb96a0186515",
+    "finding": "pilot-terminal-skip-evidence",
+    "lastAttemptedHead": "b1cebed0a1742d5b533f792cacfceb96a0186515",
+    "result": "in-progress",
+    "execution": "Normal scheduled invocation; no Run now or interactive implementation",
+    "nextAction": "Publish only approved evidence refresh and await independent review"
+  },
+  "correctionHistory": [
+    {
+      "attempts": 1,
+      "reviewId": 6675858045,
+      "reviewHead": "ae7a48001a5a287561a945c5367a27b3a8c26aaa",
+      "finding": "pilot-review-evidence-refresh",
+      "lastAttemptedHead": "ae7a48001a5a287561a945c5367a27b3a8c26aaa",
+      "result": "awaiting-review",
+      "execution": "Run now returned inline; unattended pickup is not proved",
+      "nextAction": "Existing PR commit event must trigger independent review; unattended coding pickup remains unproven",
+      "outcome": "Resolved by independent GO on b1cebed; not repeated"
+    }
+  ]
 }
