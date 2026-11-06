@@ -40,3 +40,22 @@ test('finite clock boundary preserves active, stale, and blocked retry behavior'
   assert.equal(s({ lease: activeLease, now: Date.parse('2026-11-05T21:00:00Z') }), 'stale')
   assert.equal(s({ lease: { state: 'blocked', retryAfter: '2026-11-05T20:00:00Z', attempts: 1 }, now }), 'retry')
 })
+
+test('finite Date-invalid clocks cannot authorize recovery or retry', () => {
+  for (const bad of [8640000000000001, -8640000000000001, 1e100, -1e100]) {
+    assert.equal(s({ now: bad }), 'invalid')
+    assert.equal(s({ lease: { state: 'blocked', retryAfter: '2026-11-05T19:00:00Z', attempts: 1 }, now: bad }), 'invalid')
+  }
+})
+test('fractional and unsafe integer clocks fail closed', () => {
+  for (const bad of [now + 0.5, Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER]) assert.equal(s({ now: bad }), 'invalid')
+})
+test('invalid numeric clocks prohibit publication', () => {
+  const activeLease = { ...lease, expires: '2026-11-05T20:30:00Z' }
+  for (const bad of [8640000000000001, -8640000000000001, 1e100, now + 0.5]) assert.equal(mayPublish({ lease: activeLease, owner: 'old', epoch: 1, spec: lease.spec, now: bad }), false)
+})
+test('invalid clocks preserve conservative nonexecuting dispositions', () => {
+  assert.equal(s({ approved: false, now: NaN }), 'unapproved')
+  assert.equal(s({ openPR: true, now: NaN }), 'review')
+  for (const state of ['done', 'review']) assert.equal(s({ lease: { state }, now: NaN }), state)
+})

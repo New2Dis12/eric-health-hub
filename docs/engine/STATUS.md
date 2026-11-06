@@ -304,3 +304,8 @@ Review the protected Preview first. Production activation requires separate appr
 ## Workflow #8 orchestration update — 2026-11-05
 
 Prepared the [development workflow](DEVELOPMENT_WORKFLOW.md), cooperative per-issue branch leases with expected-head fencing, 12 synthetic policy tests and a configured hourly scanner that distinguishes active/stale/legacy/blocked/review/done. Old comments no longer imply perpetual activity. PR #11 demonstrated real event review; unattended scanner discovery/skip was observed. Live recovery and duplicate-event evidence and remaining limits are recorded in issue #8. No Sprint 3, merge, deployment or Production changes are included. Workflow changes remain on a review branch until separately approved.
+
+
+### Workflow #8 controlled repair
+
+Clock guard now requires a safe integer within Date range; regression cases cover finite out-of-range/fractional values and publication denial. The owner-directed repair preserves three exhausted automatic attempts and returns the existing PR to technical review. Workflow worker/escalation are paused to stop ineffective loops; the read-only reviewer is restored after source publication. Actual unattended correction delivery is not established and workflow #8 remains open pending that synthetic end-to-end proof. See DEVELOPMENT_WORKFLOW.md and issue #8 for evidence. Nothing merged/deployed; Production and Sprint 3 remain unchanged.

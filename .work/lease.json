@@ -1,21 +1,28 @@
 {
-  "state": "blocked",
-  "owner": "backlog-budget-escalation",
-  "epoch": 5,
+  "state": "review",
+  "owner": "owner-directed-clock-repair",
+  "epoch": 6,
   "spec": "c9bdb8a1016c35341082e2ecc4e11acb10d77d88ed93645865c84b8dcb59c206",
   "heartbeat": "2026-11-06T00:43:06.358Z",
   "expires": "2026-11-06T01:43:06.358Z",
-  "checkpoint": "Implementation clock fix at b595945e7b92885790978e3ac78c5a951e7e2a9d is partial; current technical review NO-GO; correction budget exhausted",
+  "checkpoint": "Controlled clock repair validated: 20 workflow tests, 58 app tests, typecheck and build PASS",
   "correction": {
     "attempts": 3,
     "reviewId": 6668132687,
     "reviewHead": "cfceed8b3d794dc1a0fbb83e6ed8bb2b6d303fa7",
     "finding": "invalid-clock",
     "lastAttemptedHead": "dfa7061c20b000278aabf8b6bee8cab5b28ab659",
-    "result": "blocked-owner-required",
-    "nextAction": "Explicit owner resolution required before any additional correction; no automatic retry or renewal"
+    "result": "awaiting-review",
+    "nextAction": "Read-only technical review of repaired source; automatic coding remains paused"
   },
-  "blockedReason": "owner-required: three correction attempts exhausted; finite Date-invalid clock still returns stale",
   "attempts": 3,
-  "blockedAt": "2026-11-06T02:36:43.212Z"
+  "blockedAt": "2026-11-06T02:36:43.212Z",
+  "ownerResolution": "Owner direct request to resolve stalled workflow; no automatic budget reset",
+  "manualRepairCount": 1,
+  "validation": {
+    "workflowTests": 20,
+    "appTests": 58,
+    "typecheck": "PASS",
+    "build": "PASS"
+  }
 }

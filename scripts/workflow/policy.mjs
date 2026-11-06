@@ -7,7 +7,7 @@ export function disposition({ approved, lease, openPR = false, now }) {
   if (!lease) return 'inspect-legacy'
   if (lease.state === 'done' || lease.state === 'review') return lease.state
   // Missing or non-finite clock inputs may never authorize takeover, retry, or publication.
-  if (typeof now !== 'number' || !Number.isFinite(now)) return 'invalid'
+  if (!Number.isSafeInteger(now) || Math.abs(now) > 8640000000000000) return 'invalid'
   if (lease.state === 'blocked') return Number.isFinite(instant(lease.retryAfter)) && instant(lease.retryAfter) <= now && lease.attempts < 3 ? 'retry' : 'blocked'
   const heartbeat = instant(lease.heartbeat), expires = instant(lease.expires)
   if (lease.state !== 'in-progress' || !Number.isInteger(lease.epoch) || lease.epoch < 1 || !lease.owner || !lease.spec || !Number.isFinite(heartbeat) || !Number.isFinite(expires) || expires <= heartbeat || expires - heartbeat > 3600000 || heartbeat > now) return 'invalid'

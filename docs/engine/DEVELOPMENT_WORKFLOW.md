@@ -48,3 +48,16 @@ Owner remains responsible for product/spec approval, material scope changes, res
 - Unapproved issue #9 remains untouched. No production changes, merges or Sprint 3 implementation are included. Whole-workflow readiness is limited by cooperative tool permissions and absence of a demonstrated unattended implementation+recovery run; do not claim exactly-once execution.
 
 Official task capability reference: https://learn.chatgpt.com/docs/automations . Web tasks may rehydrate from connected GitHub but do not retain local worktrees between runs. Account availability and connection failures can block a run; record actionable evidence rather than assuming a worker stays alive.
+
+
+## Controlled repair and actual readiness — 2026-11-05
+
+Owner asked to resolve the stalled workflow. Paused the backlog worker, PR reviewer and separate clock escalation while an owner-directed writer finished the correction. No automatic retry counter was reset: three failed/expired attempts remain recorded. The same PR receives a single implementation-changing repair and terminal review checkpoint, rather than another heartbeat-only publication.
+
+The clock contract is finite safe-integer epoch milliseconds within JavaScript Date range (absolute value <= 8640000000000000). It rejects missing, nonnumeric, nonfinite, fractional and out-of-range inputs before time-based expiry/retry classification; mayPublish consequently fails closed. Early unapproved/open-PR/terminal states remain conservative. The targeted workflow suite now includes Date-range and publication regression probes.
+
+Observed failure chain: canonical leases advanced while implementation did not; one local validation attempt failed because Turbopack rejected node_modules pointing outside the checkout, and a subsequent publication preparation failed with GitHub Invalid tree info (422). Review events arrived while coding work remained unfinished in this shared conversation. These are actual failures, not successful correction delivery. A claim/heartbeat alone is never proof of live execution. Service-level isolation between writers and event reviewers was not demonstrated.
+
+Simpler operating rule: one writer completes validation, constructs a tree from a verified nonempty base tree, publishes an implementation checkpoint under expected-head fencing and updates GitHub evidence before requesting review. Avoid intermediate lease-only publications unless a genuinely running long task needs renewal. Keep technical reviews read-only. During controlled repair pause competing workflow tasks, then restore only the reviewer for completed-source events. The backlog execution and redundant clock-escalation task stay paused until an isolated unattended implementation→review→correction run succeeds; do not describe their configured prompts as a working coding pipeline. Product approval, merge, deployments and Stunna activation remain separate owner decisions.
+
+The real PR #11 event-review and sequential deduplication pilot passed (issue #8 comment 6668163964). Automated coding/recovery reliability remains unproven. Restoring it requires demonstrating a synthetic approved task from pickup through a real implementation commit and read-only review, without intermediate events stranding the writer. No new infrastructure, chatbot, production configuration or Sprint 3 work is included.
