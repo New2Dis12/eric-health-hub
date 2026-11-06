@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "pilot-13-24f73d75-6aee-43b3-a05e-c384a7a9178f",
   "epoch": 2,
   "spec": "e90ec1404141e21fa80446813ff4076edbc1e90a5282d502972017ec8bbb79a6",
   "heartbeat": "2026-11-06T03:04:43.685Z",
   "expires": "2026-11-06T03:34:43.685Z",
-  "checkpoint": "Recovered synthetic expired epoch 1 after live approval, branch, history and PR checks; implementation pending.",
+  "checkpoint": "Synthetic recovery delivered: WORKFLOW_RECOVERY_PILOT.md added; awaiting independent PR review",
   "attempts": 0,
   "synthetic": true,
   "recovery": {
@@ -14,5 +14,16 @@
     "seedCommit": "b25bec45add2129c28048830bebb4ed1da6ae1d7",
     "previousHeartbeat": "2026-11-06T02:05:59.693Z",
     "previousExpires": "2026-11-06T02:45:59.693Z"
+  },
+  "validation": {
+    "json": "PASS",
+    "deploymentExclusion": "PASS",
+    "approvedPaths": "PASS",
+    "whitespace": "PASS"
+  },
+  "correction": {
+    "attempts": 0,
+    "result": "awaiting-review",
+    "nextAction": "Independent current-head review; no automatic implementation without actionable findings"
   }
 }
