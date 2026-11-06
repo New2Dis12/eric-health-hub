@@ -1,11 +1,11 @@
 {
-  "state": "review",
-  "owner": "owner-directed-clock-repair",
-  "epoch": 6,
+  "state": "in-progress",
+  "owner": "workflow-closeout-4aa866da-3cd0-497f-9a87-cdc7f9fd7658",
+  "epoch": 7,
   "spec": "c9bdb8a1016c35341082e2ecc4e11acb10d77d88ed93645865c84b8dcb59c206",
-  "heartbeat": "2026-11-06T00:43:06.358Z",
-  "expires": "2026-11-06T01:43:06.358Z",
-  "checkpoint": "Controlled clock repair validated: 20 workflow tests, 58 app tests, typecheck and build PASS",
+  "heartbeat": "2026-11-06T09:02:05.239Z",
+  "expires": "2026-11-06T09:47:05.239Z",
+  "checkpoint": "Closeout documentation preparation authorized by coordinator comment 6678997668; no correction retry budget reset",
   "correction": {
     "attempts": 3,
     "reviewId": 6668132687,
@@ -24,5 +24,36 @@
     "appTests": 58,
     "typecheck": "PASS",
     "build": "PASS"
-  }
+  },
+  "history": [
+    {
+      "state": "review",
+      "owner": "owner-directed-clock-repair",
+      "epoch": 6,
+      "spec": "c9bdb8a1016c35341082e2ecc4e11acb10d77d88ed93645865c84b8dcb59c206",
+      "heartbeat": "2026-11-06T00:43:06.358Z",
+      "expires": "2026-11-06T01:43:06.358Z",
+      "checkpoint": "Controlled clock repair validated: 20 workflow tests, 58 app tests, typecheck and build PASS",
+      "correction": {
+        "attempts": 3,
+        "reviewId": 6668132687,
+        "reviewHead": "cfceed8b3d794dc1a0fbb83e6ed8bb2b6d303fa7",
+        "finding": "invalid-clock",
+        "lastAttemptedHead": "dfa7061c20b000278aabf8b6bee8cab5b28ab659",
+        "result": "awaiting-review",
+        "nextAction": "Read-only technical review of repaired source; automatic coding remains paused"
+      },
+      "attempts": 3,
+      "blockedAt": "2026-11-06T02:36:43.212Z",
+      "ownerResolution": "Owner direct request to resolve stalled workflow; no automatic budget reset",
+      "manualRepairCount": 1,
+      "validation": {
+        "workflowTests": 20,
+        "appTests": 58,
+        "typecheck": "PASS",
+        "build": "PASS"
+      }
+    }
+  ],
+  "phase": "owner-directed-closeout"
 }
