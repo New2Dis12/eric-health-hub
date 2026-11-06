@@ -1,12 +1,12 @@
 {
-  "state": "review",
-  "owner": "pilot-13-24f73d75-6aee-43b3-a05e-c384a7a9178f",
-  "epoch": 2,
+  "state": "in-progress",
+  "owner": "pilot13-inline-correction-1793935311729-9ac7d5b9788f98",
+  "epoch": 3,
   "spec": "e90ec1404141e21fa80446813ff4076edbc1e90a5282d502972017ec8bbb79a6",
-  "heartbeat": "2026-11-06T03:04:43.685Z",
-  "expires": "2026-11-06T03:34:43.685Z",
-  "checkpoint": "Synthetic recovery delivered: WORKFLOW_RECOVERY_PILOT.md added; awaiting independent PR review",
-  "attempts": 0,
+  "heartbeat": "2026-11-06T03:21:51.729Z",
+  "expires": "2026-11-06T03:51:51.729Z",
+  "checkpoint": "Attempt reserved for owner-requested P3 documentation evidence refresh; implementation not yet published",
+  "attempts": 1,
   "synthetic": true,
   "recovery": {
     "fromEpoch": 1,
@@ -22,8 +22,13 @@
     "whitespace": "PASS"
   },
   "correction": {
-    "attempts": 0,
-    "result": "awaiting-review",
-    "nextAction": "Independent current-head review; no automatic implementation without actionable findings"
+    "attempts": 1,
+    "reviewId": 6675858045,
+    "reviewHead": "ae7a48001a5a287561a945c5367a27b3a8c26aaa",
+    "finding": "pilot-review-evidence-refresh",
+    "lastAttemptedHead": "ae7a48001a5a287561a945c5367a27b3a8c26aaa",
+    "result": "in-progress",
+    "execution": "Run now returned inline; unattended pickup is not proved",
+    "nextAction": "Refresh only pilot documentation then publish and await independent reviewer"
   }
 }
