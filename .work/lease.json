@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "workflow-closeout-4aa866da-3cd0-497f-9a87-cdc7f9fd7658",
   "epoch": 7,
   "spec": "c9bdb8a1016c35341082e2ecc4e11acb10d77d88ed93645865c84b8dcb59c206",
-  "heartbeat": "2026-11-06T09:02:05.239Z",
-  "expires": "2026-11-06T09:47:05.239Z",
-  "checkpoint": "Closeout documentation preparation authorized by coordinator comment 6678997668; no correction retry budget reset",
+  "heartbeat": "2026-11-06T09:07:41Z",
+  "expires": "2026-11-06T09:52:41.000Z",
+  "checkpoint": "Closeout documentation and STATUS consolidated; 20 workflow tests plus JSON/scope/whitespace passed; pending current-head independent review and owner integration/deployment-gate decision",
   "correction": {
     "attempts": 3,
     "reviewId": 6668132687,
@@ -20,10 +20,15 @@
   "ownerResolution": "Owner direct request to resolve stalled workflow; no automatic budget reset",
   "manualRepairCount": 1,
   "validation": {
+    "phase": "owner-directed-closeout",
     "workflowTests": 20,
-    "appTests": 58,
-    "typecheck": "PASS",
-    "build": "PASS"
+    "json": "PASS",
+    "deploymentExclusions": "unchanged; work/issue-8 false",
+    "scope": "docs/engine/DEVELOPMENT_WORKFLOW.md + docs/engine/STATUS.md + canonical lease only",
+    "whitespace": "PASS",
+    "appTests": "not rerun; documentation phase",
+    "typecheck": "not rerun",
+    "build": "not rerun"
   },
   "history": [
     {
@@ -55,5 +60,15 @@
       }
     }
   ],
-  "phase": "owner-directed-closeout"
+  "phase": "owner-directed-closeout",
+  "closeout": {
+    "coordinatorComment": 6678997668,
+    "pilotHead": "5beb54370bb6629b0b0c94799f2133fe1a9a81d7",
+    "pilotReport": 6675858045,
+    "priorRepairHead": "0c11d43e82d32c3b096641591313d6ebef91fc22",
+    "priorRepairReport": 6668132687,
+    "result": "awaiting-review",
+    "release": "NO-GO until owner approves verified no-deployment gate and lease/config reconciliation; no merge/deploy performed",
+    "nextAction": "Read-only current-head review, then owner decision; no broad intake or automatic retry budget reset"
+  }
 }
