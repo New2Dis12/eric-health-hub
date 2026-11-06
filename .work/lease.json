@@ -1,18 +1,18 @@
 {
   "state": "in-progress",
-  "owner": "backlog-recovery-clock-epoch3",
-  "epoch": 3,
+  "owner": "workflow-final-clock-correction",
+  "epoch": 4,
   "spec": "c9bdb8a1016c35341082e2ecc4e11acb10d77d88ed93645865c84b8dcb59c206",
-  "heartbeat": "2026-11-05T22:38:22.990Z",
-  "expires": "2026-11-05T23:38:22.990Z",
-  "checkpoint": "Recover abandoned correction attempt 1; unchanged implementation finding independently verified",
+  "heartbeat": "2026-11-06T00:43:06.358Z",
+  "expires": "2026-11-06T01:43:06.358Z",
+  "checkpoint": "Final bounded implementation attempt",
   "correction": {
-    "attempts": 2,
+    "attempts": 3,
     "reviewId": 6668132687,
     "reviewHead": "cfceed8b3d794dc1a0fbb83e6ed8bb2b6d303fa7",
     "finding": "invalid-clock",
-    "lastAttemptedHead": "8e1103a8ab76b3e0ef4b10303a77383852325370",
+    "lastAttemptedHead": "dfa7061c20b000278aabf8b6bee8cab5b28ab659",
     "result": "in-progress",
-    "nextAction": "publish minimal clock guard and tests"
+    "nextAction": "Publish correction or block; no further automatic retries"
   }
 }
