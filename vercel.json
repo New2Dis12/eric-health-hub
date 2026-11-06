@@ -5,7 +5,8 @@
       "feature/garmin-fit-details": false,
       "feature/garmin-running-dynamics-laps": false,
       "feature/stunna-sprint-1": false,
-      "feature/stunna-sprint-2": false
+      "feature/stunna-sprint-2": false,
+      "work/issue-13": false
     }
   }
 }

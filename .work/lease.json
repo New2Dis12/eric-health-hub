@@ -1,0 +1,11 @@
+{
+  "state": "in-progress",
+  "owner": "synthetic-abandoned-pilot-13",
+  "epoch": 1,
+  "spec": "e90ec1404141e21fa80446813ff4076edbc1e90a5282d502972017ec8bbb79a6",
+  "heartbeat": "2026-11-06T02:05:59.693Z",
+  "expires": "2026-11-06T02:45:59.693Z",
+  "checkpoint": "Coordinator seed only; requested document intentionally absent. Synthetic abandoned claim, no live worker.",
+  "attempts": 0,
+  "synthetic": true
+}
