@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "pilot13-inline-correction-1793935311729-9ac7d5b9788f98",
   "epoch": 3,
   "spec": "e90ec1404141e21fa80446813ff4076edbc1e90a5282d502972017ec8bbb79a6",
   "heartbeat": "2026-11-06T03:21:51.729Z",
   "expires": "2026-11-06T03:51:51.729Z",
-  "checkpoint": "Attempt reserved for owner-requested P3 documentation evidence refresh; implementation not yet published",
+  "checkpoint": "P3 pilot review evidence refreshed; inline correction published only after JSON/whitespace/scope validation; independent corrected-head review pending",
   "attempts": 1,
   "synthetic": true,
   "recovery": {
@@ -27,8 +27,8 @@
     "reviewHead": "ae7a48001a5a287561a945c5367a27b3a8c26aaa",
     "finding": "pilot-review-evidence-refresh",
     "lastAttemptedHead": "ae7a48001a5a287561a945c5367a27b3a8c26aaa",
-    "result": "in-progress",
+    "result": "awaiting-review",
     "execution": "Run now returned inline; unattended pickup is not proved",
-    "nextAction": "Refresh only pilot documentation then publish and await independent reviewer"
+    "nextAction": "Existing PR commit event must trigger independent review; unattended coding pickup remains unproven"
   }
 }
