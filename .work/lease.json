@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "scheduled-pilot13-3d071e3b-1795-4c20-bc69-299115fc1e5d",
   "epoch": 4,
   "spec": "e90ec1404141e21fa80446813ff4076edbc1e90a5282d502972017ec8bbb79a6",
   "heartbeat": "2026-11-06T05:05:40.670Z",
   "expires": "2026-11-06T05:35:40.670Z",
-  "checkpoint": "Reserved new current-head pilot-terminal-skip-evidence correction; terminal expiry is not takeover authority",
+  "checkpoint": "Scheduled pilot-terminal-skip-evidence document refresh validated; publication and independent review tracked in issue status",
   "attempts": 2,
   "synthetic": true,
   "recovery": {
@@ -27,9 +27,9 @@
     "reviewHead": "b1cebed0a1742d5b533f792cacfceb96a0186515",
     "finding": "pilot-terminal-skip-evidence",
     "lastAttemptedHead": "b1cebed0a1742d5b533f792cacfceb96a0186515",
-    "result": "in-progress",
+    "result": "awaiting-review",
     "execution": "Normal scheduled invocation; no Run now or interactive implementation",
-    "nextAction": "Publish only approved evidence refresh and await independent review"
+    "nextAction": "Independent current-head review, then stop; no further test findings"
   },
   "correctionHistory": [
     {
