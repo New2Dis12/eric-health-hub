@@ -1,14 +1,24 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "issue16-worker-1793977337905",
   "epoch": 1,
   "spec": "6ad2a3179500688e6a301dd8e6aa83a6b528a47b1fb9fc4f5134fc23ef1af50e",
-  "heartbeat": "2026-11-06T15:01:58Z",
-  "expires": "2026-11-06T15:46:58Z",
-  "checkpoint": "Approved initial reservation; inspecting shared sessions/prescriptions before implementation",
+  "heartbeat": "2026-11-06T15:08:55Z",
+  "expires": "2026-11-06T15:53:55Z",
+  "checkpoint": "Start/resume source delivered; 64 app tests + 20 workflow tests, typecheck/build/whitespace passed; pending independent review",
   "attempts": 0,
   "correction": {
     "attempts": 0,
     "findings": []
-  }
+  },
+  "validation": {
+    "appTests": 64,
+    "workflowTests": 20,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "whitespace": "PASS",
+    "hosted": "not authorized/not tested",
+    "database": "local synthetic PGlite restricted role"
+  },
+  "nextAction": "Independent current-head technical review; no merge/deploy/hosted migration"
 }

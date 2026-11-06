@@ -1,4 +1,5 @@
 import 'server-only'
+import { readWorkoutSession, startWorkout, workoutId } from './session'
 import { createHash, randomUUID } from 'node:crypto'
 import { commandSchema, type TrainingCommand, type WriteResult, type TrainingHistory, type TrainingBlock, type PlannedSession, type ActualSession, type BodyMeasurement } from './models'
 import { assertTrainingAccess, type TrainingPrincipal } from './auth'
@@ -7,6 +8,15 @@ import { ApiError } from '../private-api'
 
 export function createTrainingService(database: TrainingDatabase) {
   return {
+    async workout(principal: TrainingPrincipal, planId: unknown) {
+      assertTrainingAccess(principal, 'training.read')
+      if (!workoutId.safeParse(planId).success) throw new ApiError(400, 'Invalid workout ID')
+      return database.transaction(principal.subject, async tx => {
+        const { rows } = await tx.query<{id:string}>('SELECT id FROM stunna.athletes WHERE auth0_sub=$1', [principal.subject])
+        if (!rows[0]) return null
+        return readWorkoutSession(tx, rows[0].id, planId as string)
+      })
+    },
     async read(principal: TrainingPrincipal, limit = 50, offset = 0): Promise<TrainingHistory> {
       assertTrainingAccess(principal, 'training.read')
       if (!Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(offset) || offset < 0 || offset > 10000) {
@@ -70,6 +80,11 @@ export function createTrainingService(database: TrainingDatabase) {
 async function execute(tx: Queryable, athleteId: string, command: TrainingCommand, principal: TrainingPrincipal,
   audit: (entity: string, id: string, before: number | null, after?: number) => Promise<void>): Promise<WriteResult> {
   const id = randomUUID()
+  if (command.operation === 'start_workout') {
+    const result = await startWorkout(tx, athleteId, command, principal.source === 'browser' ? 'manual' : 'api')
+    if (result.created) await audit('actual_session', result.workout.id, null)
+    return { workout: result.workout }
+  }
   if (command.operation === 'create_block') {
     const b = command.block
     await tx.query(`INSERT INTO stunna.training_blocks(id,athlete_id,title,goal,starts_on,ends_on,source)
