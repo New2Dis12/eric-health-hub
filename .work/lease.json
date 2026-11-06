@@ -1,0 +1,14 @@
+{
+  "state": "in-progress",
+  "owner": "issue16-worker-1793977337905",
+  "epoch": 1,
+  "spec": "6ad2a3179500688e6a301dd8e6aa83a6b528a47b1fb9fc4f5134fc23ef1af50e",
+  "heartbeat": "2026-11-06T15:01:58Z",
+  "expires": "2026-11-06T15:46:58Z",
+  "checkpoint": "Approved initial reservation; inspecting shared sessions/prescriptions before implementation",
+  "attempts": 0,
+  "correction": {
+    "attempts": 0,
+    "findings": []
+  }
+}
