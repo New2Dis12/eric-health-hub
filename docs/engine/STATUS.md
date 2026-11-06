@@ -300,3 +300,21 @@ This post-release record is committed on the deployment-disabled Sprint 1 branch
 ## Handoff after Sprint 2 review
 
 Review the protected Preview first. Production activation requires separate approval, a clean production database with restricted credentials and verified grants/RLS, durable private backups and a tested production recovery method. Sprint 3 may add the player and actual set logging against stable prescription/exercise identities after authorization. Review real training sources before any separately authorized import.
+
+## Workflow #8 orchestration update — 2026-11-05
+
+Prepared the [development workflow](DEVELOPMENT_WORKFLOW.md), cooperative per-issue branch leases with expected-head fencing, 12 synthetic policy tests and a configured hourly scanner that distinguishes active/stale/legacy/blocked/review/done. Old comments no longer imply perpetual activity. PR #11 demonstrated real event review; unattended scanner discovery/skip was observed. Live recovery and duplicate-event evidence and remaining limits are recorded in issue #8. No Sprint 3, merge, deployment or Production changes are included. Workflow changes remain on a review branch until separately approved.
+
+
+### Workflow #8 controlled repair
+
+Clock guard now requires a safe integer within Date range; regression cases cover finite out-of-range/fractional values and publication denial. The owner-directed repair preserves three exhausted automatic attempts and returns the existing PR to technical review. Workflow worker/escalation are paused to stop ineffective loops; the read-only reviewer is restored after source publication. Actual unattended correction delivery is not established and workflow #8 remains open pending that synthetic end-to-end proof. See DEVELOPMENT_WORKFLOW.md and issue #8 for evidence. Nothing merged/deployed; Production and Sprint 3 remain unchanged.
+
+
+### Workflow #8 closeout preparation — 2026-11-06 UTC
+
+The completed synthetic Issue #13 / PR #14 pilot now demonstrates approved pickup, stale recovery, real document delivery, independent review, sequential deduplication, queued correction, normal scheduled correction publication and automatic independent corrected-head GO at `5beb54370bb6629b0b0c94799f2133fe1a9a81d7`. The earlier inline correction is not counted as unattended evidence. See [current workflow evidence and limits](DEVELOPMENT_WORKFLOW.md) and [independent pilot verdict](https://github.com/New2Dis12/eric-health-hub/issues/8#issuecomment-6677515177). No more synthetic corrections are requested; PR #14 stays immutable.
+
+PR #12 closeout updates the existing workflow documentation and preserves the exhausted three-attempt history. Read-only Vercel verification now succeeds and confirms main `8281722a70607f626dd62737f08b4df9a986a224` generated READY Production deployment `dpl_3enmhskP2hHwA8Jc6zAmbHh95jEB`. Main is not protected by the feature-branch exclusions. No effective authorized no-deployment merge path is verified: owner must separately approve and verify a deployment-blocking mechanism or explicitly approve the resulting Production deployment. PR #12/#14 overlap in operational lease and Vercel configuration; do not merge as-is. The workflow doc proposes preserving pilot history, excluding transient leases from the eventual merge payload and retaining the union of deployment exclusions, all pending finalization approval.
+
+This phase's validation is focused workflow tests plus JSON/deployment-exclusion/scope/whitespace checks; exact results and publication SHA are in Issue #8's single status. App tests/typecheck/build and hosted Health Hub checks are not rerun for documentation-only work. No new claim of current production integration health is made. Prior failed attempts, controlled repair results and Sprint 1/2 release evidence remain historical. Closeout stops in owner review, not done: no merge, Preview/Production deployment, settings/credentials/Auth0/database change, personal-record access, Stunna activation or Sprint 3 implementation. A proposed first Sprint 3 session/start-resume spec may be recorded for discussion only; approval and coding remain separate.
