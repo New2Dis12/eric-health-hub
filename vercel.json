@@ -10,7 +10,8 @@
       "work/lease-pilot": false,
       "work/issue-13": false,
       "integration/workflow-closeout": false,
-      "work/issue-16": false
+      "work/issue-16": false,
+      "work/issue-19": false
     }
   }
 }
