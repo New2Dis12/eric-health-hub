@@ -41,7 +41,7 @@ export async function logResult(tx: Queryable, athlete: string, command: LogInpu
           metric.metric==='cycling_cadence' && segment.modality!=='bike' || metric.metric==='pace' && !['run','ski'].includes(segment.modality)) throw new ApiError(400,'Metric incompatible with modality')
       }
     } else if (occurrence.type!=='exercise') throw new ApiError(400,'Expected pinned exercise')
-    if (item.kind==='strength_set' && (exercise.sets === null || item.setOrdinal>exercise.sets || (exercise.reps===null && !exercise.repsRange))) throw new ApiError(400,'Set outside pinned strength prescription')
+    if (item.kind==='strength_set' && (exercise.sets === null || item.setOrdinal>exercise.sets)) throw new ApiError(400,'Set outside pinned strength prescription')
   }
   const ordinal=item.kind==='strength_set'?item.setOrdinal:0
   const key=[item.kind,occurrenceId??'session',ordinal].join(':')

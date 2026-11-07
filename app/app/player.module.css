@@ -1,0 +1,98 @@
+.player {
+  text-align: left;
+  display: grid;
+  gap: 20px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.player h3 {
+  font-size: 24px;
+  font-weight: 750;
+}
+.player h4 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.player h5 {
+  color: #c9f779;
+  font-weight: 700;
+  margin: 10px 0;
+}
+.player p {
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.exercise {
+  border-top: 1px solid #405749;
+  padding-top: 20px;
+  min-width: 0;
+}
+.plan {
+  background: #21362b;
+  padding: 12px;
+  border-radius: 12px;
+}
+.plan ol {
+  list-style: decimal;
+  padding-left: 20px;
+}
+.set,
+.note {
+  border: 1px solid #405749;
+  padding: 12px;
+  border-radius: 12px;
+  margin-top: 14px;
+  min-width: 0;
+}
+.set legend {
+  padding: 0 6px;
+  color: #c9f779;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.player label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  min-width: 0;
+}
+.player input,
+.player select,
+.player textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 44px;
+  background: #0e1d16;
+  border: 1px solid #668271;
+  border-radius: 8px;
+  padding: 9px;
+  color: #f4f7f4;
+  font-size: 16px;
+}
+.player textarea {
+  resize: vertical;
+}
+.player button,
+.back {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #c9f779;
+  color: #142417;
+  font-weight: 650;
+  margin-top: 8px;
+}
+.player :disabled {
+  opacity: 0.65;
+}
+.player :focus-visible,
+.back:focus-visible {
+  outline: 2px solid #dbff9d;
+  outline-offset: 3px;
+}

@@ -158,3 +158,13 @@ test('source-only DB constraints reject malformed results/cross-session FKs; nul
   const fk=(await db.query<{count:number}>("SELECT count(*)::int AS count FROM pg_constraint WHERE conrelid='stunna.session_entries'::regclass AND contype='f' AND array_length(conkey,1)=2")).rows[0]
   assert.equal(fk.count,1)
 })
+
+test('pinned strength with unspecified prescribed reps accepts explicitly confirmed null or user-entered reps',async()=>{
+  const block=await service.write(principal,cmd({operation:'create_block',block:{title:'Synthetic missing-reps fixture',goal:'Fixture',startsOn:'2026-01-01',endsOn:'2026-01-31',source:'manual'}}))
+  const plan=await service.write(principal,cmd({operation:'create_planned_session',plan:{blockId:block.blockId,kind:'strength',purpose:'Synthetic',scheduledAt:'2026-01-02T12:00:00Z',timeZone:'UTC',source:'manual'}}))
+  await db.query(`INSERT INTO stunna.prescription_revisions(athlete_id,planned_session_id,revision,title,exercises,change_reason,source) VALUES($1,$2,1,'Synthetic',$3,'Fixture','synthetic')`,[athlete,plan.plannedSessionId,JSON.stringify([{...ex,reps:null}])])
+  const saved=await service.write(principal,cmd({operation:'start_workout',plannedSessionId:plan.plannedSessionId,expectedPrescriptionRevision:1,expectedSessionRevision:0}))
+  await service.write(principal,await log(saved.workout!,{kind:'strength_set',occurrenceId:occ(saved.workout!),setOrdinal:1,actual:{reps:null,load:null,rpe:null,source:'user_reported'}}))
+  const value=(await service.results(principal,saved.workout!.id)).entries[0].value
+  assert.ok('reps' in value);assert.equal(value.reps,null)
+})
