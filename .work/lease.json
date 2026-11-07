@@ -1,0 +1,14 @@
+{
+  "state": "in-progress",
+  "owner": "issue21-worker-1794025393000",
+  "epoch": 1,
+  "spec": "fdec1003ce8b2d4abb3c46f471cc4e01ef792b2d242f54c0a83a7d477fca24ec",
+  "heartbeat": "2026-11-07T04:23:13.000Z",
+  "expires": "2026-11-07T05:23:13.000Z",
+  "checkpoint": "Approved UI implementation starting",
+  "attempts": 0,
+  "correction": {
+    "attempts": 0,
+    "findings": []
+  }
+}
