@@ -34,21 +34,12 @@
   padding: 12px;
   border-radius: 12px;
 }
-.plan ol {
-  list-style: decimal;
-  padding-left: 20px;
-}
-.set,
 .note {
   border: 1px solid #405749;
   padding: 12px;
   border-radius: 12px;
   margin-top: 14px;
   min-width: 0;
-}
-.set legend {
-  padding: 0 6px;
-  color: #c9f779;
 }
 .fields {
   display: grid;
@@ -95,4 +86,81 @@
 .back:focus-visible {
   outline: 2px solid #dbff9d;
   outline-offset: 3px;
+}
+
+.strengthRow,
+.cardioRow {
+  display: grid;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 44px;
+  padding-block: 4px;
+  border-bottom: 1px solid #405749;
+  font-size: 13px;
+}
+
+.strengthRow {
+  grid-template-columns: 44px minmax(0, 0.8fr) minmax(0, 1.4fr) minmax(0, 0.65fr) 44px;
+}
+
+.cardioRow {
+  grid-template-columns: 24px minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 1fr);
+}
+
+.strengthRow > *,
+.cardioRow > * {
+  min-width: 0;
+}
+
+.strengthRow small,
+.cardioRow small {
+  display: block;
+  font-size: 11px;
+}
+
+.player .logBubble,
+.player .editSet {
+  min-width: 44px;
+  margin: 0;
+  padding: 0;
+}
+
+.player .logBubble {
+  border: 1px solid #668271;
+  border-radius: 50%;
+  background: #0e1d16;
+  color: #c9f779;
+  font-size: 22px;
+}
+
+.checked,
+.readOnlyBubble {
+  text-align: center;
+  font-size: 18px;
+}
+
+.checked {
+  color: #c9f779;
+}
+
+.readOnlyBubble {
+  color: #a7b7a9;
+}
+
+.set {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.editor {
+  margin-block: 8px;
+  padding: 8px;
+  border: 1px solid #668271;
+  border-radius: 8px;
+}
+
+.setStatus:empty {
+  display: none;
 }

@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "issue21-compact-1794087051000",
   "epoch": 3,
   "spec": "29ebfc1dd75cb0af8418e608b726a3864ccce87cbb55776e9e46c35107963e45",
-  "heartbeat": "2026-11-07T21:30:51.000Z",
-  "expires": "2026-11-07T22:15:51.000Z",
-  "checkpoint": "1ed8a37b56677b909d56c3eb59fc041cc81bbe00",
+  "heartbeat": "2026-11-07T21:37:15.000Z",
+  "expires": "2026-11-07T22:22:15.000Z",
+  "checkpoint": "Compact player amendment published for independent review; parent 36f5f7b50215a99414c2aa9a6666361872b3240d",
   "attempts": 1,
   "correction": {
     "attempts": 1,
@@ -20,7 +20,7 @@
       }
     ]
   },
-  "nextAction": "Implement owner-approved compact player amendment",
+  "nextAction": "Independent review of compact player; owner iPhone acceptance separately gated",
   "history": [
     {
       "state": "review",
@@ -77,5 +77,13 @@
         "hosted": "not authorized/not tested"
       }
     }
-  ]
+  ],
+  "validation": {
+    "app": 76,
+    "ui": 11,
+    "workflow": 20,
+    "typecheck": "pass",
+    "build": "pass",
+    "hosted": "not run by coding worker"
+  }
 }

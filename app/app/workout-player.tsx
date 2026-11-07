@@ -6,7 +6,7 @@ import type {
   LogEntry,
   SessionResults,
 } from "@/lib/training/logging-models";
-import type { Segment } from "@/lib/training/context-models";
+import type { MetricTarget, Segment } from "@/lib/training/context-models";
 import {
   loadPlayerResults,
   savePlayerItem,
@@ -23,10 +23,20 @@ type Save = (
   command: React.MutableRefObject<unknown>,
 ) => Promise<void>;
 const optionalNumber = (value: string) => (value === "" ? null : Number(value));
+type ActualLoad = NonNullable<Extract<Item, { kind: "strength_set" }>["actual"]["load"]>;
+const loadBases: readonly ActualLoad["basis"][] = ["total", "per_hand", "added", "bodyweight"];
+const showLoad = (load: { value: number; unit: string; basis?: string }) =>
+  `${load.value} ${load.unit} (${load.basis?.replaceAll("_", " ") ?? "basis unspecified"})`;
+
 function SetRow({
   occurrence,
   ordinal,
   reps,
+  target,
+  basis,
+  expanded,
+  onExpand,
+  onCollapse,
   saved,
   disabled,
   busy,
@@ -36,6 +46,11 @@ function SetRow({
   occurrence: string;
   ordinal: number;
   reps: number | null;
+  target: { value: number; unit: string } | null;
+  basis?: string;
+  expanded: boolean;
+  onExpand: () => void;
+  onCollapse: () => void;
   saved?: LogEntry;
   disabled: boolean;
   busy: boolean;
@@ -46,6 +61,10 @@ function SetRow({
     saved?.kind === "strength_set" && "reps" in saved.value
       ? saved.value
       : undefined;
+  const plannedLoad = target && (target.unit === "kg" || target.unit === "lb") ? target : null;
+  const validBasis = loadBases.find((option) => option === basis);
+  const proposedLoad = plannedLoad && validBasis ? { ...plannedLoad, basis: validBasis } : null;
+  const defaultLoad = saved ? actual?.load : proposedLoad;
   const fromSaved = () => ({
     reps:
       actual?.reps == null
@@ -53,19 +72,19 @@ function SetRow({
           ? ""
           : String(reps ?? "")
         : String(actual.reps),
-    load: actual?.load ? String(actual.load.value) : "",
-    unit: actual?.load?.unit ?? "",
-    basis: actual?.load?.basis ?? "",
+    load: defaultLoad ? String(defaultLoad.value) : "",
+    unit: defaultLoad?.unit ?? "",
+    basis: defaultLoad?.basis ?? "",
     rpe: actual?.rpe == null ? "" : String(actual.rpe),
   });
   const [draft, setDraft] = useState(fromSaved);
   const [dirty, setDirty] = useState(false);
-  const [edit, setEdit] = useState(false);
+  const [writeConflict, setWriteConflict] = useState(false);
   const revision = saved?.revision ?? 0;
   const [draftRevision, setDraftRevision] = useState(revision);
-  const conflict = dirty && draftRevision !== revision;
+  const conflict = writeConflict || (dirty && draftRevision !== revision);
   const [status, setStatus] = useState(
-    saved ? "Saved · Logged" : "Not logged · Proposed reps are unsaved",
+    saved ? "Saved · Logged" : "",
   );
   const pending = useRef<unknown>(null);
   const key = `${occurrence}:${ordinal}`;
@@ -73,7 +92,7 @@ function SetRow({
     if (!dirty) {
       setDraft(fromSaved());
       setStatus(
-        saved ? "Saved · Logged" : "Not logged · Proposed reps are unsaved",
+        saved ? "Saved · Logged" : "",
       );
     }
   }, [saved, dirty]);
@@ -85,12 +104,27 @@ function SetRow({
     pending.current = null;
     setStatus("Unsaved");
   }
+  function discard() {
+    pending.current = null;
+    setWriteConflict(false);
+    setDirty(false);
+    setDraft(fromSaved());
+    setStatus(saved ? "Saved · Logged" : "");
+    changed(key, false);
+    onCollapse();
+  }
   async function submit() {
+    if (disabled || busy) return;
     // An already-sent command may be replayed byte-for-byte. A new command
     // cannot use a revision the user has not accepted for this draft.
     if (conflict && !pending.current) return;
     if (draft.load !== "" && (!draft.unit || !draft.basis)) {
       setStatus("Choose a load unit and basis");
+      return;
+    }
+    if (!pending.current && draft.reps === "" && draft.load === "" && draft.rpe === "") {
+      setStatus("Use Edit to enter a value before logging.");
+      onExpand();
       return;
     }
     const baseRevision = dirty ? draftRevision : revision;
@@ -125,8 +159,14 @@ function SetRow({
       setDirty(false);
       changed(key, false);
       pending.current = null;
+      setWriteConflict(false);
       setStatus("Saved · Logged");
+      onCollapse();
     } catch (e) {
+      if (e instanceof PlayerError && e.kind === "conflict") {
+        setWriteConflict(true);
+        onExpand();
+      }
       setStatus(
         e instanceof PlayerError && e.kind === "conflict"
           ? "Conflict — current server values refreshed. Draft retained. Review and retry."
@@ -139,103 +179,114 @@ function SetRow({
     }
   }
   return (
-    <fieldset className={styles.set} disabled={disabled || busy}>
-      <legend>
-        Set {ordinal} · {saved ? "Logged actual" : "Proposed · unsaved"}
-      </legend>
-      {saved && (
-        <p>
-          Server actual reps {actual?.reps ?? "Not entered"} · revision{" "}
-          {saved.revision} · load{" "}
-          {actual?.load ? `${actual.load.value} ${actual.load.unit} (${actual.load.basis.replaceAll("_", " ")})` : "Not entered"}
-          {" · RPE "}{actual?.rpe ?? "Not entered"}
-        </p>
-      )}
-      <div className={styles.fields}>
-        <label>
-          Reps
-          <input
-            inputMode="numeric"
-            type="number"
-            min="0"
-            max="500"
-            step="1"
-            readOnly={!edit}
-            value={draft.reps}
-            onChange={(e) => update("reps", e.target.value)}
-          />
-        </label>
-        <button type="button" onClick={() => setEdit(true)}>
-          Edit reps
-        </button>
-        <label>
-          Actual load
-          <input
-            inputMode="decimal"
-            type="number"
-            min="0"
-            max="2000"
-            step="any"
-            value={draft.load}
-            onChange={(e) => update("load", e.target.value)}
-          />
-        </label>
-        <label>
-          Load unit
-          <select
-            value={draft.unit}
-            onChange={(e) => update("unit", e.target.value)}
-          >
-            <option value="">Not entered</option>
-            <option>kg</option>
-            <option>lb</option>
-          </select>
-        </label>
-        <label>
-          Load basis
-          <select
-            value={draft.basis}
-            onChange={(e) => update("basis", e.target.value)}
-          >
-            <option value="">Not entered</option>
-            <option value="total">Total</option>
-            <option value="per_hand">Per hand</option>
-            <option value="added">Added</option>
-            <option value="bodyweight">Bodyweight</option>
-          </select>
-        </label>
-        <label>
-          Actual RPE (optional)
-          <select
-            value={draft.rpe}
-            onChange={(e) => update("rpe", e.target.value)}
-          >
-            <option value="">Not entered</option>
-            {draft.rpe && !rpeOptions.includes(draft.rpe) && <option value={draft.rpe}>Saved {draft.rpe}</option>}
-            {rpeOptions.map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
+    <fieldset className={styles.set} disabled={disabled || busy} aria-label={`Set ${ordinal}`}>
+      <div className={styles.strengthRow}>
+        {saved ? (
+          <span className={styles.checked} role="img" aria-label="Logged">✓</span>
+        ) : disabled ? (
+          <ReadOnlyBubble />
+        ) : (
+          <button
+            className={styles.logBubble}
+            type="button"
+            aria-label={`${pending.current ? "Retry Log Set" : "Log Set"} ${ordinal}`}
+            disabled={conflict && !pending.current}
+            onClick={submit}
+          >○</button>
+        )}
+        <span>{ordinal}<small>{saved ? "Actual" : dirty ? "Draft" : "Proposed"}</small></span>
+        <span>{saved ? (actual?.load ? showLoad(actual.load) : "—") :
+          dirty ? (draft.load === "" ? "—" : showLoad({ value: Number(draft.load), unit: draft.unit, basis: draft.basis })) :
+          (plannedLoad ? showLoad({ ...plannedLoad, basis }) : "—")}</span>
+        <span>{(saved ? actual?.reps : dirty ? optionalNumber(draft.reps) : reps) ?? "—"}</span>
+        {disabled ? <span>—</span> : (
+          <button type="button" className={styles.editSet} aria-expanded={expanded} onClick={onExpand}>Edit</button>
+        )}
       </div>
-      {conflict && (
-        <DraftConflict
-          keep={() => {
-            pending.current = null;
-            setDraftRevision(revision);
-            setStatus("Unsaved · ready to save against the current value");
-          }}
-          discard={() => {
-            pending.current = null;
-            setDirty(false);
-            changed(key, false);
-          }}
-        />
+      {saved && actual?.rpe != null && <small>Actual RPE {actual.rpe}</small>}
+      {expanded && !disabled && (
+        <div className={styles.editor}>
+          <div className={styles.fields}>
+            <label>
+              Reps
+              <input
+                inputMode="numeric"
+                type="number"
+                min="0"
+                max="500"
+                step="1"
+                value={draft.reps}
+                onChange={(e) => update("reps", e.target.value)}
+              />
+            </label>
+            <label>
+              Actual load
+              <input
+                inputMode="decimal"
+                type="number"
+                min="0"
+                max="2000"
+                step="any"
+                value={draft.load}
+                onChange={(e) => update("load", e.target.value)}
+              />
+            </label>
+            <label>
+              Load unit
+              <select
+                value={draft.unit}
+                onChange={(e) => update("unit", e.target.value)}
+              >
+                <option value="">Not entered</option>
+                <option>kg</option>
+                <option>lb</option>
+              </select>
+            </label>
+            <label>
+              Load basis
+              <select
+                value={draft.basis}
+                onChange={(e) => update("basis", e.target.value)}
+              >
+                <option value="">Not entered</option>
+                <option value="total">Total</option>
+                <option value="per_hand">Per hand</option>
+                <option value="added">Added</option>
+                <option value="bodyweight">Bodyweight</option>
+              </select>
+            </label>
+            <label>
+              Actual RPE (optional)
+              <select
+                value={draft.rpe}
+                onChange={(e) => update("rpe", e.target.value)}
+              >
+                <option value="">Not entered</option>
+                {draft.rpe && !rpeOptions.includes(draft.rpe) && <option value={draft.rpe}>Saved {draft.rpe}</option>}
+                {rpeOptions.map((value) => (
+                  <option key={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {conflict && (
+            <DraftConflict
+              keep={() => {
+                pending.current = null;
+                setWriteConflict(false);
+                setDraftRevision(revision);
+                setStatus("Unsaved · ready to save against the current value");
+              }}
+              discard={discard}
+            />
+          )}
+          <button type="button" disabled={conflict && !pending.current} onClick={submit}>
+            {pending.current ? "Retry previous save" : "Save"}
+          </button>{" "}
+          <button type="button" onClick={discard}>Cancel</button>
+        </div>
       )}
-      <button type="button" disabled={conflict && !pending.current} onClick={() => void submit()}>
-        {conflict && pending.current ? "Retry previous save" : saved ? "Update Set" : "Log Set"}
-      </button>
-      <p role="status">{status}</p>
+      <small role="status" className={styles.setStatus}>{conflict && !expanded ? "Conflict · open Edit to resolve" : status}</small>
     </fieldset>
   );
 }
@@ -349,25 +400,71 @@ function Note({
     </fieldset>
   );
 }
-function SegmentView({ segment }: { segment: Segment }) {
-  return (
-    <li>
-      {segment.phase} · {segment.label} · {segment.modality}
-      {segment.durationSeconds !== null && ` · ${segment.durationSeconds}s`}
-      {segment.targets.map((target, i) => (
-        <span key={i}>
-          {" "}
-          · {target.metric}{" "}
-          {target.range
-            ? `${target.range.min}–${target.range.max}`
-            : "Unspecified"}{" "}
-          {target.unit}
-        </span>
-      ))}
-      {segment.strength && <span> · {segment.strength.sets??"Unspecified"} sets · {segment.strength.reps??"Unspecified"} reps · {segment.strength.loadBasis.replaceAll("_"," ")}</span>}
-      {segment.rpe && ` · Planned RPE ${segment.rpe.min}–${segment.rpe.max}`}
-    </li>
+function ReadOnlyBubble() {
+  return <span className={styles.readOnlyBubble} role="img" aria-label="Prescribed only, logging unavailable">○</span>;
+}
+function elapsed(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+const showRange = ({ min, max }: { min: number; max: number }) =>
+  min === max ? String(min) : `${min}–${max}`;
+
+function outputTargets(targets: MetricTarget[], modality: string) {
+  return targets.filter(({ metric }) => {
+    if (modality === "other" || modality === "strength") return true;
+    switch (metric) {
+      case "rowing_split":
+      case "stroke_rate": return modality === "row";
+      case "cycling_cadence": return modality === "bike";
+      case "pace": return modality === "run" || modality === "ski";
+      default: return true;
+    }
+  }).flatMap(({ metric, range, unit }) =>
+    range ? [`${metric.replaceAll("_", " ")} ${showRange(range)} ${unit}`] : [],
   );
+}
+
+function CardioRows({ rows, clockStart, intervals }: {
+  rows: { label: string; duration: number | null; output: string[] }[];
+  clockStart: number | null;
+  intervals: boolean;
+}) {
+  let clock = clockStart;
+  const timedRows = rows.map(({ label, duration, output }) => {
+    const end = clock === null || duration === null ? null : clock + duration;
+    const time = intervals
+      ? (clock === null || end === null ? "Unknown" : `${elapsed(clock)}–${elapsed(end)}`)
+      : (duration === null ? "Unknown" : elapsed(duration));
+    clock = end;
+    return { label, time, output };
+  });
+  return (
+    <div aria-label="Prescribed cardio · read only">
+      <div className={styles.cardioRow}>
+        <span aria-label="Completion">○</span><span>Workout segment</span>
+        <span>{intervals ? "Running clock" : "Time"}</span><span>Speed/Output</span>
+      </div>
+      {timedRows.map(({ label, time, output }, index) => (
+        <div className={styles.cardioRow} key={index}>
+          <ReadOnlyBubble /><span>{label}</span><span>{time}</span>
+          <span>{output.length ? output.map((value, i) => <small key={i}>{value}</small>) : "—"}</span>
+        </div>
+      ))}
+      <small>Prescribed only · interval entry coming next</small>
+    </div>
+  );
+}
+function segmentRow(segment: Segment, prefix = "") {
+  return {
+    label: `${prefix}${segment.phase} · ${segment.label}`,
+    duration: segment.durationSeconds,
+    output: outputTargets(segment.targets, segment.modality),
+  };
+}
+function strengthExercise(kind: string, exercise: NonNullable<WorkoutSession["snapshot"]>["exercises"][number]) {
+  return exercise.sets !== null &&
+    (exercise.reps !== null || !!exercise.repsRange ||
+      (kind === "strength" && !exercise.intervalBlocks?.length));
 }
 export function PlayerView({
   workout,
@@ -382,10 +479,13 @@ export function PlayerView({
   save: Save;
   changed: (key: string, dirty: boolean) => void;
 }) {
+  const [expandedSet, setExpandedSet] = useState<string | null>(null);
   const snapshot = workout.snapshot;
   if (!snapshot)
     return <p>Legacy session — prescription not pinned. Read only.</p>;
   const disabled = data.status === "completed";
+  const intervals = snapshot.exercises.some((exercise) => !!exercise.intervalBlocks?.length);
+  let clockStart: number | null = 0;
   return (
     <div className={styles.player}>
       <header>
@@ -412,11 +512,25 @@ export function PlayerView({
           (e) =>
             e.kind === "exercise_note" && e.occurrence_id === occurrence.id,
         );
-        const strength =
-          exercise.sets !== null &&
-          (exercise.reps !== null ||
-            !!exercise.repsRange ||
-            (snapshot.kind === "strength" && !exercise.intervalBlocks?.length));
+        const strength = strengthExercise(snapshot.kind, exercise);
+        const warmups = exercise.warmups ?? [];
+        const blocks = exercise.intervalBlocks ?? [];
+        const modality = snapshot.kind;
+        const steadyOutput = outputTargets(exercise.targets ?? [], modality);
+        if (!steadyOutput.length && exercise.target && ["mph", "km/h"].includes(exercise.target.unit))
+          steadyOutput.push(`${exercise.target.value} ${exercise.target.unit}`);
+        const cardioRows = strength && !blocks.length ? [] : [
+          ...warmups.map((segment) => segmentRow(segment)),
+          ...(blocks.length ? blocks.flatMap((block, blockIndex) =>
+            Array.from({ length: block.repeat }, (_, cycle) =>
+              block.segments.map((segment) => segmentRow(segment, `Block ${blockIndex + 1} · Round ${cycle + 1} · `)),
+            ).flat(),
+          ) : [{ label: exercise.name, duration: exercise.durationSeconds, output: steadyOutput }]),
+        ];
+        const start = clockStart;
+        for (const row of cardioRows) {
+          clockStart = clockStart === null || row.duration === null ? null : clockStart + row.duration;
+        }
         return (
           <section className={styles.exercise} key={occurrence.id}>
             <h4>
@@ -425,22 +539,13 @@ export function PlayerView({
             </h4>
             <div className={styles.plan}>
               <h5>Prescribed</h5>
-              <p>
+              {strength && <p>
                 {exercise.sets ?? "Unspecified"} sets ·{" "}
                 {exercise.repsRange
                   ? `${exercise.repsRange.min}–${exercise.repsRange.max}`
                   : (exercise.reps ?? "Unspecified")}{" "}
                 reps
-              </p>
-              <p>
-                Target{" "}
-                {exercise.target
-                  ? `${exercise.target.value} ${exercise.target.unit}`
-                  : "Unspecified"}{" "}
-                ·{" "}
-                {exercise.loadBasis?.replaceAll("_", " ") ??
-                  "Load basis unspecified"}
-              </p>
+              </p>}
               <p>
                 Rest{" "}
                 {exercise.restSeconds === null
@@ -449,8 +554,6 @@ export function PlayerView({
                 {exercise.rpe &&
                   ` · RPE ${exercise.rpe.min}–${exercise.rpe.max}`}
               </p>
-              {exercise.durationSeconds !== null && <p>Prescribed duration · {exercise.durationSeconds}s</p>}
-              {exercise.targets?.map((target,i)=><p key={i}>{target.metric} {target.range?`${target.range.min}–${target.range.max}`:"Unspecified"} {target.unit}</p>)}
               <p>{exercise.notes}</p>
               <p>
                 Previous performance is not attached to this pinned
@@ -467,38 +570,35 @@ export function PlayerView({
                     ` · Alternative ${rule.substitution.name}`}
                 </p>
               ))}
-              {exercise.warmups?.length ? (
-                <div>
-                  <h5>Warm-up · read only</h5>
-                  <ol>
-                    {exercise.warmups.map((segment, i) => (
-                      <SegmentView key={i} segment={segment} />
-                    ))}
-                  </ol>
-                </div>
-              ) : null}
-              {exercise.intervalBlocks?.map((block, i) => (
-                <div key={i}>
-                  <h5>
-                    {block.repeat} ordered rounds · interval entry coming next
-                  </h5>
-                  <ol>
-                    {block.segments.map((segment, j) => (
-                      <SegmentView key={j} segment={segment} />
-                    ))}
-                  </ol>
-                </div>
-              ))}
             </div>
+            {cardioRows.length > 0 && <CardioRows rows={cardioRows} clockStart={start} intervals={intervals} />}
             {strength && (
-              <div>
-                <h5>Actual · user reported</h5>
+              <div aria-label="Strength sets">
+                <div className={styles.strengthRow}>
+                  <span aria-label="Completion">○</span><span>Set</span><span>Load</span><span>Reps</span><span>Edit</span>
+                </div>
+                {!blocks.length && warmups.map((segment, i) => (
+                  <div className={styles.strengthRow} key={i}>
+                    <ReadOnlyBubble />
+                    <span>Warm-up · {segment.label}
+                      {segment.durationSeconds !== null && <small>{elapsed(segment.durationSeconds)}</small>}
+                      {segment.strength?.sets != null && <small>{segment.strength.sets} sets</small>}
+                    </span>
+                    <span>{segment.strength?.target ? showLoad({ ...segment.strength.target, basis: segment.strength.loadBasis }) : "—"}</span>
+                    <span>{segment.strength?.reps ?? "—"}</span><span>—</span>
+                  </div>
+                ))}
                 {Array.from({ length: exercise.sets! }, (_, i) => (
                   <SetRow
                     key={i}
                     occurrence={occurrence.id}
                     ordinal={i + 1}
                     reps={proposedReps(exercise)}
+                    target={exercise.target}
+                    basis={exercise.loadBasis}
+                    expanded={expandedSet === `${occurrence.id}:${i + 1}`}
+                    onExpand={() => setExpandedSet(`${occurrence.id}:${i + 1}`)}
+                    onCollapse={() => setExpandedSet((current) => current === `${occurrence.id}:${i + 1}` ? null : current)}
                     saved={data.entries.find(
                       (e) =>
                         e.kind === "strength_set" &&
@@ -602,7 +702,12 @@ export function WorkoutPlayer({
       item,
     };
     try {
-      setData(await savePlayerItem(fetch, workout.id, pending.current));
+      const current = await savePlayerItem(fetch, workout.id, pending.current);
+      if (item.kind === "strength_set" && !current.entries.some((entry) =>
+        entry.kind === item.kind && entry.occurrence_id === item.occurrenceId &&
+        entry.set_ordinal === item.setOrdinal && entry.revision > revision
+      )) throw new PlayerError("failed");
+      setData(current);
     } catch (e) {
       if (e instanceof PlayerError && e.kind === "conflict") {
         pending.current = null;
