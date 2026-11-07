@@ -1,15 +1,23 @@
 {
-  "state": "review",
-  "owner": "issue21-worker-1794025393000",
-  "epoch": 1,
+  "state": "in-progress",
+  "owner": "issue21-correction-1794029320000",
+  "epoch": 2,
   "spec": "fdec1003ce8b2d4abb3c46f471cc4e01ef792b2d242f54c0a83a7d477fca24ec",
-  "heartbeat": "2026-11-07T04:29:37Z",
-  "expires": "2026-11-07T05:14:37Z",
-  "checkpoint": "Actual inline player delivered;76 application,6 UI,20 workflow tests, typecheck/build PASS; independent review pending",
-  "attempts": 0,
+  "heartbeat": "2026-11-07T05:28:40.000Z",
+  "expires": "2026-11-07T06:13:40.000Z",
+  "checkpoint": "Correction 1 reserved for dirty-draft-revision-rebase on b49a25ed4f7075e7f2426f0d9a605a8db2dc5de0",
+  "attempts": 1,
   "correction": {
-    "attempts": 0,
-    "findings": []
+    "attempts": 1,
+    "findings": [
+      {
+        "key": "dirty-draft-revision-rebase",
+        "reviewComment": 6702324479,
+        "reviewedHead": "b49a25ed4f7075e7f2426f0d9a605a8db2dc5de0",
+        "lastAttemptedHead": "b49a25ed4f7075e7f2426f0d9a605a8db2dc5de0",
+        "result": "reserved"
+      }
+    ]
   },
   "nextAction": "Independent current-head review; no hosted testing/merge/deploy",
   "validation": {
@@ -19,5 +27,30 @@
     "typecheck": "PASS",
     "build": "PASS",
     "hosted": "not authorized/not tested"
-  }
+  },
+  "history": [
+    {
+      "state": "review",
+      "owner": "issue21-worker-1794025393000",
+      "epoch": 1,
+      "spec": "fdec1003ce8b2d4abb3c46f471cc4e01ef792b2d242f54c0a83a7d477fca24ec",
+      "heartbeat": "2026-11-07T04:29:37Z",
+      "expires": "2026-11-07T05:14:37Z",
+      "checkpoint": "Actual inline player delivered;76 application,6 UI,20 workflow tests, typecheck/build PASS; independent review pending",
+      "attempts": 0,
+      "correction": {
+        "attempts": 0,
+        "findings": []
+      },
+      "nextAction": "Independent current-head review; no hosted testing/merge/deploy",
+      "validation": {
+        "app": 76,
+        "ui": 6,
+        "workflow": 20,
+        "typecheck": "PASS",
+        "build": "PASS",
+        "hosted": "not authorized/not tested"
+      }
+    }
+  ]
 }
