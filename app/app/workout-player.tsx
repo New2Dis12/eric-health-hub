@@ -40,6 +40,7 @@ function SetRow({
   saved,
   disabled,
   busy,
+  resultsUnavailable,
   save,
   changed,
 }: {
@@ -54,6 +55,7 @@ function SetRow({
   saved?: LogEntry;
   disabled: boolean;
   busy: boolean;
+  resultsUnavailable: boolean;
   save: Save;
   changed: (key: string, dirty: boolean) => void;
 }) {
@@ -114,7 +116,7 @@ function SetRow({
     onCollapse();
   }
   async function submit() {
-    if (disabled || busy) return;
+    if (disabled || busy || resultsUnavailable) return;
     // An already-sent command may be replayed byte-for-byte. A new command
     // cannot use a revision the user has not accepted for this draft.
     if (conflict && !pending.current) return;
@@ -169,7 +171,7 @@ function SetRow({
       }
       setStatus(
         e instanceof PlayerError && e.kind === "conflict"
-          ? "Conflict — current server values refreshed. Draft retained. Review and retry."
+          ? "Conflict — draft retained. Review the current server values before retrying."
           : e instanceof PlayerError && e.kind === "access"
             ? "Access unavailable. Sign in and reopen this workout."
             : "Failed — retry safely",
@@ -269,7 +271,7 @@ function SetRow({
               </select>
             </label>
           </div>
-          {conflict && (
+          {conflict && !resultsUnavailable && (
             <DraftConflict
               keep={() => {
                 pending.current = null;
@@ -280,13 +282,17 @@ function SetRow({
               discard={discard}
             />
           )}
-          <button type="button" disabled={conflict && !pending.current} onClick={submit}>
+          <button type="button" disabled={resultsUnavailable || (conflict && !pending.current)} onClick={submit}>
             {pending.current ? "Retry previous save" : "Save"}
           </button>{" "}
           <button type="button" onClick={discard}>Cancel</button>
         </div>
       )}
-      <small role="status" className={styles.setStatus}>{conflict && !expanded ? "Conflict · open Edit to resolve" : status}</small>
+      <small role="status" className={styles.setStatus}>
+        {conflict && resultsUnavailable
+          ? "Conflict — draft retained. Retry read to load current server values."
+          : conflict && !expanded ? "Conflict · open Edit to resolve" : status}
+      </small>
     </fieldset>
   );
 }
@@ -470,12 +476,14 @@ export function PlayerView({
   workout,
   data,
   busy,
+  resultsUnavailable = false,
   save,
   changed,
 }: {
   workout: WorkoutSession;
   data: SessionResults;
   busy: boolean;
+  resultsUnavailable?: boolean;
   save: Save;
   changed: (key: string, dirty: boolean) => void;
 }) {
@@ -484,7 +492,6 @@ export function PlayerView({
   if (!snapshot)
     return <p>Legacy session — prescription not pinned. Read only.</p>;
   const disabled = data.status === "completed";
-  const intervals = snapshot.exercises.some((exercise) => !!exercise.intervalBlocks?.length);
   let clockStart: number | null = 0;
   return (
     <div className={styles.player}>
@@ -571,7 +578,7 @@ export function PlayerView({
                 </p>
               ))}
             </div>
-            {cardioRows.length > 0 && <CardioRows rows={cardioRows} clockStart={start} intervals={intervals} />}
+            {cardioRows.length > 0 && <CardioRows rows={cardioRows} clockStart={start} intervals={blocks.length > 0} />}
             {strength && (
               <div aria-label="Strength sets">
                 <div className={styles.strengthRow}>
@@ -607,6 +614,7 @@ export function PlayerView({
                     )}
                     disabled={disabled}
                     busy={busy}
+                    resultsUnavailable={resultsUnavailable}
                     save={save}
                     changed={changed}
                   />
@@ -675,6 +683,17 @@ export function WorkoutPlayer({
       setError("Saved results unavailable. Sign in or retry this read.");
     }
   }
+  async function retryRead() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    try {
+      await refresh();
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
   useEffect(() => {
     let active = true;
     loadPlayerResults(fetch, workout.id)
@@ -689,7 +708,7 @@ export function WorkoutPlayer({
     };
   }, [workout.id]);
   const save: Save = async (item, revision, pending) => {
-    if (inFlight.current || !data) throw new PlayerError("failed");
+    if (inFlight.current || !data || error) throw new PlayerError("failed");
     inFlight.current = true;
     setBusy(true);
     pending.current ??= {
@@ -738,7 +757,7 @@ export function WorkoutPlayer({
       {error && (
         <div role="alert">
           {error}
-          <button onClick={() => void refresh()}>Retry read</button>
+          <button type="button" disabled={busy} onClick={retryRead}>Retry read</button>
         </div>
       )}
       {!workout.snapshot ? (
@@ -747,7 +766,8 @@ export function WorkoutPlayer({
         <PlayerView
           workout={workout}
           data={data}
-          busy={busy}
+          busy={busy || !!error}
+          resultsUnavailable={!!error}
           save={save}
           changed={changed}
         />

@@ -567,3 +567,95 @@ test("warmup is read-only, empty proposals require Edit, and Cancel preserves ot
   assert.equal(tree.root.findAllByType("textarea")[0].props.value, "Keep this note draft");
   await act(async () => tree.unmount());
 });
+
+test("strength conflict keeps the draft locked until an authoritative retry read succeeds", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousWindow = globalThis.window;
+  Object.assign(globalThis, { window: { addEventListener() {}, removeEventListener() {}, confirm() { return true; } } });
+  let tree!: ReactTestRenderer;
+  let failed = false;
+  let canRead = false;
+  const writes: { expectedItemRevision: number; expectedSessionRevision: number; idempotencyKey: string; item: { actual: { reps: number } } }[] = [];
+  const actual = (revision: number, reps: number): SessionResults => ({
+    ...data, sessionRevision: revision + 1,
+    entries: [{
+      id: "entry", item_key: "set", occurrence_id: "exercise-a", kind: "strength_set",
+      set_ordinal: 1, revision, session_revision: revision + 1, before_value: null,
+      actor_sub: "synthetic", source: "browser", reason: "Fixture", recorded_at: "synthetic",
+      value: { reps, load: null, rpe: null, source: "user_reported" },
+    }],
+  });
+  globalThis.fetch = async (_url, init) => {
+    if (init?.method === "POST") {
+      writes.push(JSON.parse(String(init.body)));
+      if (writes.length === 1) {
+        failed = true;
+        return new Response(null, { status: 409 });
+      }
+      return Response.json({ actualSessionId: workout.id, sessionRevision: 3 });
+    }
+    if (failed && !canRead) return new Response(null, { status: 503 });
+    return Response.json(!failed ? data : writes.length === 1 ? actual(1, 6) : actual(2, 10));
+  };
+  try {
+    await act(async () => { tree = create(<WorkoutPlayer workout={workout} onBack={() => {}} />); });
+    const button = (name: string) => tree.root.findAllByType("button").find(
+      (node) => (node.props["aria-label"] ?? node.props.children) === name,
+    );
+    await act(async () => button("Log Set 1")!.props.onClick());
+    assert.match(text(tree), /Retry read to load current server values/);
+    assert.doesNotMatch(text(tree), /values refreshed/);
+    assert.equal(button("Keep my draft"), undefined);
+    assert.equal(button("Use server value"), undefined);
+    assert.equal(button("Save")!.props.disabled, true);
+    assert.equal(tree.root.findAllByType("input")[0].props.value, "10");
+    assert.equal(writes.length, 1);
+    canRead = true;
+    await act(async () => button("Retry read")!.props.onClick());
+    assert.equal(tree.root.findAllByType("input")[0].props.value, "10");
+    const row = tree.root.findAll((node) => node.type === "div" && node.props.className === "strengthRow")[1];
+    const savedReps = row.children[3];
+    assert.equal(typeof savedReps === "string" ? savedReps : savedReps.props.children, 6);
+    assert.equal(button("Save")!.props.disabled, true);
+    await act(async () => button("Keep my draft")!.props.onClick());
+    await act(async () => button("Save")!.props.onClick());
+    assert.equal(writes.length, 2);
+    assert.equal(writes[1].expectedItemRevision, 1);
+    assert.equal(writes[1].expectedSessionRevision, 2);
+    assert.equal(writes[1].item.actual.reps, 10);
+    assert.notEqual(writes[1].idempotencyKey, writes[0].idempotencyKey);
+    assert.equal(tree.root.findAllByType("input").length, 0);
+    assert.match(text(tree), /Saved · Logged/);
+  } finally {
+    if (tree) await act(async () => tree.unmount());
+    globalThis.fetch = previousFetch;
+    Object.assign(globalThis, { window: previousWindow });
+  }
+});
+
+test("one mixed cardio snapshot retains the steady Time column and interval Running clock", async () => {
+  const mixed = structuredClone(workout);
+  const snapshot = mixed.snapshot!;
+  snapshot.kind = "run";
+  const interval = snapshot.exercises[1];
+  snapshot.exercises = [
+    { ...interval, key: "steady", name: "Steady", durationSeconds: 360, intervalBlocks: undefined },
+    interval,
+  ];
+  snapshot.occurrences = [
+    { id: "steady", exercise: 0, key: "steady", type: "exercise" },
+    { id: "exercise-b", exercise: 1, key: interval.key, type: "exercise" },
+  ];
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<PlayerView workout={mixed} data={data} busy={false} save={async () => assert.fail("cardio write")} changed={() => {}} />);
+  });
+  const rows = tree.root.findAll((node) => node.type === "div" && node.props.className === "cardioRow");
+  const column = rows.map((row) => {
+    const cell = row.children[2];
+    return typeof cell === "string" ? cell : cell.props.children;
+  });
+  assert.deepEqual(column, ["Time", "6:00", "Running clock", "6:00–7:00", "7:00–7:30", "7:30–8:30", "8:30–9:00"]);
+  assert.equal(rows.flatMap((row) => row.findAllByType("button")).length, 0);
+  await act(async () => tree.unmount());
+});

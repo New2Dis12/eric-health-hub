@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "issue21-compact-correction-1794090498000",
   "epoch": 4,
   "spec": "29ebfc1dd75cb0af8418e608b726a3864ccce87cbb55776e9e46c35107963e45",
-  "heartbeat": "2026-11-07T22:28:18.000Z",
-  "expires": "2026-11-07T23:13:18.000Z",
-  "checkpoint": "f290eaf8008d40545597f952348dd13d218c0cdc",
+  "heartbeat": "2026-11-07T22:30:15.000Z",
+  "expires": "2026-11-07T23:15:15.000Z",
+  "checkpoint": "Compact player corrections published; parent f04cca61bfe563c7b0c35d118734f6ff57e156b6",
   "attempts": 2,
   "correction": {
     "attempts": 2,
@@ -23,20 +23,20 @@
         "reviewComment": 6702324479,
         "reviewedHead": "f290eaf8008d40545597f952348dd13d218c0cdc",
         "lastAttemptedHead": "f290eaf8008d40545597f952348dd13d218c0cdc",
-        "result": "reserved",
-        "nextAction": "Implement and validate"
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head review"
       },
       {
         "key": "compact-mixed-cardio-time-mode",
         "reviewComment": 6702324479,
         "reviewedHead": "f290eaf8008d40545597f952348dd13d218c0cdc",
         "lastAttemptedHead": "f290eaf8008d40545597f952348dd13d218c0cdc",
-        "result": "reserved",
-        "nextAction": "Implement and validate"
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head review"
       }
     ]
   },
-  "nextAction": "Correct approved current-head review findings",
+  "nextAction": "Independent review of corrected head",
   "history": [
     {
       "state": "review",
@@ -125,5 +125,13 @@
         "hosted": "not run by coding worker"
       }
     }
-  ]
+  ],
+  "validation": {
+    "app": 76,
+    "ui": 13,
+    "workflow": 20,
+    "typecheck": "pass",
+    "build": "pass",
+    "hosted": "not run by coding worker"
+  }
 }
