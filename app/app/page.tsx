@@ -5,6 +5,7 @@ import { getTrainingContext, type TrainingContext } from '@/lib/training/context
 import { contextInput, moveTrainingDate, type Dose, type MetricTarget, type Segment } from '@/lib/training/context-models'
 import { durationEstimate, effortSummary, exerciseSummary, type Workout } from '@/lib/training/workout-summary'
 import styles from './stunna.module.css'
+import { SessionStart } from './session-start'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Stunna', robots: { index: false, follow: false } }
@@ -99,7 +100,6 @@ function WorkoutOverview({ workout, showPrevious }: { workout: Workout; showPrev
   const prescription = workout.prescription
   const rules = prescription?.exercises.flatMap(exercise =>
     (exercise.adjustments ?? []).map(adjustment => ({ ...adjustment, exercise: exercise.name }))) ?? []
-  const playerStatusId = `player-status-${workout.id}`
   return <section data-workout-overview>
     <article className={styles.workout}>
       <div className={styles.workoutHeader}>
@@ -132,10 +132,7 @@ function WorkoutOverview({ workout, showPrevious }: { workout: Workout; showPrev
         </> : <p className={styles.empty}>No approved exercise prescription is available for this workout.</p>}
       </div>
       <PrescriptionDetails workout={workout} showPrevious={showPrevious} />
-      <div className={styles.startArea}>
-        <button className={styles.startWorkout} type="button" disabled aria-describedby={playerStatusId}>Start Workout</button>
-        <p id={playerStatusId}>The workout player and logging arrive in Sprint 3.</p>
-      </div>
+      <SessionStart workoutId={workout.id} prescriptionRevision={prescription?.revision ?? null} />
     </article>
   </section>
 }
