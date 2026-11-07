@@ -346,3 +346,82 @@ test('normal player entry reads saved notes, confirms saves/clear by readback an
     await act(async()=>tree.unmount())
   }finally{globalThis.fetch=previousFetch;Object.assign(globalThis,{window:previousWindow})}
 })
+
+test("refresh keeps dirty set and note bases until each editor explicitly resolves the conflict", async () => {
+  const entry = {
+    id: "synthetic-entry", item_key: "synthetic", occurrence_id: "exercise-a",
+    revision: 1, session_revision: 1, before_value: null, actor_sub: "synthetic",
+    source: "browser" as const, reason: "Fixture", recorded_at: "synthetic",
+  };
+  const set = { ...entry, kind: "strength_set", set_ordinal: 1,
+    value: { reps: 6, load: null, rpe: null, source: "user_reported" as const } };
+  const note = { ...entry, id: "synthetic-note", kind: "exercise_note", set_ordinal: 0,
+    value: { notes: "Original exercise note" } };
+  const original: SessionResults = { ...data, entries: [set, note], notes: "Original workout note", notesRevision: 1 };
+  const refreshed: SessionResults = { ...original, sessionRevision: 4, notes: "New server workout note", notesRevision: 2,
+    entries: [
+      { ...set, revision: 2, value: { ...set.value, reps: 8, load: { value: 15, unit: "kg", basis: "per_hand" }, rpe: 7.5 } },
+      { ...note, revision: 2, value: { notes: "New server exercise note" } },
+    ] };
+  let tree!: ReactTestRenderer;
+  const writes: {item:unknown; revision:number}[] = [];
+  const save = async (item: unknown, revision: number) => { writes.push({item,revision}); };
+  const view = (current: SessionResults) => <PlayerView workout={workout} data={current} busy={false} save={save} changed={()=>{}} />;
+  await act(async () => { tree = create(view(original)); });
+  const fields = () => tree.root.findAllByType("fieldset");
+  const button = (field:number,label:string) => fields()[field].findAllByType("button").find(node=>node.props.children===label)!;
+  await act(async () => {
+    button(0,"Edit reps").props.onClick();
+    fields()[0].findAllByType("input")[0].props.onChange({target:{value:"7"}});
+    fields()[2].findByType("textarea").props.onChange({target:{value:"Exercise draft"}});
+    fields()[4].findByType("textarea").props.onChange({target:{value:"Workout draft"}});
+  });
+  // A read after another editor's save returns newer versions of all dirty items.
+  await act(async () => { tree.update(view(refreshed)); });
+  assert.equal(fields()[0].findAllByType("input")[0].props.value,"7");
+  assert.equal(fields()[2].findByType("textarea").props.value,"Exercise draft");
+  assert.equal(fields()[4].findByType("textarea").props.value,"Workout draft");
+  assert.match(text(tree),/15 kg \(per hand\)/);
+  assert.match(text(tree),/New server exercise note/);
+  assert.match(text(tree),/New server workout note/);
+  for (const [field,label] of [[0,"Update Set"],[2,"Save Notes"],[4,"Save Notes"]] as const) {
+    assert.equal(button(field,label).props.disabled,true);
+    await act(async () => { button(field,label).props.onClick(); });
+  }
+  assert.equal(writes.length,0);
+  await act(async () => { button(2,"Use server value").props.onClick(); });
+  assert.equal(fields()[2].findByType("textarea").props.value,"New server exercise note");
+  await act(async () => { button(0,"Keep my draft").props.onClick(); });
+  assert.equal(button(4,"Save Notes").props.disabled,true);
+  await act(async () => { button(0,"Update Set").props.onClick(); });
+  assert.deepEqual(writes[0],{revision:2,item:{kind:"strength_set",occurrenceId:"exercise-a",setOrdinal:1,
+    actual:{reps:7,load:null,rpe:null,source:"user_reported"}}});
+  await act(async () => { button(4,"Keep my draft").props.onClick(); });
+  await act(async () => { button(4,"Save Notes").props.onClick(); });
+  assert.deepEqual(writes[1],{revision:2,item:{kind:"workout_note",notes:"Workout draft"}});
+  await act(async () => tree.unmount());
+});
+
+test("legacy overall note changes also conflict, while an already-sent command can replay unchanged", async () => {
+  const original = { ...data, notes: "Original legacy note" };
+  const refreshed = { ...original, notes: "New legacy note", sessionRevision: 2 };
+  let tree!: ReactTestRenderer;
+  const attempts: unknown[] = [];
+  const save = async (item: unknown, revision: number, pending: {current:unknown}) => {
+    pending.current ??= {item,revision,idempotencyKey:"synthetic-retry-key"};
+    attempts.push(pending.current);
+    if(attempts.length===1) throw new PlayerError("failed");
+  };
+  const view = (current: SessionResults) => <PlayerView workout={workout} data={current} busy={false} save={save} changed={()=>{}} />;
+  await act(async () => {tree=create(view(original));});
+  const note = () => tree.root.findAllByType("fieldset").at(-1)!;
+  const button = (label:string) => note().findAllByType("button").find(node=>node.props.children===label)!;
+  await act(async () => note().findByType("textarea").props.onChange({target:{value:"First draft"}}));
+  await act(async () => {button("Save Notes").props.onClick();});
+  await act(async () => {tree.update(view(refreshed));});
+  assert.match(text(tree),/Conflict/);
+  assert.equal(note().findByType("textarea").props.value,"First draft");
+  await act(async () => {button("Retry previous save").props.onClick();});
+  assert.strictEqual(attempts[0],attempts[1]);
+  await act(async () => tree.unmount());
+});

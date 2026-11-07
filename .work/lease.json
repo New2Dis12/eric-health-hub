@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "issue21-correction-1794029320000",
   "epoch": 2,
   "spec": "fdec1003ce8b2d4abb3c46f471cc4e01ef792b2d242f54c0a83a7d477fca24ec",
-  "heartbeat": "2026-11-07T05:28:40.000Z",
-  "expires": "2026-11-07T06:13:40.000Z",
-  "checkpoint": "Correction 1 reserved for dirty-draft-revision-rebase on b49a25ed4f7075e7f2426f0d9a605a8db2dc5de0",
+  "heartbeat": "2026-11-07T05:32:11.000Z",
+  "expires": "2026-11-07T06:17:11.000Z",
+  "checkpoint": "Correction 1 implemented and locally validated; independent review pending",
   "attempts": 1,
   "correction": {
     "attempts": 1,
@@ -15,14 +15,15 @@
         "reviewComment": 6702324479,
         "reviewedHead": "b49a25ed4f7075e7f2426f0d9a605a8db2dc5de0",
         "lastAttemptedHead": "b49a25ed4f7075e7f2426f0d9a605a8db2dc5de0",
-        "result": "reserved"
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head review"
       }
     ]
   },
   "nextAction": "Independent current-head review; no hosted testing/merge/deploy",
   "validation": {
     "app": 76,
-    "ui": 6,
+    "ui": 8,
     "workflow": 20,
     "typecheck": "PASS",
     "build": "PASS",

@@ -61,6 +61,9 @@ function SetRow({
   const [draft, setDraft] = useState(fromSaved);
   const [dirty, setDirty] = useState(false);
   const [edit, setEdit] = useState(false);
+  const revision = saved?.revision ?? 0;
+  const [draftRevision, setDraftRevision] = useState(revision);
+  const conflict = dirty && draftRevision !== revision;
   const [status, setStatus] = useState(
     saved ? "Saved · Logged" : "Not logged · Proposed reps are unsaved",
   );
@@ -75,6 +78,7 @@ function SetRow({
     }
   }, [saved, dirty]);
   function update(field: string, value: string) {
+    if (!dirty) setDraftRevision(revision);
     setDraft((d) => ({ ...d, [field]: value }));
     setDirty(true);
     changed(key, true);
@@ -82,12 +86,19 @@ function SetRow({
     setStatus("Unsaved");
   }
   async function submit() {
+    // An already-sent command may be replayed byte-for-byte. A new command
+    // cannot use a revision the user has not accepted for this draft.
+    if (conflict && !pending.current) return;
+    if (draft.load !== "" && (!draft.unit || !draft.basis)) {
+      setStatus("Choose a load unit and basis");
+      return;
+    }
+    const baseRevision = dirty ? draftRevision : revision;
+    setDraftRevision(baseRevision);
+    setDirty(true);
+    changed(key, true);
     setStatus("Saving…");
     try {
-      if (draft.load !== "" && (!draft.unit || !draft.basis)) {
-        setStatus("Choose a load unit and basis");
-        return;
-      }
       await save(
         {
           kind: "strength_set",
@@ -108,7 +119,7 @@ function SetRow({
             source: "user_reported",
           },
         },
-        saved?.revision ?? 0,
+        baseRevision,
         pending,
       );
       setDirty(false);
@@ -135,7 +146,9 @@ function SetRow({
       {saved && (
         <p>
           Server actual reps {actual?.reps ?? "Not entered"} · revision{" "}
-          {saved.revision}
+          {saved.revision} · load{" "}
+          {actual?.load ? `${actual.load.value} ${actual.load.unit} (${actual.load.basis.replaceAll("_", " ")})` : "Not entered"}
+          {" · RPE "}{actual?.rpe ?? "Not entered"}
         </p>
       )}
       <div className={styles.fields}>
@@ -205,11 +218,34 @@ function SetRow({
           </select>
         </label>
       </div>
-      <button type="button" onClick={() => void submit()}>
-        {saved ? "Update Set" : "Log Set"}
+      {conflict && (
+        <DraftConflict
+          keep={() => {
+            pending.current = null;
+            setDraftRevision(revision);
+            setStatus("Unsaved · ready to save against the current value");
+          }}
+          discard={() => {
+            pending.current = null;
+            setDirty(false);
+            changed(key, false);
+          }}
+        />
+      )}
+      <button type="button" disabled={conflict && !pending.current} onClick={() => void submit()}>
+        {conflict && pending.current ? "Retry previous save" : saved ? "Update Set" : "Log Set"}
       </button>
       <p role="status">{status}</p>
     </fieldset>
+  );
+}
+function DraftConflict({ keep, discard }: { keep: () => void; discard: () => void }) {
+  return (
+    <div>
+      <p role="status">Conflict — the saved value changed. Review it before saving your draft.</p>
+      <button type="button" onClick={keep}>Keep my draft</button>
+      <button type="button" onClick={discard}>Use server value</button>
+    </div>
   );
 }
 function Note({
@@ -238,13 +274,22 @@ function Note({
     [dirty, setDirty] = useState(false),
     [status, setStatus] = useState("Saved");
   const pending = useRef<unknown>(null);
+  // The legacy observation command can change overall notes without a
+  // workout-note entry revision. Compare the authoritative text as well.
+  const [base, setBase] = useState({ revision, text: initial });
+  const conflict = dirty && (base.revision !== revision || base.text !== initial);
   useEffect(() => {
     if (!dirty) setDraft(initial);
   }, [initial, dirty]);
   async function submit() {
+    if (conflict && !pending.current) return;
+    const draftBase = dirty ? base : { revision, text: initial };
+    setBase(draftBase);
+    setDirty(true);
+    changed(identity, true);
     setStatus("Saving…");
     try {
-      await save({ ...item, notes: draft }, revision, pending);
+      await save({ ...item, notes: draft }, draftBase.revision, pending);
       pending.current = null;
       setDirty(false);
       changed(identity, false);
@@ -270,6 +315,7 @@ function Note({
           rows={3}
           value={draft}
           onChange={(e) => {
+            if (!dirty) setBase({ revision, text: initial });
             setDraft(e.target.value);
             setDirty(true);
             changed(identity, true);
@@ -278,11 +324,26 @@ function Note({
           }}
         />
       </label>
-      {dirty && initial !== draft && (
+      {dirty && (conflict || initial !== draft) && (
         <p>Current server notes: {initial || "Empty"}</p>
       )}
-      <button type="button" onClick={() => void submit()}>
-        Save Notes
+      {conflict && (
+        <DraftConflict
+          keep={() => {
+            pending.current = null;
+            setBase({ revision, text: initial });
+            setStatus("Unsaved · ready to save against the current value");
+          }}
+          discard={() => {
+            pending.current = null;
+            setDirty(false);
+            changed(identity, false);
+            setStatus("Saved");
+          }}
+        />
+      )}
+      <button type="button" disabled={conflict && !pending.current} onClick={() => void submit()}>
+        {conflict && pending.current ? "Retry previous save" : "Save Notes"}
       </button>
       <p role="status">{status}</p>
     </fieldset>
