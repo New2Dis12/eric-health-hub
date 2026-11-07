@@ -23,3 +23,10 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+-- Task 2 history is append-only; no UPDATE/DELETE/DDL or owner privileges.
+DO $$ BEGIN
+  IF to_regclass('stunna.session_entries') IS NOT NULL THEN
+    REVOKE ALL ON stunna.session_entries FROM stunna_runtime;
+    GRANT SELECT,INSERT ON stunna.session_entries TO stunna_runtime;
+  END IF;
+END $$;
