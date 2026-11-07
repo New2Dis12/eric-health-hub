@@ -1,11 +1,11 @@
 {
-  "state": "review",
-  "owner": "issue21-correction-1794029320000",
-  "epoch": 2,
-  "spec": "fdec1003ce8b2d4abb3c46f471cc4e01ef792b2d242f54c0a83a7d477fca24ec",
-  "heartbeat": "2026-11-07T05:32:11.000Z",
-  "expires": "2026-11-07T06:17:11.000Z",
-  "checkpoint": "Correction 1 implemented and locally validated; independent review pending",
+  "state": "in-progress",
+  "owner": "issue21-compact-1794087051000",
+  "epoch": 3,
+  "spec": "29ebfc1dd75cb0af8418e608b726a3864ccce87cbb55776e9e46c35107963e45",
+  "heartbeat": "2026-11-07T21:30:51.000Z",
+  "expires": "2026-11-07T22:15:51.000Z",
+  "checkpoint": "1ed8a37b56677b909d56c3eb59fc041cc81bbe00",
   "attempts": 1,
   "correction": {
     "attempts": 1,
@@ -20,15 +20,7 @@
       }
     ]
   },
-  "nextAction": "Independent current-head review; no hosted testing/merge/deploy",
-  "validation": {
-    "app": 76,
-    "ui": 8,
-    "workflow": 20,
-    "typecheck": "PASS",
-    "build": "PASS",
-    "hosted": "not authorized/not tested"
-  },
+  "nextAction": "Implement owner-approved compact player amendment",
   "history": [
     {
       "state": "review",
@@ -47,6 +39,38 @@
       "validation": {
         "app": 76,
         "ui": 6,
+        "workflow": 20,
+        "typecheck": "PASS",
+        "build": "PASS",
+        "hosted": "not authorized/not tested"
+      }
+    },
+    {
+      "state": "review",
+      "owner": "issue21-correction-1794029320000",
+      "epoch": 2,
+      "spec": "fdec1003ce8b2d4abb3c46f471cc4e01ef792b2d242f54c0a83a7d477fca24ec",
+      "heartbeat": "2026-11-07T05:32:11.000Z",
+      "expires": "2026-11-07T06:17:11.000Z",
+      "checkpoint": "Correction 1 implemented and locally validated; independent review pending",
+      "attempts": 1,
+      "correction": {
+        "attempts": 1,
+        "findings": [
+          {
+            "key": "dirty-draft-revision-rebase",
+            "reviewComment": 6702324479,
+            "reviewedHead": "b49a25ed4f7075e7f2426f0d9a605a8db2dc5de0",
+            "lastAttemptedHead": "b49a25ed4f7075e7f2426f0d9a605a8db2dc5de0",
+            "result": "awaiting-review",
+            "nextAction": "Independent current-head review"
+          }
+        ]
+      },
+      "nextAction": "Independent current-head review; no hosted testing/merge/deploy",
+      "validation": {
+        "app": 76,
+        "ui": 8,
         "workflow": 20,
         "typecheck": "PASS",
         "build": "PASS",
