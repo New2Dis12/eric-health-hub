@@ -113,9 +113,9 @@ test("mobile component hierarchy has unsaved upper-bound proposed reps, native h
   const cells = (row: typeof rows[number]) => row.children.map((child) =>
     typeof child === "string" ? child : child.props["aria-label"] ?? child.props.children
   );
-  const cardioRows = tree.root.findAll((node) => node.type === "div" && node.props.className === "cardioRow");
-  assert.deepEqual(cells(rows[0]), ["Completion", "Set", "Load", "Reps", "Edit"]);
-  assert.deepEqual(cells(cardioRows[0]), ["Completion", "Workout segment", "Running clock", "Speed/Output"]);
+  const cardioRows = tree.root.findAll((node) => node.type === "div" && ["cardioRow", "intervalRow"].includes(node.props.className));
+  assert.deepEqual(cells(rows[0]), ["Completion", "Set", "Load (lb)", "Reps", "Edit"]);
+  assert.deepEqual(cells(cardioRows[0]), ["Completion", "Workout", "Running clock", "Speed/Output"]);
   assert.deepEqual(cardioRows.slice(1).map((row) => cells(row)[2]), ["0:00–1:00", "1:00–1:30", "1:30–2:30", "2:30–3:00"]);
   assert.deepEqual(cells(rows[1]).filter((_, i) => i !== 1), ["Log Set 1", "—", 10, "Edit"]);
   assert.equal(tree.root.findAllByType("input").length, 0);
@@ -130,7 +130,7 @@ test("mobile component hierarchy has unsaved upper-bound proposed reps, native h
   assert.equal(edit(2).props["aria-expanded"], true);
   assert.equal(writes, 0);
   assert.match(text(tree), /Proposed/);
-  assert.match(text(tree), /interval entry coming next/);
+  assert.match(text(tree), /Interval execution checklist/);
   const rpe = tree.root
     .findAllByType("select")
     .find((n) =>
@@ -160,7 +160,7 @@ test("mobile component hierarchy has unsaved upper-bound proposed reps, native h
   assert.deepEqual(snapshot, JSON.parse(readFileSync(new URL("./fixtures/player-mobile.snapshot.json", import.meta.url), "utf8")));
   const css = readFileSync(new URL("../app/app/player.module.css", import.meta.url), "utf8");
   assert.match(css, /min-height: 44px/);
-  assert.match(css, /44px minmax\(0, 0.8fr\) minmax\(0, 1.4fr\) minmax\(0, 0.65fr\) 44px/);
+  assert.match(css, /48px minmax\(0, 0.8fr\) minmax\(0, 1.4fr\) minmax\(0, 0.65fr\) 44px/);
   await act(async () => tree.root.findAllByType("input")[0].props.onChange({ target: { value: "7" } }));
   await act(async () => tree.root.findAllByType("button").find((n) => n.props.children === "Save")!.props.onClick());
   assert.equal(writes, 1);
@@ -210,7 +210,7 @@ test("server actual replaces prescription on reload; finalized fields disabled a
   });
   assert.equal(tree.root.findAllByType("input").length, 0);
   assert.match(text(tree), /Logged/);
-  assert.match(text(tree), /20 lb/);
+  assert.match(text(tree), /20/);
   assert.equal(tree.root.findAllByType("fieldset")[0].props.disabled, true);
   assert.match(text(tree), /per hand/);
   assert.equal(
@@ -506,9 +506,9 @@ test("steady rows retain pinned output and unknown interval durations invalidate
     <PlayerView workout={session} data={data} busy={false} save={async () => assert.fail("read-only cardio")} changed={() => {}} />;
   let tree!: ReactTestRenderer;
   await act(async () => { tree = create(render(planned)); });
-  const rows = () => tree.root.findAll((node) => node.type === "div" && node.props.className === "cardioRow");
+  const rows = () => tree.root.findAll((node) => node.type === "div" && ["cardioRow", "intervalRow"].includes(node.props.className));
   const time = () => rows().map((row) => {
-    const cell = row.children[2];
+    const cell = row.children[row.props.className === "intervalRow" ? 2 : 1];
     return typeof cell === "string" ? cell : cell.props.children;
   });
   assert.deepEqual(time(), ["Running clock", "0:00–10:00", "10:00–11:00", "Unknown", "Unknown", "Unknown"]);
@@ -529,7 +529,7 @@ test("steady rows retain pinned output and unknown interval durations invalidate
   assert.deepEqual(time(), ["Time", "6:00"]);
   assert.match(text(tree), /140–150 W/);
   assert.match(text(tree), /85–90 rpm/);
-  assert.equal(rows()[0].findAllByType("span")[3].props.children, "Speed/Output");
+  assert.equal(rows()[0].findAllByType("span")[2].props.children, "Speed/Output");
   await act(async () => tree.unmount());
 });
 
@@ -552,7 +552,7 @@ test("warmup is read-only, empty proposals require Edit, and Cancel preserves ot
   const buttons = () => tree.root.findAllByType("button");
   const rows = tree.root.findAll((node) => node.type === "div" && node.props.className === "strengthRow");
   assert.equal(rows[1].findAllByType("button").length, 0);
-  assert.match(text(tree), /10 kg \(unverified\)/);
+  assert.match(text(tree), /10 kg target only/);
   await act(async () => buttons().find((node) => node.props["aria-label"] === "Log Set 1")!.props.onClick());
   assert.match(text(tree), /Use Edit to enter a value/);
   assert.equal(tree.root.findAllByType("input")[1].props.value, "");
@@ -650,12 +650,113 @@ test("one mixed cardio snapshot retains the steady Time column and interval Runn
   await act(async () => {
     tree = create(<PlayerView workout={mixed} data={data} busy={false} save={async () => assert.fail("cardio write")} changed={() => {}} />);
   });
-  const rows = tree.root.findAll((node) => node.type === "div" && node.props.className === "cardioRow");
+  const rows = tree.root.findAll((node) => node.type === "div" && ["cardioRow", "intervalRow"].includes(node.props.className));
   const column = rows.map((row) => {
-    const cell = row.children[2];
+    const cell = row.children[row.props.className === "intervalRow" ? 2 : 1];
     return typeof cell === "string" ? cell : cell.props.children;
   });
   assert.deepEqual(column, ["Time", "6:00", "Running clock", "6:00–7:00", "7:00–7:30", "7:30–8:30", "8:30–9:00"]);
   assert.equal(rows.flatMap((row) => row.findAllByType("button")).length, 0);
+  await act(async () => tree.unmount());
+});
+
+test("interval circles persist true and false only after readback, with exact retry and separate repeated occurrences", async () => {
+  const planned = structuredClone(workout);
+  const snapshot = planned.snapshot!;
+  snapshot.occurrences.push(
+    { id: "work-1", exercise: 1, key: "synthetic-run", type: "interval", block: 0, repeat: 0, segment: 0 },
+    { id: "work-2", exercise: 1, key: "synthetic-run", type: "interval", block: 0, repeat: 1, segment: 0 },
+  );
+  const previousFetch = globalThis.fetch;
+  const previousWindow = globalThis.window;
+  Object.assign(globalThis, { window: { addEventListener() {}, removeEventListener() {}, confirm() { return true; } } });
+  let tree!: ReactTestRenderer;
+  let server = data;
+  let hideReadback = true;
+  let conflictNext = false;
+  const commands: string[] = [];
+  const receipts = new Map<string, number>();
+  globalThis.fetch = async (_url, init) => {
+    if (init?.method === "POST") {
+      commands.push(String(init.body));
+      const command = JSON.parse(String(init.body));
+      if (conflictNext) {
+        conflictNext = false;
+        server = { ...server, sessionRevision: server.sessionRevision + 1 };
+        return new Response(null, { status: 409 });
+      }
+      if (!receipts.has(command.idempotencyKey)) {
+        const revision = server.sessionRevision + 1;
+        const prior = server.entries.find(entry => entry.occurrence_id === command.item.occurrenceId);
+        server = { ...server, sessionRevision: revision, entries: [
+          ...server.entries.filter(entry => entry !== prior),
+          { id: String(revision), item_key: command.item.occurrenceId, kind: command.item.kind,
+            occurrence_id: command.item.occurrenceId, set_ordinal: 0, revision: (prior?.revision ?? 0) + 1,
+            session_revision: revision, value: { checked: command.item.checked }, before_value: prior?.value ?? null,
+            actor_sub: "synthetic", source: "browser", reason: "Fixture", recorded_at: "synthetic" },
+        ] };
+        receipts.set(command.idempotencyKey, revision);
+      }
+      return Response.json({ actualSessionId: planned.id, sessionRevision: receipts.get(command.idempotencyKey) });
+    }
+    return hideReadback && commands.length ? new Response(null, { status: 503 }) : Response.json(server);
+  };
+  try {
+    const open = () => <WorkoutPlayer workout={planned} onBack={() => {}} />;
+    await act(async () => { tree = create(open()); });
+    const button = (label: string) => tree.root.findAllByType("button").find(node => node.props["aria-label"] === label)!;
+    await act(async () => button("Check Work 1").props.onClick());
+    assert.equal(button("Retry check Work 1").props["aria-pressed"], false);
+    assert.match(text(tree), /Save unconfirmed/);
+    hideReadback = false;
+    await act(async () => button("Retry check Work 1").props.onClick());
+    assert.equal(commands[0], commands[1]);
+    assert.deepEqual(JSON.parse(commands[0]).item, {kind:"execution_check", occurrenceId:"work-1", checked:true});
+    assert.equal(button("Uncheck Work 1").props["aria-pressed"], true);
+    assert.equal(button("Check Work 2").props["aria-pressed"], false);
+    conflictNext = true;
+    await act(async () => button("Uncheck Work 1").props.onClick());
+    assert.equal(button("Retry uncheck Work 1").props["aria-pressed"], true);
+    assert.match(text(tree), /Review current progress/);
+    await act(async () => button("Retry uncheck Work 1").props.onClick());
+    assert.deepEqual(JSON.parse(commands[3]).item, {kind:"execution_check", occurrenceId:"work-1", checked:false});
+    assert.notEqual(JSON.parse(commands[2]).idempotencyKey, JSON.parse(commands[3]).idempotencyKey);
+    await act(async () => tree.unmount());
+    await act(async () => { tree = create(open()); });
+    assert.equal(button("Check Work 1").props["aria-pressed"], false);
+    assert.equal(button("Check Work 2").props["aria-pressed"], false);
+    await act(async () => tree.unmount());
+    server = { ...server, status: "completed" };
+    await act(async () => { tree = create(open()); });
+    assert.equal(tree.root.findAllByType("button").some(node => node.props["aria-pressed"] !== undefined), false);
+  } finally {
+    if (tree) await act(async () => tree.unmount());
+    globalThis.fetch = previousFetch;
+    Object.assign(globalThis, { window: previousWindow });
+  }
+});
+
+test("strength editor uses lb convention for new loads and preserves historical kg and basis", async () => {
+  const planned = structuredClone(workout);
+  planned.snapshot!.exercises[0].loadBasis = "per_hand";
+  const historical: SessionResults = { ...data, entries: [{
+    id:"old", item_key:"old", kind:"strength_set", occurrence_id:"exercise-a", set_ordinal:1,
+    revision:1, session_revision:2, before_value:null, actor_sub:"synthetic", source:"browser", reason:"Fixture",
+    recorded_at:"synthetic", value:{reps:5,load:{value:18,unit:"kg",basis:"added"},rpe:null,source:"user_reported"},
+  }] };
+  const writes: unknown[] = [];
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<PlayerView workout={planned} data={historical} busy={false} save={async item=>{ writes.push(item); }} changed={() => {}} />);
+  });
+  const buttons = () => tree.root.findAllByType("button");
+  for (const [index, unit, basis] of [[0,"kg","added"],[1,"lb","per_hand"]] as const) {
+    await act(async () => buttons().filter(node=>node.props.children==="Edit")[index].props.onClick());
+    assert.ok(tree.root.findAllByType("label").some(node => node.props.children[0] === `Load (${unit})`));
+    assert.equal(tree.root.findAllByType("select").length,1);
+    await act(async () => tree.root.findAllByType("input")[1].props.onChange({target:{value:"22"}}));
+    await act(async () => buttons().find(node=>node.props.children==="Save")!.props.onClick());
+    assert.deepEqual((writes[index] as {actual:{load:unknown}}).actual.load,{value:22,unit,basis});
+  }
   await act(async () => tree.unmount());
 });

@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "issue21-ux-1794103810000",
   "epoch": 5,
   "spec": "0a415a95ab599fed656c476a286b02aac233aac6616223c9f810ad12376b9dc4",
-  "heartbeat": "2026-11-08T02:10:10.000Z",
-  "expires": "2026-11-08T02:55:10.000Z",
-  "checkpoint": "b2019e69e5bea4dd923c52d1c28d99fd63b0523d",
+  "heartbeat": "2026-11-08T02:19:45.000Z",
+  "expires": "2026-11-08T03:04:45.000Z",
+  "checkpoint": "iPhone UX and execution checklist source validated; parent a453c00b9e9fdfbf051b0e8c38b16887ee355f6d",
   "attempts": 2,
   "correction": {
     "attempts": 2,
@@ -36,7 +36,7 @@
       }
     ]
   },
-  "nextAction": "Implement approved iPhone UX and interval checklist",
+  "nextAction": "Independent exact-head review; hosted migration 007 and protected Safari acceptance are separately gated",
   "history": [
     {
       "state": "review",
@@ -173,5 +173,15 @@
         "hosted": "not run by coding worker"
       }
     }
-  ]
+  ],
+  "validation": {
+    "app": 78,
+    "ui": 15,
+    "workflow": 20,
+    "typecheck": "pass",
+    "build": "pass",
+    "localMigration": "PGlite up/down and history retention",
+    "visual": "Chromium synthetic component 375px/390px",
+    "hosted": "not run"
+  }
 }

@@ -89,7 +89,8 @@
 }
 
 .strengthRow,
-.cardioRow {
+.cardioRow,
+.intervalRow {
   display: grid;
   align-items: center;
   gap: 4px;
@@ -101,11 +102,7 @@
 }
 
 .strengthRow {
-  grid-template-columns: 44px minmax(0, 0.8fr) minmax(0, 1.4fr) minmax(0, 0.65fr) 44px;
-}
-
-.cardioRow {
-  grid-template-columns: 24px minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 1fr);
+  grid-template-columns: 48px minmax(0, 0.8fr) minmax(0, 1.4fr) minmax(0, 0.65fr) 44px;
 }
 
 .strengthRow > *,
@@ -134,18 +131,13 @@
   font-size: 22px;
 }
 
-.checked,
-.readOnlyBubble {
+.checked {
   text-align: center;
   font-size: 18px;
 }
 
 .checked {
   color: #c9f779;
-}
-
-.readOnlyBubble {
-  color: #a7b7a9;
 }
 
 .set {
@@ -163,4 +155,53 @@
 
 .setStatus:empty {
   display: none;
+}
+
+.cardioRow {
+  grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);
+}
+
+.intervalRow {
+  grid-template-columns: 48px minmax(0, 1fr) max-content minmax(0, 1.25fr);
+  font-size: 12px;
+}
+
+.intervalRow > * {
+  min-width: 0;
+}
+
+.intervalRow small {
+  display: block;
+  font-size: 12px;
+}
+
+.clock {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.player .logBubble {
+  width: 44px;
+}
+
+.checkStatus {
+  display: block;
+  font-size: 11px;
+}
+
+.checkStatus:empty {
+  display: none;
+}
+
+.plan:empty {
+  display: none;
+}
+
+.completionHeading {
+  font-size: 9px;
+}
+
+.checkCell button small {
+  font-size: 9px;
+  line-height: 1;
 }

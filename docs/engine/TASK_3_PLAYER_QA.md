@@ -21,3 +21,11 @@ React component tests use synthetic fixtures and react-test-renderer, which curr
 5. Inspect the read-only warmup rows, steady duration and interval planned clock across repeats. Confirm that unknown durations propagate and there are no cardio save controls. Inspect finalized and unpinned fixtures read-only. Test sign-out and authorization rejection through existing protections.
 
 Preview deployment, hosted fixtures, browser/device acceptance, migration/configuration, merge/release and activation require their separate gates. This implementation stops for independent technical review and owner acceptance.
+
+## iPhone UX and interval progress amendment
+
+The strength editor uses pounds and the documented exercise basis for new loads. Existing logged kg and historical basis remain editable in their saved units. Steady cardio has no progress control. Ordered interval rows use compact planned time ranges and manual check/uncheck controls. The checks write only versioned boolean session entries, separately from interval actuals, strength results and notes.
+
+Migration 007 adds that entry kind and validates its pinned interval occurrence without replacing the existing grants, RLS, or occurrence trigger. The down migration restores the prior constraint on an empty checklist schema. It deliberately refuses to erase existing execution history. Hosted application requires separate authorization.
+
+For protected Safari acceptance after review and any separately approved migration, check 375px and 390px, including a synthetic three-repeat treadmill plan at 5.4–5.6 mph. Verify steady rows have no circles, each interval circle survives refresh and can be unchecked independently, and the strength editor keeps historical kg and basis. Confirm there is no sideways scroll and that a check changes neither the prescribed plan nor performance entries.

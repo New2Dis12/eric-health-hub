@@ -25,8 +25,8 @@ type Save = (
 const optionalNumber = (value: string) => (value === "" ? null : Number(value));
 type ActualLoad = NonNullable<Extract<Item, { kind: "strength_set" }>["actual"]["load"]>;
 const loadBases: readonly ActualLoad["basis"][] = ["total", "per_hand", "added", "bodyweight"];
-const showLoad = (load: { value: number; unit: string; basis?: string }) =>
-  `${load.value} ${load.unit} (${load.basis?.replaceAll("_", " ") ?? "basis unspecified"})`;
+const showLoad = (load: { value: number; unit: string }) =>
+  load.unit === "lb" ? String(load.value) : `${load.value} ${load.unit}`;
 
 function SetRow({
   occurrence,
@@ -65,9 +65,11 @@ function SetRow({
       : undefined;
   const plannedLoad = target && (target.unit === "kg" || target.unit === "lb") ? target : null;
   const validBasis = loadBases.find((option) => option === basis);
-  const proposedLoad = plannedLoad && validBasis ? { ...plannedLoad, basis: validBasis } : null;
+  const proposedLoad = plannedLoad?.unit === "lb" && validBasis ? { ...plannedLoad, basis: validBasis } : null;
   const defaultLoad = saved ? actual?.load : proposedLoad;
-  const fromSaved = () => ({
+  const exceptionalBasis = actual?.load && actual.load.basis !== (validBasis ?? "total")
+    ? actual.load.basis.replaceAll("_", " ") : null;
+  const fromSaved = (): { reps: string; load: string; unit: ActualLoad["unit"]; basis: ActualLoad["basis"]; rpe: string } => ({
     reps:
       actual?.reps == null
         ? saved
@@ -75,8 +77,8 @@ function SetRow({
           : String(reps ?? "")
         : String(actual.reps),
     load: defaultLoad ? String(defaultLoad.value) : "",
-    unit: defaultLoad?.unit ?? "",
-    basis: defaultLoad?.basis ?? "",
+    unit: actual?.load?.unit ?? "lb",
+    basis: actual?.load?.basis ?? validBasis ?? "total",
     rpe: actual?.rpe == null ? "" : String(actual.rpe),
   });
   const [draft, setDraft] = useState(fromSaved);
@@ -98,7 +100,7 @@ function SetRow({
       );
     }
   }, [saved, dirty]);
-  function update(field: string, value: string) {
+  function update(field: "reps" | "load" | "rpe", value: string) {
     if (!dirty) setDraftRevision(revision);
     setDraft((d) => ({ ...d, [field]: value }));
     setDirty(true);
@@ -120,10 +122,6 @@ function SetRow({
     // An already-sent command may be replayed byte-for-byte. A new command
     // cannot use a revision the user has not accepted for this draft.
     if (conflict && !pending.current) return;
-    if (draft.load !== "" && (!draft.unit || !draft.basis)) {
-      setStatus("Choose a load unit and basis");
-      return;
-    }
     if (!pending.current && draft.reps === "" && draft.load === "" && draft.rpe === "") {
       setStatus("Use Edit to enter a value before logging.");
       onExpand();
@@ -147,9 +145,8 @@ function SetRow({
                 ? null
                 : {
                     value: Number(draft.load),
-                    unit: draft.unit as "kg" | "lb",
-                    basis: draft.basis as
-                      "total" | "per_hand" | "added" | "bodyweight",
+                    unit: draft.unit,
+                    basis: draft.basis,
                   },
             rpe: optionalNumber(draft.rpe),
             source: "user_reported",
@@ -186,7 +183,7 @@ function SetRow({
         {saved ? (
           <span className={styles.checked} role="img" aria-label="Logged">✓</span>
         ) : disabled ? (
-          <ReadOnlyBubble />
+          <span aria-label="Read only">—</span>
         ) : (
           <button
             className={styles.logBubble}
@@ -197,9 +194,9 @@ function SetRow({
           >○</button>
         )}
         <span>{ordinal}<small>{saved ? "Actual" : dirty ? "Draft" : "Proposed"}</small></span>
-        <span>{saved ? (actual?.load ? showLoad(actual.load) : "—") :
-          dirty ? (draft.load === "" ? "—" : showLoad({ value: Number(draft.load), unit: draft.unit, basis: draft.basis })) :
-          (plannedLoad ? showLoad({ ...plannedLoad, basis }) : "—")}</span>
+        <span>{saved ? (actual?.load ? `${showLoad(actual.load)}${exceptionalBasis ? ` (${exceptionalBasis})` : ""}` : "—") :
+          dirty ? (draft.load === "" ? "—" : showLoad({ value: Number(draft.load), unit: draft.unit })) :
+          (plannedLoad ? `${showLoad(plannedLoad)}${proposedLoad ? "" : " target only"}` : "—")}</span>
         <span>{(saved ? actual?.reps : dirty ? optionalNumber(draft.reps) : reps) ?? "—"}</span>
         {disabled ? <span>—</span> : (
           <button type="button" className={styles.editSet} aria-expanded={expanded} onClick={onExpand}>Edit</button>
@@ -222,7 +219,7 @@ function SetRow({
               />
             </label>
             <label>
-              Actual load
+              {`Load (${draft.unit})`}
               <input
                 inputMode="decimal"
                 type="number"
@@ -232,30 +229,6 @@ function SetRow({
                 value={draft.load}
                 onChange={(e) => update("load", e.target.value)}
               />
-            </label>
-            <label>
-              Load unit
-              <select
-                value={draft.unit}
-                onChange={(e) => update("unit", e.target.value)}
-              >
-                <option value="">Not entered</option>
-                <option>kg</option>
-                <option>lb</option>
-              </select>
-            </label>
-            <label>
-              Load basis
-              <select
-                value={draft.basis}
-                onChange={(e) => update("basis", e.target.value)}
-              >
-                <option value="">Not entered</option>
-                <option value="total">Total</option>
-                <option value="per_hand">Per hand</option>
-                <option value="added">Added</option>
-                <option value="bodyweight">Bodyweight</option>
-              </select>
             </label>
             <label>
               Actual RPE (optional)
@@ -406,9 +379,6 @@ function Note({
     </fieldset>
   );
 }
-function ReadOnlyBubble() {
-  return <span className={styles.readOnlyBubble} role="img" aria-label="Prescribed only, logging unavailable">○</span>;
-}
 function elapsed(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
@@ -425,47 +395,89 @@ function outputTargets(targets: MetricTarget[], modality: string) {
       case "pace": return modality === "run" || modality === "ski";
       default: return true;
     }
-  }).flatMap(({ metric, range, unit }) =>
-    range ? [`${metric.replaceAll("_", " ")} ${showRange(range)} ${unit}`] : [],
+  }).flatMap(({ range, unit }) =>
+    range ? [`${showRange(range)} ${unit}`] : [],
   );
 }
 
-function CardioRows({ rows, clockStart, intervals }: {
-  rows: { label: string; duration: number | null; output: string[] }[];
-  clockStart: number | null;
-  intervals: boolean;
+type CardioRow = { label: string; duration: number | null; output: string[]; occurrenceId?: string };
+
+function ExecutionCheck({ row, entry, disabled, busy, unavailable, save, changed }: {
+  row: CardioRow & { occurrenceId: string }; entry?: LogEntry;
+  disabled: boolean; busy: boolean; unavailable: boolean; save: Save;
+  changed: (key: string, dirty: boolean) => void;
 }) {
-  let clock = clockStart;
-  const timedRows = rows.map(({ label, duration, output }) => {
-    const end = clock === null || duration === null ? null : clock + duration;
-    const time = intervals
-      ? (clock === null || end === null ? "Unknown" : `${elapsed(clock)}–${elapsed(end)}`)
-      : (duration === null ? "Unknown" : elapsed(duration));
-    clock = end;
-    return { label, time, output };
-  });
+  const checked = !!(entry && "checked" in entry.value && entry.value.checked);
+  const [desired, setDesired] = useState<boolean | null>(null);
+  const [status, setStatus] = useState("");
+  const pending = useRef<unknown>(null);
+  const key = `execution:${row.occurrenceId}`;
+  async function toggle() {
+    if (disabled || busy || unavailable) return;
+    const next = desired ?? !checked;
+    setDesired(next);
+    changed(key, true);
+    setStatus("Saving…");
+    try {
+      await save({ kind: "execution_check", occurrenceId: row.occurrenceId, checked: next }, entry?.revision ?? 0, pending);
+      pending.current = null;
+      setDesired(null);
+      changed(key, false);
+      setStatus("Saved");
+    } catch (error) {
+      setStatus(error instanceof PlayerError && error.kind === "conflict"
+        ? "Conflict. Review current progress before retrying."
+        : "Save unconfirmed.");
+    }
+  }
+  if (disabled) return <span aria-label={checked ? "Marked, read only" : "Unmarked, read only"}>{checked ? "✓" : "—"}</span>;
+  const action = desired === null ? (checked ? "Uncheck" : "Check") : (desired ? "Retry check" : "Retry uncheck");
   return (
-    <div aria-label="Prescribed cardio · read only">
-      <div className={styles.cardioRow}>
-        <span aria-label="Completion">○</span><span>Workout segment</span>
-        <span>{intervals ? "Running clock" : "Time"}</span><span>Speed/Output</span>
-      </div>
-      {timedRows.map(({ label, time, output }, index) => (
-        <div className={styles.cardioRow} key={index}>
-          <ReadOnlyBubble /><span>{label}</span><span>{time}</span>
-          <span>{output.length ? output.map((value, i) => <small key={i}>{value}</small>) : "—"}</span>
-        </div>
-      ))}
-      <small>Prescribed only · interval entry coming next</small>
+    <div className={styles.checkCell}>
+      <button type="button" className={styles.logBubble} aria-label={`${action} ${row.label}`}
+        aria-pressed={checked} disabled={busy || unavailable} onClick={toggle}>
+        {checked ? "✓" : "○"}{desired !== null && <small>Retry</small>}
+      </button>
+      <span className={styles.checkStatus} role="status">{status}</span>
     </div>
   );
 }
-function segmentRow(segment: Segment, prefix = "") {
-  return {
-    label: `${prefix}${segment.phase} · ${segment.label}`,
-    duration: segment.durationSeconds,
-    output: outputTargets(segment.targets, segment.modality),
-  };
+function CardioRows({ rows, clockStart, intervals, data, disabled, busy, unavailable, save, changed }: {
+  rows: CardioRow[]; clockStart: number | null; intervals: boolean;
+  data: SessionResults; disabled: boolean; busy: boolean; unavailable: boolean; save: Save;
+  changed: (key: string, dirty: boolean) => void;
+}) {
+  let clock = clockStart;
+  const grid = intervals ? styles.intervalRow : styles.cardioRow;
+  return (
+    <div aria-label={intervals ? "Interval execution checklist" : "Prescribed steady cardio"}>
+      <div className={grid}>
+        {intervals && <span className={styles.completionHeading}>Completion</span>}<span>Workout</span>
+        <span>{intervals ? "Running clock" : "Time"}</span><span>Speed/Output</span>
+      </div>
+      {rows.map((row, index) => {
+        const { label, duration, output, occurrenceId } = row;
+        const end: number | null = clock === null || duration === null ? null : clock + duration;
+        const time = intervals
+          ? (clock === null || end === null ? "Unknown" : `${elapsed(clock)}–${elapsed(end)}`)
+          : (duration === null ? "Unknown" : elapsed(duration));
+        clock = end;
+        return (
+          <div className={grid} key={occurrenceId ?? index}>
+            {intervals && (occurrenceId ? <ExecutionCheck row={{ ...row, occurrenceId }}
+              entry={data.entries.find((entry) => entry.kind === "execution_check" && entry.occurrence_id === occurrenceId)}
+              disabled={disabled} busy={busy} unavailable={unavailable} save={save} changed={changed} />
+              : <span aria-label="Pinned progress identity unavailable">—</span>)}
+            <span>{label}</span><span className={styles.clock}>{time}</span>
+            <span>{output.length ? output.map((value, i) => <small key={i}>{value}</small>) : "—"}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+function segmentRow(segment: Segment, label = segment.label, occurrenceId?: string): CardioRow {
+  return { label, occurrenceId, duration: segment.durationSeconds, output: outputTargets(segment.targets, segment.modality) };
 }
 function strengthExercise(kind: string, exercise: NonNullable<WorkoutSession["snapshot"]>["exercises"][number]) {
   return exercise.sets !== null &&
@@ -504,6 +516,8 @@ export function PlayerView({
           {disabled ? "Finalized · read only" : "In progress"} · session
           revision {data.sessionRevision}
         </p>
+        {snapshot.exercises.some((exercise) => strengthExercise(snapshot.kind, exercise)) &&
+          <p>Weight in lb; use total weight unless the prescribed exercise specifies per-hand, added, or bodyweight.</p>}
       </header>
       {snapshot.exercises.map((exercise, index) => {
         const occurrence = snapshot.occurrences.find(
@@ -526,11 +540,19 @@ export function PlayerView({
         const steadyOutput = outputTargets(exercise.targets ?? [], modality);
         if (!steadyOutput.length && exercise.target && ["mph", "km/h"].includes(exercise.target.unit))
           steadyOutput.push(`${exercise.target.value} ${exercise.target.unit}`);
+        const segmentIds = new Map(snapshot.occurrences.filter((item) => item.exercise === index && item.type !== "exercise")
+          .map((item) => [`${item.type}:${item.block ?? ""}:${item.repeat ?? ""}:${item.segment}`, item.id]));
+        const phaseCount: Record<string, number> = {};
+        const intervalRow = (segment: Segment, identity: string) => {
+          const phase = { warmup: "Warm-up", work: "Work", recovery: "Recovery", cooldown: "Cool-down", transition: "Transition" }[segment.phase] ?? segment.phase;
+          const number = phaseCount[phase] = (phaseCount[phase] ?? 0) + 1;
+          return segmentRow(segment, `${phase} ${number}`, segmentIds.get(identity));
+        };
         const cardioRows = strength && !blocks.length ? [] : [
-          ...warmups.map((segment) => segmentRow(segment)),
+          ...warmups.map((segment, i) => blocks.length ? intervalRow(segment, `warmup:::${i}`) : segmentRow(segment)),
           ...(blocks.length ? blocks.flatMap((block, blockIndex) =>
             Array.from({ length: block.repeat }, (_, cycle) =>
-              block.segments.map((segment) => segmentRow(segment, `Block ${blockIndex + 1} · Round ${cycle + 1} · `)),
+              block.segments.map((segment, i) => intervalRow(segment, `interval:${blockIndex}:${cycle}:${i}`)),
             ).flat(),
           ) : [{ label: exercise.name, duration: exercise.durationSeconds, output: steadyOutput }]),
         ];
@@ -545,7 +567,6 @@ export function PlayerView({
               {exercise.optional ? " · Optional" : ""}
             </h4>
             <div className={styles.plan}>
-              <h5>Prescribed</h5>
               {strength && <p>
                 {exercise.sets ?? "Unspecified"} sets ·{" "}
                 {exercise.repsRange
@@ -553,19 +574,11 @@ export function PlayerView({
                   : (exercise.reps ?? "Unspecified")}{" "}
                 reps
               </p>}
-              <p>
-                Rest{" "}
-                {exercise.restSeconds === null
-                  ? "Unspecified"
-                  : `${exercise.restSeconds}s`}
-                {exercise.rpe &&
-                  ` · RPE ${exercise.rpe.min}–${exercise.rpe.max}`}
-              </p>
-              <p>{exercise.notes}</p>
-              <p>
-                Previous performance is not attached to this pinned
-                prescription.
-              </p>
+              {exercise.restSeconds !== null && <p>Rest {exercise.restSeconds}s</p>}
+              {exercise.rpe && <p>Prescribed RPE {exercise.rpe.min}–{exercise.rpe.max}</p>}
+              {exercise.notes && <p>{exercise.notes}</p>}
+              {strength && exercise.loadBasis && loadBases.some((basis) => basis !== "total" && basis === exercise.loadBasis) &&
+                <p>Load convention: {exercise.loadBasis.replaceAll("_", " ")}</p>}
               {exercise.equipment && <p>Equipment · {exercise.equipment}</p>}
               {exercise.comparisonContext && (
                 <p>Comparison context · {exercise.comparisonContext}</p>
@@ -578,20 +591,21 @@ export function PlayerView({
                 </p>
               ))}
             </div>
-            {cardioRows.length > 0 && <CardioRows rows={cardioRows} clockStart={start} intervals={blocks.length > 0} />}
+            {cardioRows.length > 0 && <CardioRows rows={cardioRows} clockStart={start} intervals={blocks.length > 0}
+              data={data} disabled={disabled} busy={busy} unavailable={resultsUnavailable} save={save} changed={changed} />}
             {strength && (
               <div aria-label="Strength sets">
                 <div className={styles.strengthRow}>
-                  <span aria-label="Completion">○</span><span>Set</span><span>Load</span><span>Reps</span><span>Edit</span>
+                  <span className={styles.completionHeading}>Completion</span><span>Set</span><span>Load (lb)</span><span>Reps</span><span>Edit</span>
                 </div>
                 {!blocks.length && warmups.map((segment, i) => (
                   <div className={styles.strengthRow} key={i}>
-                    <ReadOnlyBubble />
+                    <span aria-label="Warm-up, prescription only">—</span>
                     <span>Warm-up · {segment.label}
                       {segment.durationSeconds !== null && <small>{elapsed(segment.durationSeconds)}</small>}
                       {segment.strength?.sets != null && <small>{segment.strength.sets} sets</small>}
                     </span>
-                    <span>{segment.strength?.target ? showLoad({ ...segment.strength.target, basis: segment.strength.loadBasis }) : "—"}</span>
+                    <span>{segment.strength?.target ? showLoad(segment.strength.target) : "—"}</span>
                     <span>{segment.strength?.reps ?? "—"}</span><span>—</span>
                   </div>
                 ))}
@@ -726,6 +740,14 @@ export function WorkoutPlayer({
         entry.kind === item.kind && entry.occurrence_id === item.occurrenceId &&
         entry.set_ordinal === item.setOrdinal && entry.revision > revision
       )) throw new PlayerError("failed");
+      if (item.kind === "execution_check") {
+        const entry = current.entries.find((entry) => entry.kind === item.kind && entry.occurrence_id === item.occurrenceId);
+        if (!entry || entry.revision <= (pending.current as { expectedItemRevision: number }).expectedItemRevision || !("checked" in entry.value)) throw new PlayerError("failed");
+        if (entry.value.checked !== item.checked) {
+          setData(current);
+          throw new PlayerError("conflict");
+        }
+      }
       setData(current);
     } catch (e) {
       if (e instanceof PlayerError && e.kind === "conflict") {
