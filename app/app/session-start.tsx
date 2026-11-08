@@ -5,7 +5,9 @@ import type { WorkoutSession } from '@/lib/training/session'
 import styles from './stunna.module.css'
 import { confirmStartedWorkout, SessionConflict } from '@/lib/training/session-client'
 
-export function SessionStart({ workoutId, prescriptionRevision }: { workoutId: string; prescriptionRevision: number | null }) {
+export function SessionStart({ workoutId, prescriptionRevision, isSyntheticDemo = false }: {
+  workoutId: string; prescriptionRevision: number | null; isSyntheticDemo?: boolean
+}) {
   const [workout, setWorkout] = useState<WorkoutSession | null>(null)
   const [state, setState] = useState<'loading'|'ready'|'saving'|'error'>('loading')
   const [message, setMessage] = useState('Loading saved session…')
@@ -49,6 +51,9 @@ export function SessionStart({ workoutId, prescriptionRevision }: { workoutId: s
       onClick={() => void start()}>{state === 'saving' ? 'Saving…' : workout?.status === 'completed' ? 'View finalized session' : workout ? 'Resume Workout' : 'Start Workout'}</button>}
     {state === 'error' && <button type="button" onClick={() => void load()}>Reload saved session</button>}
     <p role="status" aria-live="polite">{message}</p>
+    {isSyntheticDemo && workout && <p className={styles.demoSession}>
+      {workout.status === 'completed' ? 'Demo session · finalized for testing' : 'Demo session · previously started for testing'}
+    </p>}
     {workout && <p>Saved session · {workout.status === 'completed' ? 'Finalized · read only' : 'In progress'} · revision {workout.revision}
       {workout.prescriptionRevision !== prescriptionRevision && ' · The plan has changed; this session retains its original prescription.'}</p>}
     {opened && workout && <WorkoutPlayer key={workout.id} workout={workout} onBack={()=>setOpened(false)} />}

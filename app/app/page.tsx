@@ -132,7 +132,7 @@ function WorkoutOverview({ workout, showPrevious }: { workout: Workout; showPrev
         </> : <p className={styles.empty}>No approved exercise prescription is available for this workout.</p>}
       </div>
       <PrescriptionDetails workout={workout} showPrevious={showPrevious} />
-      <SessionStart workoutId={workout.id} prescriptionRevision={prescription?.revision ?? null} />
+      <SessionStart workoutId={workout.id} prescriptionRevision={prescription?.revision ?? null} isSyntheticDemo={prescription?.source === "synthetic"} />
     </article>
   </section>
 }

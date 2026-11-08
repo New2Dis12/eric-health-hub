@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { create, act, type ReactTestRenderer } from "react-test-renderer";
+import { SessionStart } from "../app/app/session-start";
 import { PlayerView, WorkoutPlayer } from "../app/app/workout-player";
 import {
   loadPlayerResults,
@@ -511,7 +512,7 @@ test("steady rows retain pinned output and unknown interval durations invalidate
     const cell = row.children[row.props.className === "intervalRow" ? 2 : 1];
     return typeof cell === "string" ? cell : cell.props.children;
   });
-  assert.deepEqual(time(), ["Running clock", "0:00–10:00", "10:00–11:00", "Unknown", "Unknown", "Unknown"]);
+  assert.deepEqual(time(), ["Clock", "0:00–10:00", "10:00–11:00", "—", "—", "—"]);
   assert.match(text(tree), /500–600 sec\/mi/);
   assert.match(text(tree), /7–8 mph/);
   assert.doesNotMatch(text(tree), /sec\/500m/);
@@ -655,7 +656,7 @@ test("one mixed cardio snapshot retains the steady Time column and interval Runn
     const cell = row.children[row.props.className === "intervalRow" ? 2 : 1];
     return typeof cell === "string" ? cell : cell.props.children;
   });
-  assert.deepEqual(column, ["Time", "6:00", "Running clock", "6:00–7:00", "7:00–7:30", "7:30–8:30", "8:30–9:00"]);
+  assert.deepEqual(column, ["Time", "6:00", "Clock", "6:00–7:00", "7:00–7:30", "7:30–8:30", "8:30–9:00"]);
   assert.equal(rows.flatMap((row) => row.findAllByType("button")).length, 0);
   await act(async () => tree.unmount());
 });
@@ -759,4 +760,57 @@ test("strength editor uses lb convention for new loads and preserves historical 
     assert.deepEqual((writes[index] as {actual:{load:unknown}}).actual.load,{value:22,unit,basis});
   }
   await act(async () => tree.unmount());
+});
+
+test("server session state controls Start, Resume, and finalized labels independently of the demo badge", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousWindow = globalThis.window;
+  let current: WorkoutSession | null = null;
+  let posts = 0;
+  let tree: ReactTestRenderer | undefined;
+  Object.assign(globalThis, { window: { addEventListener() {}, removeEventListener() {}, confirm() { return true; } } });
+  globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith("/api/training/results")) return Response.json({ ...data, status: current?.status });
+    if (init?.method === "POST") {
+      posts++;
+      current ??= workout;
+    }
+    return Response.json({ workout: current });
+  };
+  const render = (isSyntheticDemo: boolean) => <SessionStart workoutId="synthetic-plan" prescriptionRevision={1} isSyntheticDemo={isSyntheticDemo} />;
+  const button = (name: string) => tree!.root.findAllByType("button").find(node => node.props.children === name);
+  async function click(name: string) {
+    assert.ok(button(name));
+    await act(async () => { button(name)!.props.onClick(); });
+  }
+  async function mount(isSyntheticDemo: boolean) {
+    await act(async () => { tree?.unmount(); tree = create(render(isSyntheticDemo)); });
+  }
+  try {
+    await mount(true);
+    assert.ok(button("Start Workout"));
+    assert.doesNotMatch(text(tree!), /previously started for testing/);
+    await click("Start Workout");
+    await click("Back to Overview");
+    assert.ok(button("Resume Workout"));
+    assert.match(text(tree!), /previously started for testing/);
+    await click("Resume Workout");
+    await click("Back to Overview");
+    assert.ok(button("Resume Workout"));
+    assert.equal(posts, 2);
+    await mount(false);
+    assert.ok(button("Resume Workout"));
+    assert.doesNotMatch(text(tree!), /Demo session/);
+    current = { ...workout, status: "completed" };
+    await mount(true);
+    assert.ok(button("View finalized session"));
+    await click("View finalized session");
+    assert.equal(posts, 2);
+    assert.match(text(tree!), /Finalized · read only/);
+    assert.equal(tree!.root.findAllByType("button").some(node => node.props["aria-pressed"] !== undefined), false);
+  } finally {
+    if (tree) await act(async () => tree!.unmount());
+    globalThis.fetch = previousFetch;
+    Object.assign(globalThis, { window: previousWindow });
+  }
 });

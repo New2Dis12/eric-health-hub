@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "issue21-mobile-1794113409000",
   "epoch": 6,
   "spec": "0a415a95ab599fed656c476a286b02aac233aac6616223c9f810ad12376b9dc4",
-  "heartbeat": "2026-11-08T04:50:09.000Z",
-  "expires": "2026-11-08T05:35:09.000Z",
-  "checkpoint": "2a9f0f098af781d710dcf91709f85f881e470396",
+  "heartbeat": "2026-11-08T04:54:43.000Z",
+  "expires": "2026-11-08T05:39:43.000Z",
+  "checkpoint": "Final iPhone acceptance correction validated; parent d5a9585650ea9dfc0bec29d9d6695e3145c616da",
   "attempts": 3,
   "correction": {
     "attempts": 3,
@@ -39,20 +39,20 @@
         "reviewComment": 6717349176,
         "reviewedHead": "2a9f0f098af781d710dcf91709f85f881e470396",
         "lastAttemptedHead": "2a9f0f098af781d710dcf91709f85f881e470396",
-        "result": "reserved",
-        "nextAction": "Implement and validate"
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head review"
       },
       {
         "key": "owner-demo-session-label-clarity",
         "reviewComment": 6717349176,
         "reviewedHead": "2a9f0f098af781d710dcf91709f85f881e470396",
         "lastAttemptedHead": "2a9f0f098af781d710dcf91709f85f881e470396",
-        "result": "reserved",
-        "nextAction": "Implement and validate"
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head review"
       }
     ]
   },
-  "nextAction": "Correct owner-reported iPhone layout and demo status",
+  "nextAction": "Independent review of exact new head; escalate any findings without a fourth attempt",
   "history": [
     {
       "state": "review",
@@ -239,5 +239,14 @@
         "hosted": "not run"
       }
     }
-  ]
+  ],
+  "validation": {
+    "app": 78,
+    "ui": 16,
+    "workflow": 20,
+    "typecheck": "pass",
+    "build": "pass",
+    "visual": "Chromium text bounds 375px/390px with nested padding",
+    "hosted": "not run"
+  }
 }

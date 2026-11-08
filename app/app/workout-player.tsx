@@ -395,9 +395,14 @@ function outputTargets(targets: MetricTarget[], modality: string) {
       case "pace": return modality === "run" || modality === "ski";
       default: return true;
     }
-  }).flatMap(({ range, unit }) =>
-    range ? [`${showRange(range)} ${unit}`] : [],
-  );
+  }).flatMap(({ range, unit }) => {
+    if (!range) return [];
+    if (unit === "sec/500m" && Number.isInteger(range.min) && Number.isInteger(range.max)) {
+      const split = elapsed(range.min);
+      return [`${split}${range.min === range.max ? "" : `–${elapsed(range.max)}`} /500m`];
+    }
+    return [`${showRange(range)} ${unit}`];
+  });
 }
 
 type CardioRow = { label: string; duration: number | null; output: string[]; occurrenceId?: string };
@@ -450,30 +455,37 @@ function CardioRows({ rows, clockStart, intervals, data, disabled, busy, unavail
   let clock = clockStart;
   const grid = intervals ? styles.intervalRow : styles.cardioRow;
   return (
-    <div aria-label={intervals ? "Interval execution checklist" : "Prescribed steady cardio"}>
-      <div className={grid}>
-        {intervals && <span className={styles.completionHeading}>Completion</span>}<span>Workout</span>
-        <span>{intervals ? "Running clock" : "Time"}</span><span>Speed/Output</span>
+    <>
+      {intervals && disabled && <p className={styles.cardioNote}>Finalized · read only. A dash means the segment was not checked.</p>}
+      {intervals && (clockStart === null || rows.some((row) => row.duration === null)) &&
+        <p className={styles.cardioNote}>A dash means planned time is unavailable for an untimed segment or one after it.</p>}
+      <div role="table" aria-label={intervals ? "Interval execution checklist" : "Prescribed steady cardio"}>
+        <div className={grid} role="row">
+          {intervals && <span role="columnheader" aria-label="Completion">Done</span>}
+          <span role="columnheader" aria-label="Workout">{intervals ? "Segment" : "Workout"}</span>
+          <span role="columnheader" aria-label={intervals ? "Running clock" : "Time"}>{intervals ? "Clock" : "Time"}</span>
+          <span role="columnheader" aria-label="Speed/Output">{intervals ? "Target" : "Speed/Output"}</span>
+        </div>
+        {rows.map((row, index) => {
+          const { label, duration, output, occurrenceId } = row;
+          const end: number | null = clock === null || duration === null ? null : clock + duration;
+          const time = intervals
+            ? (clock === null || end === null ? "—" : `${elapsed(clock)}–${elapsed(end)}`)
+            : (duration === null ? "Unknown" : elapsed(duration));
+          clock = end;
+          return (
+            <div className={grid} role="row" key={occurrenceId ?? index}>
+              {intervals && <div role="cell">{occurrenceId ? <ExecutionCheck row={{ ...row, occurrenceId }}
+                entry={data.entries.find((entry) => entry.kind === "execution_check" && entry.occurrence_id === occurrenceId)}
+                disabled={disabled} busy={busy} unavailable={unavailable} save={save} changed={changed} />
+                : <span aria-label="Pinned progress identity unavailable">—</span>}</div>}
+              <span role="cell">{label}</span><span role="cell" className={styles.clock}>{time}</span>
+              <span role="cell" className={styles.cardioOutput}>{output.length ? output.map((value, i) => <small key={i}>{value}</small>) : "—"}</span>
+            </div>
+          );
+        })}
       </div>
-      {rows.map((row, index) => {
-        const { label, duration, output, occurrenceId } = row;
-        const end: number | null = clock === null || duration === null ? null : clock + duration;
-        const time = intervals
-          ? (clock === null || end === null ? "Unknown" : `${elapsed(clock)}–${elapsed(end)}`)
-          : (duration === null ? "Unknown" : elapsed(duration));
-        clock = end;
-        return (
-          <div className={grid} key={occurrenceId ?? index}>
-            {intervals && (occurrenceId ? <ExecutionCheck row={{ ...row, occurrenceId }}
-              entry={data.entries.find((entry) => entry.kind === "execution_check" && entry.occurrence_id === occurrenceId)}
-              disabled={disabled} busy={busy} unavailable={unavailable} save={save} changed={changed} />
-              : <span aria-label="Pinned progress identity unavailable">—</span>)}
-            <span>{label}</span><span className={styles.clock}>{time}</span>
-            <span>{output.length ? output.map((value, i) => <small key={i}>{value}</small>) : "—"}</span>
-          </div>
-        );
-      })}
-    </div>
+    </>
   );
 }
 function segmentRow(segment: Segment, label = segment.label, occurrenceId?: string): CardioRow {
