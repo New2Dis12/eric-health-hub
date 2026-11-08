@@ -88,3 +88,5 @@
 .startArea p { color: #c0d0c4; font-size: 12px; text-align: center; margin-top: 9px; }
 .prescriptionDetails { border-top: 1px solid #344a40; }
 .prescriptionDetails summary { cursor: pointer; padding: 16px 20px; min-height: 48px; color: #c7d9cb; font-size: 13px; }
+
+.startArea .demoSession { color: #c9f779; font-weight: 700; }

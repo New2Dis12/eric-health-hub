@@ -7,10 +7,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --conditions=react-server --import tsx --test tests/*.test.ts",
+    "test": "node --conditions=react-server --import tsx --test tests/*.test.ts && pnpm test:ui",
     "typecheck": "tsc --noEmit",
     "db:migrate": "node --conditions=react-server --import tsx scripts/migrate.ts up",
-    "db:rollback": "node --conditions=react-server --import tsx scripts/migrate.ts down"
+    "db:rollback": "node --conditions=react-server --import tsx scripts/migrate.ts down",
+    "test:ui": "TSX_TSCONFIG_PATH=tests/tsconfig.ui.json node --import tsx --import ./tests/ui-hooks.mjs --test tests/player-ui.test.tsx"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.33.0",
@@ -40,7 +41,9 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/react-test-renderer": "^19.3.1",
     "postcss": "^8.5",
+    "react-test-renderer": "^19.3.1",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "5.7.3"

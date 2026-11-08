@@ -1,0 +1,167 @@
+{
+  "state": "review",
+  "owner": "issue23-cardio-worker",
+  "epoch": 3,
+  "spec": "1fdc4c65f3d622bd448f6f24aaaa967bf3e89a8e71452b98d72e35e5eabe1a72",
+  "heartbeat": "2026-11-08T15:35:18.762395+00:00",
+  "expires": "2026-11-08T16:20:18.762395+00:00",
+  "checkpoint": "Implemented the two owner Safari presentation refinements. Validated source for independent review.",
+  "attempts": 2,
+  "correction": {
+    "attempts": 2,
+    "findings": [
+      {
+        "key": "steady-cardio-warmup-overrides-sport",
+        "reviewComment": 6722024521,
+        "reviewedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+        "lastAttemptedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+        "result": "resolved",
+        "nextAction": "Prior technical GO at 2d14aa402855869e0bca49992bc97a08b60cf138"
+      },
+      {
+        "key": "optional-cardio-target-validation-scope",
+        "reviewComment": 6722024521,
+        "reviewedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+        "lastAttemptedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+        "result": "resolved",
+        "nextAction": "Prior technical GO at 2d14aa402855869e0bca49992bc97a08b60cf138"
+      },
+      {
+        "key": "fractional-row-split-unlabeled-seconds",
+        "reviewComment": 6722024521,
+        "reviewedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+        "lastAttemptedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+        "result": "resolved",
+        "nextAction": "Prior technical GO at 2d14aa402855869e0bca49992bc97a08b60cf138"
+      },
+      {
+        "key": "owner-run-mph-header",
+        "approvalComment": 6723402691,
+        "reviewedHead": "2d14aa402855869e0bca49992bc97a08b60cf138",
+        "lastAttemptedHead": "2d14aa402855869e0bca49992bc97a08b60cf138",
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head re-review"
+      },
+      {
+        "key": "owner-row-spm-before-split",
+        "approvalComment": 6723402691,
+        "reviewedHead": "2d14aa402855869e0bca49992bc97a08b60cf138",
+        "lastAttemptedHead": "2d14aa402855869e0bca49992bc97a08b60cf138",
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head re-review"
+      }
+    ]
+  },
+  "validation": {
+    "app": 79,
+    "ui": 17,
+    "workflow": 20,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "chromium": {
+      "375": {
+        "nestedWidth": 301,
+        "textRects": 98
+      },
+      "390": {
+        "nestedWidth": 316,
+        "textRects": 94
+      }
+    },
+    "hosted": "prior reviewed commit only"
+  },
+  "nextAction": "Independent current-head re-review",
+  "history": [
+    {
+      "state": "review",
+      "owner": "issue23-cardio-worker",
+      "epoch": 1,
+      "spec": "ec579fcdf507dc25a59cdb7c786eb25a22b569abdda2d831a7ae84d806b54750",
+      "heartbeat": "2026-11-08T13:19:22.702320+00:00",
+      "expires": "2026-11-08T14:04:22.702320+00:00",
+      "checkpoint": "Issue 23 tested cardio implementation. Draft dependent PR and independent review handoff.",
+      "attempts": 0,
+      "correction": {
+        "attempts": 0,
+        "findings": []
+      },
+      "validation": {
+        "app": 79,
+        "ui": 16,
+        "workflow": 20,
+        "typecheck": "PASS",
+        "build": "PASS",
+        "chromium": {
+          "375": {
+            "nestedWidth": 301,
+            "textRects": 94
+          },
+          "390": {
+            "nestedWidth": 316,
+            "textRects": 90
+          }
+        },
+        "hosted": "pending separate authorization"
+      },
+      "nextAction": "Independent current-head review"
+    },
+    {
+      "state": "review",
+      "owner": "issue23-cardio-worker",
+      "epoch": 2,
+      "spec": "ec579fcdf507dc25a59cdb7c786eb25a22b569abdda2d831a7ae84d806b54750",
+      "heartbeat": "2026-11-08T14:36:01.685643+00:00",
+      "expires": "2026-11-08T15:21:01.685643+00:00",
+      "checkpoint": "Corrected the three P2 findings from 6722024521. Validated source for independent re-review.",
+      "attempts": 1,
+      "correction": {
+        "attempts": 1,
+        "findings": [
+          {
+            "key": "steady-cardio-warmup-overrides-sport",
+            "reviewComment": 6722024521,
+            "reviewedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+            "lastAttemptedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+            "result": "awaiting-review",
+            "nextAction": "Independent current-head re-review"
+          },
+          {
+            "key": "optional-cardio-target-validation-scope",
+            "reviewComment": 6722024521,
+            "reviewedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+            "lastAttemptedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+            "result": "awaiting-review",
+            "nextAction": "Independent current-head re-review"
+          },
+          {
+            "key": "fractional-row-split-unlabeled-seconds",
+            "reviewComment": 6722024521,
+            "reviewedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+            "lastAttemptedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
+            "result": "awaiting-review",
+            "nextAction": "Independent current-head re-review"
+          }
+        ]
+      },
+      "validation": {
+        "app": 79,
+        "ui": 17,
+        "workflow": 20,
+        "typecheck": "PASS",
+        "build": "PASS",
+        "chromium": {
+          "375": {
+            "nestedWidth": 301,
+            "textRects": 97
+          },
+          "390": {
+            "nestedWidth": 316,
+            "textRects": 93
+          }
+        },
+        "hosted": "pending separate authorization"
+      },
+      "nextAction": "Independent current-head re-review"
+    }
+  ]
+}

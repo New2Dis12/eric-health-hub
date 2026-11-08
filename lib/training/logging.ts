@@ -40,14 +40,21 @@ export async function logResult(tx: Queryable, athlete: string, command: LogInpu
         if ((metric.metric==='rowing_split' || metric.metric==='stroke_rate') && segment.modality!=='row' ||
           metric.metric==='cycling_cadence' && segment.modality!=='bike' || metric.metric==='pace' && !['run','ski'].includes(segment.modality)) throw new ApiError(400,'Metric incompatible with modality')
       }
+    } else if (item.kind === 'execution_check') {
+      const blocks = exercise?.intervalBlocks
+      const block = blocks?.[occurrence.block!]
+      const segment = occurrence.type === 'warmup' ? exercise?.warmups?.[occurrence.segment!] :
+        occurrence.type === 'interval' && block && occurrence.repeat! >= 0 && occurrence.repeat! < block.repeat
+          ? block.segments[occurrence.segment!] : undefined
+      if (!blocks?.length || !segment) throw new ApiError(400, 'Expected pinned interval protocol segment')
     } else if (occurrence.type!=='exercise') throw new ApiError(400,'Expected pinned exercise')
-    if (item.kind==='strength_set' && (exercise.sets === null || item.setOrdinal>exercise.sets || (exercise.reps===null && !exercise.repsRange))) throw new ApiError(400,'Set outside pinned strength prescription')
+    if (item.kind==='strength_set' && (exercise.sets === null || item.setOrdinal>exercise.sets)) throw new ApiError(400,'Set outside pinned strength prescription')
   }
   const ordinal=item.kind==='strength_set'?item.setOrdinal:0
   const key=[item.kind,occurrenceId??'session',ordinal].join(':')
   const prior=(await tx.query<LogEntry>('SELECT * FROM stunna.session_entries WHERE athlete_id=$1 AND session_id=$2 AND item_key=$3 ORDER BY revision DESC LIMIT 1',[athlete,command.sessionId,key])).rows[0]
   if ((prior?.revision??0)!==command.expectedItemRevision) throw new ApiError(409,'Item revision conflict')
-  const value:LogValue='actual' in item?item.actual:{notes:item.notes}
+  const value:LogValue='actual' in item ? item.actual : item.kind === 'execution_check' ? { checked: item.checked } : { notes: item.notes }
   const before=item.kind==='workout_note'?{notes:session.notes}:prior?.value??null
   const id=randomUUID(), revision=(prior?.revision??0)+1, sessionRevision=session.revision+1
   await tx.query(`INSERT INTO stunna.session_entries(id,athlete_id,session_id,item_key,kind,occurrence_id,set_ordinal,revision,session_revision,value,before_value,actor_sub,source,reason)

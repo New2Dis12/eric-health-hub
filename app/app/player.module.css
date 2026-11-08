@@ -1,0 +1,204 @@
+.player {
+  text-align: left;
+  display: grid;
+  gap: 20px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.player h3 {
+  font-size: 24px;
+  font-weight: 750;
+}
+.player h4 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.player h5 {
+  color: #c9f779;
+  font-weight: 700;
+  margin: 10px 0;
+}
+.player p {
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.exercise {
+  border-top: 1px solid #405749;
+  padding-top: 20px;
+  min-width: 0;
+}
+.plan {
+  background: #21362b;
+  padding: 12px;
+  border-radius: 12px;
+}
+.note {
+  border: 1px solid #405749;
+  padding: 12px;
+  border-radius: 12px;
+  margin-top: 14px;
+  min-width: 0;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.player label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  min-width: 0;
+}
+.player input,
+.player select,
+.player textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 44px;
+  background: #0e1d16;
+  border: 1px solid #668271;
+  border-radius: 8px;
+  padding: 9px;
+  color: #f4f7f4;
+  font-size: 16px;
+}
+.player textarea {
+  resize: vertical;
+}
+.player button,
+.back {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #c9f779;
+  color: #142417;
+  font-weight: 650;
+  margin-top: 8px;
+}
+.player :disabled {
+  opacity: 0.65;
+}
+.player :focus-visible,
+.back:focus-visible {
+  outline: 2px solid #dbff9d;
+  outline-offset: 3px;
+}
+
+.strengthRow,
+.cardioRow {
+  display: grid;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 44px;
+  padding-block: 4px;
+  border-bottom: 1px solid #405749;
+  font-size: 13px;
+}
+
+.strengthRow {
+  grid-template-columns: 48px minmax(0, 0.8fr) minmax(0, 1.4fr) minmax(0, 0.65fr) 44px;
+}
+
+.strengthRow > *,
+.cardioRow > * {
+  min-width: 0;
+}
+
+.strengthRow small {
+  display: block;
+  font-size: 11px;
+}
+
+.player .logBubble,
+.player .editSet {
+  min-width: 44px;
+  margin: 0;
+  padding: 0;
+}
+
+.player .logBubble {
+  border: 1px solid #668271;
+  border-radius: 50%;
+  background: #0e1d16;
+  color: #c9f779;
+  font-size: 22px;
+}
+
+.checked {
+  text-align: center;
+  font-size: 18px;
+}
+
+.checked {
+  color: #c9f779;
+}
+
+.set {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.editor {
+  margin-block: 8px;
+  padding: 8px;
+  border: 1px solid #668271;
+  border-radius: 8px;
+}
+
+.setStatus:empty {
+  display: none;
+}
+
+.cardioTable {
+  --cardio-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1.6fr);
+}
+
+.cardioTable[data-cardio="run"] {
+  --cardio-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, .8fr);
+}
+
+.cardioTable[data-cardio="bike"] {
+  --cardio-columns: minmax(0, 61fr) minmax(0, 64fr) minmax(0, 58fr) minmax(0, 34fr) minmax(0, 68fr);
+}
+
+.cardioTable[data-cardio="row"] {
+  --cardio-columns: minmax(0, 56fr) minmax(0, 68fr) minmax(0, 56fr) minmax(0, 41fr) minmax(0, 64fr);
+}
+
+.cardioRow {
+  grid-template-columns: var(--cardio-columns);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.cardioRow > [role="columnheader"] {
+  font-weight: 650;
+}
+
+.cardioUnit {
+  display: block;
+  font-weight: 400;
+}
+
+.clock {
+  font-variant-numeric: tabular-nums;
+}
+
+.player .logBubble {
+  width: 44px;
+}
+
+.plan:empty {
+  display: none;
+}
+
+.completionHeading {
+  font-size: 9px;
+}

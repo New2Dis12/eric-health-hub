@@ -27,7 +27,7 @@ async function log(s:WorkoutSession,item:object,itemRevision=0){
 }
 before(async()=>{
   process.env.AUTH0_ALLOWED_SUB=subject
-  for(const name of ['001_foundation','002_prescriptions','003_methodology','004_workout_overviews','005_session_start','006_session_entries']) await db.exec(await readFile(new URL('../db/migrations/'+name+'.up.sql',import.meta.url),'utf8'))
+  for(const name of ['001_foundation','002_prescriptions','003_methodology','004_workout_overviews','005_session_start','006_session_entries','007_execution_checks']) await db.exec(await readFile(new URL('../db/migrations/'+name+'.up.sql',import.meta.url),'utf8'))
   await db.exec('CREATE ROLE stunna_runtime');await db.exec(await readFile(new URL('../db/runtime-grants.sql',import.meta.url),'utf8'))
   const b=await service.write(principal,cmd({operation:'create_block',block:{title:'Synthetic',goal:'Fixture',startsOn:'2026-01-01',endsOn:'2026-01-31',source:'manual'}}))
   athlete=(await db.query<{id:string}>('SELECT id FROM stunna.athletes WHERE auth0_sub=$1',[subject])).rows[0].id
@@ -141,6 +141,12 @@ test('logging HTTP: encrypted cookie saves/reads, CSRF/bearer/anonymous/flag/bou
   assert.equal((await post({origin},'x'.repeat(17000))).status,413)
   assert.equal((await post({origin},'{')).status,400)
   assert.equal((await handlers.GET(new Request(origin+'/api/training/results?session='+strength.id))).status,401)
+  const progress = await log(intervals,{kind:'execution_check',occurrenceId:intervals.snapshot!.occurrences.at(-1)!.id,checked:true})
+  assert.equal((await post({origin:'null'},JSON.stringify(progress))).status,403)
+  assert.equal((await post({origin,authorization:'Bearer invalid'},JSON.stringify(progress))).status,401)
+  assert.equal((await post({origin},JSON.stringify(progress))).status,200)
+  const progressRead=await handlers.GET(new Request(origin+'/api/training/results?session='+intervals.id,{headers:{cookie}}))
+  assert.deepEqual((await progressRead.json()).entries.find((entry: {kind:string})=>entry.kind==='execution_check').value,{checked:true})
   const disabled=createLoggingHandlers({enabled:()=>false,principal:requireTrainingPrincipal,service:()=>service})
   assert.equal((await disabled.GET(new Request(origin))).status,404)
 })
@@ -157,4 +163,59 @@ test('source-only DB constraints reject malformed results/cross-session FKs; nul
   await assert.rejects(insert(athlete,strength.id,occ(intervals),actual))
   const fk=(await db.query<{count:number}>("SELECT count(*)::int AS count FROM pg_constraint WHERE conrelid='stunna.session_entries'::regclass AND contype='f' AND array_length(conkey,1)=2")).rows[0]
   assert.equal(fk.count,1)
+})
+
+test('pinned strength with unspecified prescribed reps accepts explicitly confirmed null or user-entered reps',async()=>{
+  const block=await service.write(principal,cmd({operation:'create_block',block:{title:'Synthetic missing-reps fixture',goal:'Fixture',startsOn:'2026-01-01',endsOn:'2026-01-31',source:'manual'}}))
+  const plan=await service.write(principal,cmd({operation:'create_planned_session',plan:{blockId:block.blockId,kind:'strength',purpose:'Synthetic',scheduledAt:'2026-01-02T12:00:00Z',timeZone:'UTC',source:'manual'}}))
+  await db.query(`INSERT INTO stunna.prescription_revisions(athlete_id,planned_session_id,revision,title,exercises,change_reason,source) VALUES($1,$2,1,'Synthetic',$3,'Fixture','synthetic')`,[athlete,plan.plannedSessionId,JSON.stringify([{...ex,reps:null}])])
+  const saved=await service.write(principal,cmd({operation:'start_workout',plannedSessionId:plan.plannedSessionId,expectedPrescriptionRevision:1,expectedSessionRevision:0}))
+  await service.write(principal,await log(saved.workout!,{kind:'strength_set',occurrenceId:occ(saved.workout!),setOrdinal:1,actual:{reps:null,load:null,rpe:null,source:'user_reported'}}))
+  const value=(await service.results(principal,saved.workout!.id)).entries[0].value
+  assert.ok('reps' in value);assert.equal(value.reps,null)
+})
+
+test('execution checks are reversible, append-only, and separate from interval actuals and notes', async () => {
+  const before = await service.results(principal, intervals.id)
+  const repeats = intervals.snapshot!.occurrences.filter(o => o.type === 'interval' && o.segment === 0)
+  assert.equal(repeats.length, 2)
+  const item = { kind: 'execution_check', occurrenceId: repeats[0].id, checked: true }
+  const input = await log(intervals, item)
+  const result = await service.write(principal, input)
+  assert.deepEqual(await service.write(principal, input), result)
+  await assert.rejects(service.write(principal, {...input, item:{...item,checked:false}}), reject(409))
+  await service.write(principal, await log(intervals, {...item,occurrenceId:repeats[1].id}))
+  await service.write(principal, await log(intervals, {...item,occurrenceId:occ(intervals,'warmup')}))
+  await service.write(principal, await log(intervals, {...item,checked:false}, 1))
+  const resumed = await createTrainingService(database).results(principal, intervals.id)
+  assert.deepEqual(resumed.entries.filter(e=>e.kind==='interval'), before.entries.filter(e=>e.kind==='interval'))
+  assert.equal(resumed.notes, before.notes)
+  assert.deepEqual(resumed.entries.find(e=>e.kind===item.kind&&e.occurrence_id===item.occurrenceId)?.value, {checked:false})
+  const history = (await service.results(principal, intervals.id, true)).entries.filter(e=>e.kind===item.kind&&e.occurrence_id===item.occurrenceId)
+  assert.deepEqual(history.map(e=>[e.value,e.before_value]), [[{checked:true},null],[{checked:false},{checked:true}]])
+  assert.deepEqual((await db.query<{prescription_snapshot:unknown}>('SELECT prescription_snapshot FROM stunna.actual_sessions WHERE id=$1',[intervals.id])).rows[0].prescription_snapshot, intervals.snapshot)
+  assert.equal((await db.query('SELECT * FROM stunna.audit_events WHERE entity_id=$1',[result.entryId])).rows.length, 1)
+  const down = await readFile(new URL('../db/migrations/007_execution_checks.down.sql',import.meta.url),'utf8')
+  await assert.rejects(db.transaction(tx=>tx.exec(down)))
+})
+
+test('execution checks reject malformed, stale, unauthorized, and nonsegment writes', async () => {
+  const item = { kind:'execution_check', occurrenceId:occ(intervals,'warmup'), checked:false }
+  for (const invalid of [{...item,checked:'false'}, {...item,actual:{}}, {...item,occurrenceId:occ(intervals)}])
+    await assert.rejects(service.write(principal, await log(intervals,invalid,1)),reject(400))
+  await assert.rejects(service.write(principal, await log(strength,item)),reject(400))
+  const input = await log(intervals,item,1)
+  await assert.rejects(service.write({...principal,scopes:['training.read']},input),reject(403))
+  await assert.rejects(service.write({...principal,subject:'auth0|unrelated'},input),reject(403))
+  const note = await log(intervals,{kind:'exercise_note',occurrenceId:occ(intervals),notes:'Synthetic independent note'})
+  await service.write(principal,note)
+  await assert.rejects(service.write(principal,input),reject(409))
+  const insert = (occurrenceId:string,value:object) => database.transaction(subject,tx=>tx.query(
+    `INSERT INTO stunna.session_entries(id,athlete_id,session_id,item_key,kind,occurrence_id,set_ordinal,revision,session_revision,value,actor_sub,source,reason)
+      VALUES($1,$2,$3,$4,'execution_check',$5,0,99,999,$6,$7,'browser','Synthetic check rejection')`,
+    [randomUUID(),athlete,intervals.id,'execution_check:'+occurrenceId+':0',occurrenceId,JSON.stringify(value),subject]))
+  await assert.rejects(insert(item.occurrenceId,{checked:true,metrics:[]}))
+  await assert.rejects(insert(occ(intervals),{checked:true}))
+  await db.query("UPDATE stunna.actual_sessions SET status='completed',completed_at=started_at WHERE id=$1",[intervals.id])
+  await assert.rejects(service.write(principal,await log(intervals,item,1)),reject(409))
 })

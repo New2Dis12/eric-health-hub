@@ -1,10 +1,13 @@
 'use client'
+import { WorkoutPlayer } from './workout-player'
 import { useEffect, useRef, useState } from 'react'
 import type { WorkoutSession } from '@/lib/training/session'
 import styles from './stunna.module.css'
 import { confirmStartedWorkout, SessionConflict } from '@/lib/training/session-client'
 
-export function SessionStart({ workoutId, prescriptionRevision }: { workoutId: string; prescriptionRevision: number | null }) {
+export function SessionStart({ workoutId, prescriptionRevision, isSyntheticDemo = false }: {
+  workoutId: string; prescriptionRevision: number | null; isSyntheticDemo?: boolean
+}) {
   const [workout, setWorkout] = useState<WorkoutSession | null>(null)
   const [state, setState] = useState<'loading'|'ready'|'saving'|'error'>('loading')
   const [message, setMessage] = useState('Loading saved session…')
@@ -44,21 +47,15 @@ export function SessionStart({ workoutId, prescriptionRevision }: { workoutId: s
     }
   }
   return <div className={styles.startArea}>
-    <button className={styles.startWorkout} type="button" disabled={state !== 'ready' || (prescriptionRevision === null && !workout)}
-      onClick={() => void start()}>{state === 'saving' ? 'Saving…' : workout?.status === 'completed' ? 'View finalized session' : workout ? 'Resume Workout' : 'Start Workout'}</button>
+    {!opened && <button className={styles.startWorkout} type="button" disabled={state !== 'ready' || (prescriptionRevision === null && !workout)}
+      onClick={() => void start()}>{state === 'saving' ? 'Saving…' : workout?.status === 'completed' ? 'View finalized session' : workout ? 'Resume Workout' : 'Start Workout'}</button>}
     {state === 'error' && <button type="button" onClick={() => void load()}>Reload saved session</button>}
     <p role="status" aria-live="polite">{message}</p>
+    {isSyntheticDemo && workout && <p className={styles.demoSession}>
+      {workout.status === 'completed' ? 'Demo session · finalized for testing' : 'Demo session · previously started for testing'}
+    </p>}
     {workout && <p>Saved session · {workout.status === 'completed' ? 'Finalized · read only' : 'In progress'} · revision {workout.revision}
       {workout.prescriptionRevision !== prescriptionRevision && ' · The plan has changed; this session retains its original prescription.'}</p>}
-    {opened && workout && <section aria-label="Saved workout session">
-      <h3>{workout.snapshot?.title ?? 'Legacy session — prescription not pinned'}</h3>
-      <p>{workout.snapshot?.purpose}</p>
-      <p>{workout.snapshot?.overview?.rationale}</p>
-      <p>{workout.prescriptionRevision !== null ? `Pinned prescription revision ${workout.prescriptionRevision}` : 'No snapshot available; no prescription inferred.'}</p>
-      <ol>{workout.snapshot?.exercises.map((exercise, i) => <li key={i}>{exercise.name}
-        {exercise.intervalBlocks?.map((block, j) => <p key={j}>{block.repeat} rounds: {block.segments.map(segment => segment.label).join(' → ')}</p>)}</li>)}</ol>
-      <p>Session persistence only. Performance entry and completion are not available yet.</p>
-      <button type="button" onClick={() => setOpened(false)}>Back to overview</button>
-    </section>}
+    {opened && workout && <WorkoutPlayer key={workout.id} workout={workout} onBack={()=>setOpened(false)} />}
   </div>
 }

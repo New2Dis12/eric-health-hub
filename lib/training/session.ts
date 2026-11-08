@@ -2,7 +2,7 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { ApiError } from '../private-api'
-import { prescriptionExercises, workoutOverview } from './context-models'
+import { prescriptionExercisesFor, workoutOverview, type prescriptionExercises } from './context-models'
 import type { Queryable } from './database'
 
 export type SessionSnapshot = {
@@ -44,7 +44,7 @@ export async function startWorkout(tx: Queryable, athleteId: string, input: z.in
   const row = rows[0]
   if (!row) throw new ApiError(404, 'Approved workout not found')
   if (row.revision !== input.expectedPrescriptionRevision) throw new ApiError(409, 'Prescription changed; reload before starting')
-  const exercises = prescriptionExercises.parse(row.exercises)
+  const exercises = prescriptionExercisesFor(row.kind).parse(row.exercises)
   const occurrences: SessionSnapshot['occurrences'] = []
   exercises.forEach((exercise, index) => {
     const add = (type: string, values = {}) => {

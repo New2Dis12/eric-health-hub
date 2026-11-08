@@ -22,13 +22,14 @@ export const logFields = {
   item: z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('strength_set'), occurrenceId: z.uuid(), setOrdinal: z.number().int().min(1).max(50), actual: strengthActual }),
     z.strictObject({ kind: z.literal('interval'), occurrenceId: z.uuid(), actual: intervalActual }),
+    z.strictObject({ kind: z.literal('execution_check'), occurrenceId: z.uuid(), checked: z.boolean() }),
     z.strictObject({ kind: z.literal('exercise_note'), occurrenceId: z.uuid(), notes: z.string().max(4000) }),
     z.strictObject({ kind: z.literal('workout_note'), notes: z.string().max(4000) }),
   ]),
 }
 export const loggingInput = z.object(logFields)
 export type LogInput = z.infer<typeof loggingInput>
-export type LogValue = z.infer<typeof strengthActual> | z.infer<typeof intervalActual> | { notes: string }
+export type LogValue = z.infer<typeof strengthActual> | z.infer<typeof intervalActual> | { notes: string } | { checked: boolean }
 export type LogEntry = { id: string; item_key: string; kind: string; occurrence_id: string | null; set_ordinal: number;
   revision: number; session_revision: number; value: LogValue; before_value: LogValue | null; actor_sub: string; source: 'browser'|'api'; reason: string; recorded_at: string }
 export type SessionResults = { sessionId: string; sessionRevision: number; status: string; notes: string; notesRevision: number; entries: LogEntry[]; nextOffset: number | null }
