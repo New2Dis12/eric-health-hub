@@ -127,7 +127,7 @@ try {
       errors.push("run clock or targets lost");
     const rowCells = [...tables[1].children].slice(1).map(row => [...row.children].map(cell => cell.textContent));
     if (JSON.stringify(rowCells.slice(0, 2)) !== JSON.stringify([
-      ["", "Work 1", "400 m", "2:45–2:55", "20–22"], ["1:30", "Recovery 1", "", "", ""],
+      ["", "Work 1", "400 m", "2:45.5–2:55.5", "20–22"], ["1:30", "Recovery 1", "", "", ""],
     ])) errors.push("rowing targets or recovery time incorrect");
     if (!["120–160 W", "75–90", "12–18 level"].every(value => tables[2].textContent.includes(value)) ||
         !tables[2].closest("article").textContent.includes("Finalized · read only"))

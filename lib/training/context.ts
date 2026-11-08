@@ -3,7 +3,7 @@ import { ApiError } from '../private-api'
 import { assertTrainingAccess, type TrainingPrincipal } from './auth'
 import { getTrainingDatabase, type TrainingDatabase } from './database'
 import {
-  benchmarkPerformance, blockMethodology, workoutOverview, contextInput, localTrainingDate, moveTrainingDate, prescriptionExercises, trainingWeek,
+  benchmarkPerformance, blockMethodology, workoutOverview, contextInput, localTrainingDate, moveTrainingDate, prescriptionExercisesFor, trainingWeek,
 } from './context-models'
 
 type ScheduleRow = {
@@ -75,7 +75,7 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
           AND p.scheduled_at >= ($2::date::timestamp AT TIME ZONE $3)
           AND p.scheduled_at < (($2::date + 1)::timestamp AT TIME ZONE $3)
         ORDER BY p.scheduled_at, p.id LIMIT $4`, [athlete.id, date, timeZone, maxWorkoutsPerDay]) : { rows: [] }
-      const exerciseLists = rows.map(row => row.revision === null ? [] : prescriptionExercises.parse(row.exercises))
+      const exerciseLists = rows.map(row => row.revision === null ? [] : prescriptionExercisesFor(row.kind).parse(row.exercises))
       const keys = [...new Set(exerciseLists.flatMap(list => list.map(item => item.key)))]
       const { rows: history } = athlete && preferences.showPrevious && keys.length > 0
         ? await tx.query<{ exercise_key: string; performed_at: Date | string; performance: unknown; source: string; comparison_context: string; source_reference: string | null }>(`

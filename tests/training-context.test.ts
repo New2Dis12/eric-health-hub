@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test'
 import { readFile } from 'node:fs/promises'
 import { PGlite } from '@electric-sql/pglite'
 import { durationEstimate, effortSummary, exerciseSummary } from '../lib/training/workout-summary'
-import { metricTarget, prescriptionExercises, workoutOverview } from '../lib/training/context-models'
+import { benchmarkPerformance, metricTarget, prescriptionExercisesFor, workoutOverview } from '../lib/training/context-models'
 import { createTrainingContextReader } from '../lib/training/context'
 import type { Queryable, TrainingDatabase } from '../lib/training/database'
 import type { TrainingPrincipal } from '../lib/training/auth'
@@ -173,7 +173,7 @@ test('prescription incline and resistance retain explicit bounded units and matc
     { ...level, unit: 'W' },
     { ...level, range: { min: 1.5, max: 2 } },
   ]) assert.equal(metricTarget.safeParse(target).success, false)
-  const parse = (modality: string, target: unknown) => prescriptionExercises.safeParse([{
+  const parse = (modality: string, target: unknown) => prescriptionExercisesFor(modality).safeParse([{
     key: 'synthetic', name: 'Synthetic', sets: null, reps: null, durationSeconds: null, target: null,
     restSeconds: null, notes: null, warmups: [{
       phase: 'warmup', modality, label: 'Warm-up', durationSeconds: 60, targets: [target], rpe: null,
@@ -182,5 +182,19 @@ test('prescription incline and resistance retain explicit bounded units and matc
   assert.equal(parse('run', incline), true)
   assert.equal(parse('bike', incline), false)
   assert.equal(parse('bike', level), true)
+  const steady = (kind: string, target: unknown) => prescriptionExercisesFor(kind).safeParse([{
+    key: 'steady', name: 'Steady', sets: null, reps: null, durationSeconds: 600, target: null,
+    restSeconds: null, notes: null, targets: [target],
+  }]).success
+  assert.equal(steady('run', incline), true)
+  assert.equal(steady('bike', incline), false)
+  assert.equal(steady('bike', level), true)
+  assert.equal(steady('run', level), false)
+  const benchmark = { sets: null, reps: null, durationSeconds: 600, target: null }
+  assert.equal(benchmarkPerformance.safeParse({ ...benchmark, targets: [incline] }).success, false)
+  assert.equal(benchmarkPerformance.safeParse({ ...benchmark, targets: [level] }).success, false)
+  assert.equal(benchmarkPerformance.safeParse({ ...benchmark, targets: [
+    { metric: 'cycling_cadence', unit: 'rpm', range: { min: 75, max: 90 } },
+  ] }).success, true)
   assert.equal(parse('row', level), false)
 })

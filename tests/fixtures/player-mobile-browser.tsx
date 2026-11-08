@@ -3,15 +3,15 @@ import { PlayerView } from "../../app/app/workout-player";
 import shell from "../../app/app/stunna.module.css";
 import type { WorkoutSession } from "../../lib/training/session";
 import type { SessionResults } from "../../lib/training/logging-models";
-import type { MetricTarget, Segment } from "../../lib/training/context-models";
+import { metricTarget, type MetricTarget, type Segment } from "../../lib/training/context-models";
 
 const target = (metric: MetricTarget["metric"], unit: MetricTarget["unit"], min: number, max = min) =>
-  ({ metric, unit, range: { min, max } });
+  metricTarget.parse({ metric, unit, range: { min, max } });
 const interval = (modality: Segment["modality"], durationSeconds: number | null, targets: MetricTarget[]): Segment =>
   ({ phase: "work", modality, label: "Work", durationSeconds, targets, rpe: null });
 const bike = interval("bike", 90, [target("power", "W", 120, 160), target("cycling_cadence", "rpm", 75, 90), target("resistance", "level", 12, 18)]);
 const run = interval("run", 90, [target("speed", "mph", 5.4, 5.6), target("incline", "%", 0.5, 2.5)]);
-const row = interval("row", null, [target("distance", "m", 400), target("rowing_split", "sec/500m", 165, 175), target("stroke_rate", "spm", 20, 22)]);
+const row = interval("row", null, [target("distance", "m", 400), target("rowing_split", "sec/500m", 165.5, 175.5), target("stroke_rate", "spm", 20, 22)]);
 
 function session(name: string, segment: Segment, finalized = false): WorkoutSession {
   const occurrences: NonNullable<WorkoutSession["snapshot"]>["occurrences"] = [{ id: "exercise", key: "exercise", exercise: 0, type: "exercise" }];

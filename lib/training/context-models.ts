@@ -35,20 +35,28 @@ const metricUnits = [
   ['rowing_split', ['sec/500m']],
   ['stroke_rate', ['spm']],
   ['cycling_cadence', ['rpm']],
-  ['incline', ['%']],
-  ['resistance', ['%', 'level']],
 ] as const
 
-export const metricTarget = z.strictObject({
-  metric: z.enum(['speed', 'pace', 'distance', 'power', 'rowing_split', 'stroke_rate', 'cycling_cadence', 'incline', 'resistance']),
-  unit: z.enum(['mph', 'km/h', 'm/s', 'sec/km', 'sec/mi', 'm', 'km', 'mi', 'W', 'sec/500m', 'spm', 'rpm', '%', 'level']),
+const benchmarkMetricTarget = z.strictObject({
+  metric: z.enum(['speed', 'pace', 'distance', 'power', 'rowing_split', 'stroke_rate', 'cycling_cadence']),
+  unit: z.enum(['mph', 'km/h', 'm/s', 'sec/km', 'sec/mi', 'm', 'km', 'mi', 'W', 'sec/500m', 'spm', 'rpm']),
   range: range.nullable(),
 }).refine(value => metricUnits.some(([metric, units]) =>
-  metric === value.metric && (units as readonly string[]).includes(value.unit)), 'Metric and unit must agree').refine(({ metric, unit, range }) => {
-  if (!range || (metric !== 'incline' && metric !== 'resistance')) return true
-  if (unit === '%') return range.max <= 100
-  return Number.isInteger(range.min) && Number.isInteger(range.max) && range.max <= 1000
-}, 'Incline and resistance targets must use bounded percentages or whole device levels')
+  metric === value.metric && (units as readonly string[]).includes(value.unit)), 'Metric and unit must agree')
+
+const inclineTarget = z.strictObject({
+  metric: z.literal('incline'), unit: z.literal('%'),
+  range: range.refine(value => value.max <= 100).nullable(),
+})
+const resistanceTarget = z.strictObject({
+  metric: z.literal('resistance'), unit: z.enum(['%', 'level']), range: range.nullable(),
+}).refine(({ unit, range }) => !range || (unit === '%' ? range.max <= 100 :
+  Number.isInteger(range.min) && Number.isInteger(range.max) && range.max <= 1000),
+'Resistance must use bounded percentages or whole device levels')
+
+export const metricTarget = z.union([benchmarkMetricTarget, inclineTarget, resistanceTarget])
+const targetsMatchModality = (targets: MetricTarget[], modality: string) => targets.every(({ metric }) =>
+  (metric !== 'incline' || modality === 'run') && (metric !== 'resistance' || modality === 'bike'))
 const segment = z.strictObject({
   phase: z.enum(['warmup', 'work', 'recovery', 'transition', 'cooldown']),
   modality: z.enum(['run', 'row', 'bike', 'ski', 'strength', 'mobility', 'other']),
@@ -57,9 +65,8 @@ const segment = z.strictObject({
   targets: z.array(metricTarget).max(8),
   rpe: rpe.nullable(),
   strength: dose.extend({ loadBasis: z.enum(['total', 'per_hand', 'added', 'bodyweight', 'unverified']) }).optional(),
-}).refine(({ modality, targets }) => targets.every(({ metric }) =>
-  (metric !== 'incline' || modality === 'run') && (metric !== 'resistance' || modality === 'bike')
-), 'Incline requires running and resistance requires cycling')
+}).refine(({ modality, targets }) => targetsMatchModality(targets, modality),
+  'Incline requires running and resistance requires cycling')
 export const blockMethodology = z.strictObject({
   weeklyStructure: z.array(z.strictObject({
     weekday: z.number().int().min(1).max(7),
@@ -69,7 +76,7 @@ export const blockMethodology = z.strictObject({
   sourceReferences: z.array(text).max(12),
 })
 export const benchmarkPerformance = dose.extend({
-  targets: z.array(metricTarget).max(8).optional(),
+  targets: z.array(benchmarkMetricTarget).max(8).optional(),
   rpe: rpe.optional(),
 }).refine(value => Object.values(value).some(part => part !== null && part !== undefined))
 export const prescriptionExercises = z.array(dose.extend({
@@ -97,6 +104,12 @@ export const prescriptionExercises = z.array(dose.extend({
     substitution: z.strictObject({ exerciseKey, name: text, equipment: text }).optional(),
   })).max(8).optional(),
 })).min(1).max(24)
+
+export function prescriptionExercisesFor(kind: string) {
+  return prescriptionExercises.refine(exercises => exercises.every(exercise =>
+    !exercise.targets || targetsMatchModality(exercise.targets, kind)),
+  'Steady incline requires a running workout and steady resistance requires a cycling workout')
+}
 
 export type Segment = z.infer<typeof segment>
 export type MetricTarget = z.infer<typeof metricTarget>

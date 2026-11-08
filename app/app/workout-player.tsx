@@ -410,9 +410,16 @@ function cardioLayout(kind: string, rows: CardioRow[], segments: Segment[]) {
 
 function formattedTarget({ range, unit }: MetricTarget, omitUnit = false) {
   if (!range) return "";
-  if (unit === "sec/500m" && Number.isInteger(range.min) && Number.isInteger(range.max)) {
-    const start = elapsed(range.min);
-    const split = range.min === range.max ? start : `${start}–${elapsed(range.max)}`;
+  if (unit === "sec/500m") {
+    const splitTime = (seconds: number) => {
+      const [whole, fraction] = String(seconds).split(".");
+      return /^\d+$/.test(whole) && (!fraction || /^\d+$/.test(fraction))
+        ? elapsed(Number(whole)) + (fraction ? `.${fraction}` : "")
+        : null;
+    };
+    const start = splitTime(range.min), end = splitTime(range.max);
+    if (start === null || end === null) return `${showRange(range)} sec/500m`;
+    const split = range.min === range.max ? start : `${start}–${end}`;
     return omitUnit ? split : `${split} /500m`;
   }
   return omitUnit ? showRange(range) : `${showRange(range)}${unit === "%" ? "%" : ` ${unit}`}`;
@@ -542,13 +549,19 @@ export function PlayerView({
           return segmentRow(segment, segment.phase === "work" || segment.phase === "recovery" || number > 1
             ? `${phase} ${number}` : phase);
         };
+        const warmupRows = warmups.map(segment => blocks.length ? intervalRow(segment) : segmentRow(segment));
+        const steadyRow = { label: exercise.name, duration: exercise.durationSeconds, targets: steadyTargets };
         const cardioRows = strength && !blocks.length ? [] : [
-          ...warmups.map(segment => blocks.length ? intervalRow(segment) : segmentRow(segment)),
+          ...warmupRows,
           ...(blocks.length ? blocks.flatMap(block =>
             Array.from({ length: block.repeat }, () => block.segments.map(intervalRow)).flat(),
-          ) : [{ label: exercise.name, duration: exercise.durationSeconds, targets: steadyTargets }]),
+          ) : [steadyRow]),
         ];
-        const layout = cardioLayout(snapshot.kind, cardioRows, [...warmups, ...blocks.flatMap(block => block.segments)]);
+        const layout = blocks.length
+          ? cardioLayout(snapshot.kind, cardioRows, [...warmups, ...blocks.flatMap(block => block.segments)])
+          : cardioLayout(snapshot.kind, [steadyRow], []);
+        const warmupLayout = cardioLayout(snapshot.kind, warmupRows, warmups);
+        const separateWarmups = !blocks.length && warmupRows.length > 0 && warmupLayout !== layout;
         const start = clockStart;
         for (const row of cardioRows) {
           clockStart = clockStart === null || row.duration === null ? null : clockStart + row.duration;
@@ -584,8 +597,11 @@ export function PlayerView({
                 </p>
               ))}
             </div>
-            {cardioRows.length > 0 && <CardioRows rows={cardioRows} clockStart={start} intervals={blocks.length > 0}
-              layout={layout} />}
+            {cardioRows.length > 0 && <>
+              {separateWarmups && <CardioRows rows={warmupRows} clockStart={start} intervals={false} layout={warmupLayout} />}
+              <CardioRows rows={separateWarmups ? [steadyRow] : cardioRows} clockStart={start}
+                intervals={blocks.length > 0} layout={layout} />
+            </>}
             {strength && (
               <div aria-label="Strength sets">
                 <div className={styles.strengthRow}>

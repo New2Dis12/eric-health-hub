@@ -534,6 +534,37 @@ test("steady rows retain pinned output and unknown interval durations invalidate
   await act(async () => tree.unmount());
 });
 
+test("steady cycling keeps its bike columns and cross-modality running warmup targets", async () => {
+  const planned = structuredClone(workout);
+  const snapshot = planned.snapshot!;
+  snapshot.kind = "bike";
+  snapshot.exercises = [{
+    ...snapshot.exercises[1], name: "Steady bike", intervalBlocks: undefined, durationSeconds: 600,
+    targets: [
+      { metric: "power", unit: "W", range: { min: 120, max: 160 } },
+      { metric: "cycling_cadence", unit: "rpm", range: { min: 75, max: 90 } },
+    ],
+    warmups: [{
+      phase: "warmup", modality: "run", label: "Run warm-up", durationSeconds: 120, rpe: null,
+      targets: [{ metric: "speed", unit: "mph", range: { min: 4, max: 5 } }],
+    }],
+  }];
+  snapshot.occurrences = [{ ...snapshot.occurrences[1], exercise: 0 }];
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<PlayerView workout={planned} data={data} busy={false}
+      save={async () => assert.fail("render must not write")} changed={() => {}} />);
+  });
+  const tables = tree.root.findAllByProps({ role: "table" }).map(table =>
+    table.findAllByProps({ role: "row" }).map(row => row.findAllByType("span").map(cell => cell.props.children)));
+  assert.deepEqual(tables, [
+    [["Time", "Segment", "Speed", "Incline"], ["2:00", "Run warm-up", "4–5 mph", ""]],
+    [["Time", "Segment", "Output", "RPM", "Resistance"], ["10:00", "Steady bike", "120–160 W", "75–90", ""]],
+  ]);
+  assert.equal(tree.root.findAllByType("textarea").length, 1);
+  await act(async () => tree.unmount());
+});
+
 test("warmup is read-only, empty proposals require Edit, and Cancel preserves other drafts", async () => {
   const planned = structuredClone(workout);
   const exercise = planned.snapshot!.exercises[0];
@@ -674,7 +705,7 @@ test("rowing has separate targets, no historical check control, and exactly one 
   const [work, recovery] = exercise.intervalBlocks![0].segments;
   Object.assign(work, { modality: "row", durationSeconds: null, targets: [
     { metric: "distance", unit: "m", range: { min: 400, max: 400 } },
-    { metric: "rowing_split", unit: "sec/500m", range: { min: 165, max: 175 } },
+    { metric: "rowing_split", unit: "sec/500m", range: { min: 165.5, max: 175.5 } },
     { metric: "stroke_rate", unit: "spm", range: { min: 20, max: 22 } },
   ] });
   Object.assign(recovery, { modality: "row", durationSeconds: 90 });
@@ -694,9 +725,9 @@ test("rowing has separate targets, no historical check control, and exactly one 
   const rows = table.findAllByProps({ role: "row" }).map(row => row.findAllByType("span").map(cell => cell.props.children));
   assert.deepEqual(rows, [
     ["Time", "Segment", "Distance", "Split /500m", "SPM"],
-    ["", "Work 1", "400 m", "2:45–2:55", "20–22"],
+    ["", "Work 1", "400 m", "2:45.5–2:55.5", "20–22"],
     ["1:30", "Recovery 1", "", "", ""],
-    ["", "Work 2", "400 m", "2:45–2:55", "20–22"],
+    ["", "Work 2", "400 m", "2:45.5–2:55.5", "20–22"],
     ["1:30", "Recovery 2", "", "", ""],
   ]);
   assert.equal(table.findAllByType("button").length, 0);

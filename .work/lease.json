@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "issue23-cardio-worker",
   "epoch": 2,
   "spec": "ec579fcdf507dc25a59cdb7c786eb25a22b569abdda2d831a7ae84d806b54750",
-  "heartbeat": "2026-11-08T14:32:42.208Z",
-  "expires": "2026-11-08T15:17:42.208Z",
-  "checkpoint": "Reserved correction attempt 1 for three in-scope current-head findings from independent review 6722024521.",
+  "heartbeat": "2026-11-08T14:36:01.685643+00:00",
+  "expires": "2026-11-08T15:21:01.685643+00:00",
+  "checkpoint": "Corrected the three P2 findings from 6722024521. Validated source for independent re-review.",
   "attempts": 1,
   "correction": {
     "attempts": 1,
@@ -15,46 +15,46 @@
         "reviewComment": 6722024521,
         "reviewedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
         "lastAttemptedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
-        "result": "in-progress",
-        "nextAction": "Correct and revalidate"
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head re-review"
       },
       {
         "key": "optional-cardio-target-validation-scope",
         "reviewComment": 6722024521,
         "reviewedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
         "lastAttemptedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
-        "result": "in-progress",
-        "nextAction": "Correct and revalidate"
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head re-review"
       },
       {
         "key": "fractional-row-split-unlabeled-seconds",
         "reviewComment": 6722024521,
         "reviewedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
         "lastAttemptedHead": "2001f20aacd7901306e88aa64e860808f66552fc",
-        "result": "in-progress",
-        "nextAction": "Correct and revalidate"
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head re-review"
       }
     ]
   },
   "validation": {
     "app": 79,
-    "ui": 16,
+    "ui": 17,
     "workflow": 20,
     "typecheck": "PASS",
     "build": "PASS",
     "chromium": {
       "375": {
         "nestedWidth": 301,
-        "textRects": 94
+        "textRects": 97
       },
       "390": {
         "nestedWidth": 316,
-        "textRects": 90
+        "textRects": 93
       }
     },
     "hosted": "pending separate authorization"
   },
-  "nextAction": "Correct approved Issue 23 findings",
+  "nextAction": "Independent current-head re-review",
   "history": [
     {
       "state": "review",
