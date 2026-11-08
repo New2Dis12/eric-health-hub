@@ -1,14 +1,14 @@
 {
-  "state": "review",
-  "owner": "issue21-ux-1794103810000",
-  "epoch": 5,
+  "state": "in-progress",
+  "owner": "issue21-mobile-1794113409000",
+  "epoch": 6,
   "spec": "0a415a95ab599fed656c476a286b02aac233aac6616223c9f810ad12376b9dc4",
-  "heartbeat": "2026-11-08T02:19:45.000Z",
-  "expires": "2026-11-08T03:04:45.000Z",
-  "checkpoint": "iPhone UX and execution checklist source validated; parent a453c00b9e9fdfbf051b0e8c38b16887ee355f6d",
-  "attempts": 2,
+  "heartbeat": "2026-11-08T04:50:09.000Z",
+  "expires": "2026-11-08T05:35:09.000Z",
+  "checkpoint": "2a9f0f098af781d710dcf91709f85f881e470396",
+  "attempts": 3,
   "correction": {
-    "attempts": 2,
+    "attempts": 3,
     "findings": [
       {
         "key": "dirty-draft-revision-rebase",
@@ -33,10 +33,26 @@
         "lastAttemptedHead": "f290eaf8008d40545597f952348dd13d218c0cdc",
         "result": "awaiting-review",
         "nextAction": "Independent current-head review"
+      },
+      {
+        "key": "owner-iphone-cardio-text-overlap",
+        "reviewComment": 6717349176,
+        "reviewedHead": "2a9f0f098af781d710dcf91709f85f881e470396",
+        "lastAttemptedHead": "2a9f0f098af781d710dcf91709f85f881e470396",
+        "result": "reserved",
+        "nextAction": "Implement and validate"
+      },
+      {
+        "key": "owner-demo-session-label-clarity",
+        "reviewComment": 6717349176,
+        "reviewedHead": "2a9f0f098af781d710dcf91709f85f881e470396",
+        "lastAttemptedHead": "2a9f0f098af781d710dcf91709f85f881e470396",
+        "result": "reserved",
+        "nextAction": "Implement and validate"
       }
     ]
   },
-  "nextAction": "Independent exact-head review; hosted migration 007 and protected Safari acceptance are separately gated",
+  "nextAction": "Correct owner-reported iPhone layout and demo status",
   "history": [
     {
       "state": "review",
@@ -172,16 +188,56 @@
         "build": "pass",
         "hosted": "not run by coding worker"
       }
+    },
+    {
+      "state": "review",
+      "owner": "issue21-ux-1794103810000",
+      "epoch": 5,
+      "spec": "0a415a95ab599fed656c476a286b02aac233aac6616223c9f810ad12376b9dc4",
+      "heartbeat": "2026-11-08T02:19:45.000Z",
+      "expires": "2026-11-08T03:04:45.000Z",
+      "checkpoint": "iPhone UX and execution checklist source validated; parent a453c00b9e9fdfbf051b0e8c38b16887ee355f6d",
+      "attempts": 2,
+      "correction": {
+        "attempts": 2,
+        "findings": [
+          {
+            "key": "dirty-draft-revision-rebase",
+            "reviewComment": 6702324479,
+            "reviewedHead": "b49a25ed4f7075e7f2426f0d9a605a8db2dc5de0",
+            "lastAttemptedHead": "b49a25ed4f7075e7f2426f0d9a605a8db2dc5de0",
+            "result": "awaiting-review",
+            "nextAction": "Independent current-head review"
+          },
+          {
+            "key": "compact-conflict-refresh-failure",
+            "reviewComment": 6702324479,
+            "reviewedHead": "f290eaf8008d40545597f952348dd13d218c0cdc",
+            "lastAttemptedHead": "f290eaf8008d40545597f952348dd13d218c0cdc",
+            "result": "awaiting-review",
+            "nextAction": "Independent current-head review"
+          },
+          {
+            "key": "compact-mixed-cardio-time-mode",
+            "reviewComment": 6702324479,
+            "reviewedHead": "f290eaf8008d40545597f952348dd13d218c0cdc",
+            "lastAttemptedHead": "f290eaf8008d40545597f952348dd13d218c0cdc",
+            "result": "awaiting-review",
+            "nextAction": "Independent current-head review"
+          }
+        ]
+      },
+      "nextAction": "Independent exact-head review; hosted migration 007 and protected Safari acceptance are separately gated",
+      "validation": {
+        "app": 78,
+        "ui": 15,
+        "workflow": 20,
+        "typecheck": "pass",
+        "build": "pass",
+        "localMigration": "PGlite up/down and history retention",
+        "visual": "Chromium synthetic component 375px/390px",
+        "hosted": "not run"
+      }
     }
-  ],
-  "validation": {
-    "app": 78,
-    "ui": 15,
-    "workflow": 20,
-    "typecheck": "pass",
-    "build": "pass",
-    "localMigration": "PGlite up/down and history retention",
-    "visual": "Chromium synthetic component 375px/390px",
-    "hosted": "not run"
-  }
+  ]
 }
