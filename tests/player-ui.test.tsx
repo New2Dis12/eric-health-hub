@@ -114,10 +114,10 @@ test("mobile component hierarchy has unsaved upper-bound proposed reps, native h
   const cells = (row: typeof rows[number]) => row.children.map((child) =>
     typeof child === "string" ? child : child.props["aria-label"] ?? child.props.children
   );
-  const cardioRows = tree.root.findAll((node) => node.type === "div" && ["cardioRow", "intervalRow"].includes(node.props.className));
+  const cardioRows = tree.root.findAll((node) => node.type === "div" && node.props.className === "cardioRow");
   assert.deepEqual(cells(rows[0]), ["Completion", "Set", "Load (lb)", "Reps", "Edit"]);
-  assert.deepEqual(cells(cardioRows[0]), ["Completion", "Workout", "Running clock", "Speed/Output"]);
-  assert.deepEqual(cardioRows.slice(1).map((row) => cells(row)[2]), ["0:00–1:00", "1:00–1:30", "1:30–2:30", "2:30–3:00"]);
+  assert.deepEqual(cells(cardioRows[0]), ["Time", "Segment", "Speed", "Incline"]);
+  assert.deepEqual(cardioRows.slice(1).map((row) => row.findAllByType("span")[0].props.children), ["0:00–1:00", "1:00–1:30", "1:30–2:30", "2:30–3:00"]);
   assert.deepEqual(cells(rows[1]).filter((_, i) => i !== 1), ["Log Set 1", "—", 10, "Edit"]);
   assert.equal(tree.root.findAllByType("input").length, 0);
   const edit = (row: number) => rows[row].findAllByType("button").at(-1)!;
@@ -131,7 +131,7 @@ test("mobile component hierarchy has unsaved upper-bound proposed reps, native h
   assert.equal(edit(2).props["aria-expanded"], true);
   assert.equal(writes, 0);
   assert.match(text(tree), /Proposed/);
-  assert.match(text(tree), /Interval execution checklist/);
+  assert.match(text(tree), /Prescribed cardio/);
   const rpe = tree.root
     .findAllByType("select")
     .find((n) =>
@@ -507,12 +507,12 @@ test("steady rows retain pinned output and unknown interval durations invalidate
     <PlayerView workout={session} data={data} busy={false} save={async () => assert.fail("read-only cardio")} changed={() => {}} />;
   let tree!: ReactTestRenderer;
   await act(async () => { tree = create(render(planned)); });
-  const rows = () => tree.root.findAll((node) => node.type === "div" && ["cardioRow", "intervalRow"].includes(node.props.className));
+  const rows = () => tree.root.findAll((node) => node.type === "div" && node.props.className === "cardioRow");
   const time = () => rows().map((row) => {
-    const cell = row.children[row.props.className === "intervalRow" ? 2 : 1];
+    const cell = row.children[0];
     return typeof cell === "string" ? cell : cell.props.children;
   });
-  assert.deepEqual(time(), ["Clock", "0:00–10:00", "10:00–11:00", "—", "—", "—"]);
+  assert.deepEqual(time(), ["Time", "0:00–10:00", "10:00–11:00", "", "1:00", ""]);
   assert.match(text(tree), /500–600 sec\/mi/);
   assert.match(text(tree), /7–8 mph/);
   assert.doesNotMatch(text(tree), /sec\/500m/);
@@ -529,8 +529,8 @@ test("steady rows retain pinned output and unknown interval durations invalidate
   await act(async () => tree.update(render(steady)));
   assert.deepEqual(time(), ["Time", "6:00"]);
   assert.match(text(tree), /140–150 W/);
-  assert.match(text(tree), /85–90 rpm/);
-  assert.equal(rows()[0].findAllByType("span")[2].props.children, "Speed/Output");
+  assert.match(text(tree), /85–90/);
+  assert.equal(rows()[0].findAllByType("span")[2].props.children, "Output");
   await act(async () => tree.unmount());
 });
 
@@ -634,7 +634,7 @@ test("strength conflict keeps the draft locked until an authoritative retry read
   }
 });
 
-test("one mixed cardio snapshot retains the steady Time column and interval Running clock", async () => {
+test("steady and interval sections share Time-first headings and accumulate planned elapsed time", async () => {
   const mixed = structuredClone(workout);
   const snapshot = mixed.snapshot!;
   snapshot.kind = "run";
@@ -651,90 +651,64 @@ test("one mixed cardio snapshot retains the steady Time column and interval Runn
   await act(async () => {
     tree = create(<PlayerView workout={mixed} data={data} busy={false} save={async () => assert.fail("cardio write")} changed={() => {}} />);
   });
-  const rows = tree.root.findAll((node) => node.type === "div" && ["cardioRow", "intervalRow"].includes(node.props.className));
+  const rows = tree.root.findAll((node) => node.type === "div" && node.props.className === "cardioRow");
   const column = rows.map((row) => {
-    const cell = row.children[row.props.className === "intervalRow" ? 2 : 1];
+    const cell = row.children[0];
     return typeof cell === "string" ? cell : cell.props.children;
   });
-  assert.deepEqual(column, ["Time", "6:00", "Clock", "6:00–7:00", "7:00–7:30", "7:30–8:30", "8:30–9:00"]);
+  assert.deepEqual(column, ["Time", "6:00", "Time", "6:00–7:00", "7:00–7:30", "7:30–8:30", "8:30–9:00"]);
   assert.equal(rows.flatMap((row) => row.findAllByType("button")).length, 0);
   await act(async () => tree.unmount());
 });
 
-test("interval circles persist true and false only after readback, with exact retry and separate repeated occurrences", async () => {
+test("rowing has separate targets, no historical check control, and exactly one overall note", async () => {
   const planned = structuredClone(workout);
   const snapshot = planned.snapshot!;
-  snapshot.occurrences.push(
-    { id: "work-1", exercise: 1, key: "synthetic-run", type: "interval", block: 0, repeat: 0, segment: 0 },
-    { id: "work-2", exercise: 1, key: "synthetic-run", type: "interval", block: 0, repeat: 1, segment: 0 },
-  );
-  const previousFetch = globalThis.fetch;
-  const previousWindow = globalThis.window;
-  Object.assign(globalThis, { window: { addEventListener() {}, removeEventListener() {}, confirm() { return true; } } });
+  snapshot.kind = "other"; // Historical rowing workouts use this plan kind.
+  const exercise = snapshot.exercises[1];
+  snapshot.exercises = [exercise];
+  snapshot.occurrences = [
+    { id: "row", exercise: 0, key: exercise.key, type: "exercise" },
+    { id: "work-1", exercise: 0, key: exercise.key, type: "interval", block: 0, repeat: 0, segment: 0 },
+  ];
+  const [work, recovery] = exercise.intervalBlocks![0].segments;
+  Object.assign(work, { modality: "row", durationSeconds: null, targets: [
+    { metric: "distance", unit: "m", range: { min: 400, max: 400 } },
+    { metric: "rowing_split", unit: "sec/500m", range: { min: 165, max: 175 } },
+    { metric: "stroke_rate", unit: "spm", range: { min: 20, max: 22 } },
+  ] });
+  Object.assign(recovery, { modality: "row", durationSeconds: 90 });
+  const history = { id: "prior", item_key: "prior", set_ordinal: 0, revision: 1, session_revision: 2,
+    before_value: null, actor_sub: "synthetic", source: "browser" as const, reason: "Fixture", recorded_at: "synthetic" };
+  const saved: SessionResults = { ...data, notes: "Saved overall note", notesRevision: 1, entries: [
+    { ...history, kind: "execution_check", occurrence_id: "work-1", value: { checked: true } },
+    { ...history, id: "note", item_key: "note", kind: "exercise_note", occurrence_id: "row", value: { notes: "Historical exercise note" } },
+  ] };
+  const before = structuredClone(saved);
   let tree!: ReactTestRenderer;
-  let server = data;
-  let hideReadback = true;
-  let conflictNext = false;
-  const commands: string[] = [];
-  const receipts = new Map<string, number>();
-  globalThis.fetch = async (_url, init) => {
-    if (init?.method === "POST") {
-      commands.push(String(init.body));
-      const command = JSON.parse(String(init.body));
-      if (conflictNext) {
-        conflictNext = false;
-        server = { ...server, sessionRevision: server.sessionRevision + 1 };
-        return new Response(null, { status: 409 });
-      }
-      if (!receipts.has(command.idempotencyKey)) {
-        const revision = server.sessionRevision + 1;
-        const prior = server.entries.find(entry => entry.occurrence_id === command.item.occurrenceId);
-        server = { ...server, sessionRevision: revision, entries: [
-          ...server.entries.filter(entry => entry !== prior),
-          { id: String(revision), item_key: command.item.occurrenceId, kind: command.item.kind,
-            occurrence_id: command.item.occurrenceId, set_ordinal: 0, revision: (prior?.revision ?? 0) + 1,
-            session_revision: revision, value: { checked: command.item.checked }, before_value: prior?.value ?? null,
-            actor_sub: "synthetic", source: "browser", reason: "Fixture", recorded_at: "synthetic" },
-        ] };
-        receipts.set(command.idempotencyKey, revision);
-      }
-      return Response.json({ actualSessionId: planned.id, sessionRevision: receipts.get(command.idempotencyKey) });
-    }
-    return hideReadback && commands.length ? new Response(null, { status: 503 }) : Response.json(server);
-  };
-  try {
-    const open = () => <WorkoutPlayer workout={planned} onBack={() => {}} />;
-    await act(async () => { tree = create(open()); });
-    const button = (label: string) => tree.root.findAllByType("button").find(node => node.props["aria-label"] === label)!;
-    await act(async () => button("Check Work 1").props.onClick());
-    assert.equal(button("Retry check Work 1").props["aria-pressed"], false);
-    assert.match(text(tree), /Save unconfirmed/);
-    hideReadback = false;
-    await act(async () => button("Retry check Work 1").props.onClick());
-    assert.equal(commands[0], commands[1]);
-    assert.deepEqual(JSON.parse(commands[0]).item, {kind:"execution_check", occurrenceId:"work-1", checked:true});
-    assert.equal(button("Uncheck Work 1").props["aria-pressed"], true);
-    assert.equal(button("Check Work 2").props["aria-pressed"], false);
-    conflictNext = true;
-    await act(async () => button("Uncheck Work 1").props.onClick());
-    assert.equal(button("Retry uncheck Work 1").props["aria-pressed"], true);
-    assert.match(text(tree), /Review current progress/);
-    await act(async () => button("Retry uncheck Work 1").props.onClick());
-    assert.deepEqual(JSON.parse(commands[3]).item, {kind:"execution_check", occurrenceId:"work-1", checked:false});
-    assert.notEqual(JSON.parse(commands[2]).idempotencyKey, JSON.parse(commands[3]).idempotencyKey);
-    await act(async () => tree.unmount());
-    await act(async () => { tree = create(open()); });
-    assert.equal(button("Check Work 1").props["aria-pressed"], false);
-    assert.equal(button("Check Work 2").props["aria-pressed"], false);
-    await act(async () => tree.unmount());
-    server = { ...server, status: "completed" };
-    await act(async () => { tree = create(open()); });
-    assert.equal(tree.root.findAllByType("button").some(node => node.props["aria-pressed"] !== undefined), false);
-  } finally {
-    if (tree) await act(async () => tree.unmount());
-    globalThis.fetch = previousFetch;
-    Object.assign(globalThis, { window: previousWindow });
-  }
+  const view = (status: SessionResults["status"]) =>
+    <PlayerView workout={planned} data={{ ...saved, status }} busy={false}
+      save={async () => assert.fail("read-only observation must not write")} changed={() => {}} />;
+  await act(async () => { tree = create(view("in_progress")); });
+  const table = tree.root.findByProps({ role: "table" });
+  const rows = table.findAllByProps({ role: "row" }).map(row => row.findAllByType("span").map(cell => cell.props.children));
+  assert.deepEqual(rows, [
+    ["Time", "Segment", "Distance", "Split /500m", "SPM"],
+    ["", "Work 1", "400 m", "2:45–2:55", "20–22"],
+    ["1:30", "Recovery 1", "", "", ""],
+    ["", "Work 2", "400 m", "2:45–2:55", "20–22"],
+    ["1:30", "Recovery 2", "", "", ""],
+  ]);
+  assert.equal(table.findAllByType("button").length, 0);
+  assert.match(text(tree), /Overall Workout Notes/);
+  assert.doesNotMatch(text(tree), /Exercise Notes|Historical exercise note/);
+  assert.equal(tree.root.findAllByType("textarea").length, 1);
+  assert.equal(tree.root.findByType("textarea").props.value, "Saved overall note");
+  await act(async () => tree.update(view("completed")));
+  assert.equal(tree.root.findAllByType("fieldset").at(-1)?.props.disabled, true);
+  assert.equal(tree.root.findByProps({ role: "table" }).findAllByType("button").length, 0);
+  assert.deepEqual(saved, before);
+  await act(async () => tree.unmount());
 });
 
 test("strength editor uses lb convention for new loads and preserves historical kg and basis", async () => {

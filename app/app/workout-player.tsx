@@ -385,111 +385,83 @@ function elapsed(seconds: number) {
 const showRange = ({ min, max }: { min: number; max: number }) =>
   min === max ? String(min) : `${min}–${max}`;
 
-function outputTargets(targets: MetricTarget[], modality: string) {
-  return targets.filter(({ metric }) => {
-    if (modality === "other" || modality === "strength") return true;
-    switch (metric) {
-      case "rowing_split":
-      case "stroke_rate": return modality === "row";
-      case "cycling_cadence": return modality === "bike";
-      case "pace": return modality === "run" || modality === "ski";
-      default: return true;
-    }
-  }).flatMap(({ range, unit }) => {
-    if (!range) return [];
-    if (unit === "sec/500m" && Number.isInteger(range.min) && Number.isInteger(range.max)) {
-      const split = elapsed(range.min);
-      return [`${split}${range.min === range.max ? "" : `–${elapsed(range.max)}`} /500m`];
-    }
-    return [`${showRange(range)} ${unit}`];
-  });
+type CardioRow = { label: string; duration: number | null; targets: MetricTarget[] };
+const cardioKinds = ["run", "bike", "row", "ski", "swim"];
+const cardioColumns = {
+  run: ["Speed", "Incline"],
+  bike: ["Output", "RPM", "Resistance"],
+  row: ["Distance", "Split /500m", "SPM"],
+  other: ["Target"],
+} as const;
+
+function cardioLayout(kind: string, rows: CardioRow[], segments: Segment[]) {
+  const sports = new Set(segments.map(({ modality }) => modality).filter(modality => cardioKinds.includes(modality)));
+  if (sports.size > 1) return "other";
+  const [sport] = sports;
+  if (sport) return sport === "run" || sport === "bike" || sport === "row" ? sport : "other";
+  if (kind === "run" || kind === "bike" || kind === "row") return kind;
+  if (kind !== "other") return "other";
+  const metrics = rows.flatMap(({ targets }) => targets.map(({ metric }) => metric));
+  if (metrics.includes("rowing_split") || metrics.includes("stroke_rate")) return "row";
+  if (metrics.includes("cycling_cadence") || metrics.includes("resistance")) return "bike";
+  if (metrics.includes("incline")) return "run";
+  return "other";
 }
 
-type CardioRow = { label: string; duration: number | null; output: string[]; occurrenceId?: string };
-
-function ExecutionCheck({ row, entry, disabled, busy, unavailable, save, changed }: {
-  row: CardioRow & { occurrenceId: string }; entry?: LogEntry;
-  disabled: boolean; busy: boolean; unavailable: boolean; save: Save;
-  changed: (key: string, dirty: boolean) => void;
-}) {
-  const checked = !!(entry && "checked" in entry.value && entry.value.checked);
-  const [desired, setDesired] = useState<boolean | null>(null);
-  const [status, setStatus] = useState("");
-  const pending = useRef<unknown>(null);
-  const key = `execution:${row.occurrenceId}`;
-  async function toggle() {
-    if (disabled || busy || unavailable) return;
-    const next = desired ?? !checked;
-    setDesired(next);
-    changed(key, true);
-    setStatus("Saving…");
-    try {
-      await save({ kind: "execution_check", occurrenceId: row.occurrenceId, checked: next }, entry?.revision ?? 0, pending);
-      pending.current = null;
-      setDesired(null);
-      changed(key, false);
-      setStatus("Saved");
-    } catch (error) {
-      setStatus(error instanceof PlayerError && error.kind === "conflict"
-        ? "Conflict. Review current progress before retrying."
-        : "Save unconfirmed.");
-    }
+function formattedTarget({ range, unit }: MetricTarget, omitUnit = false) {
+  if (!range) return "";
+  if (unit === "sec/500m" && Number.isInteger(range.min) && Number.isInteger(range.max)) {
+    const start = elapsed(range.min);
+    const split = range.min === range.max ? start : `${start}–${elapsed(range.max)}`;
+    return omitUnit ? split : `${split} /500m`;
   }
-  if (disabled) return <span aria-label={checked ? "Marked, read only" : "Unmarked, read only"}>{checked ? "✓" : "—"}</span>;
-  const action = desired === null ? (checked ? "Uncheck" : "Check") : (desired ? "Retry check" : "Retry uncheck");
+  return omitUnit ? showRange(range) : `${showRange(range)}${unit === "%" ? "%" : ` ${unit}`}`;
+}
+
+function cardioTargets(targets: MetricTarget[], layout: keyof typeof cardioColumns) {
+  const get = (metric: MetricTarget["metric"], omitUnit = false) => {
+    const target = targets.find(item => item.metric === metric && item.range !== null);
+    return target ? formattedTarget(target, omitUnit) : "";
+  };
+  switch (layout) {
+    case "run": return [get("speed") || get("pace"), get("incline")];
+    case "bike": return [get("power"), get("cycling_cadence", true), get("resistance")];
+    case "row": return [get("distance"), get("rowing_split", true), get("stroke_rate", true)];
+    default: return [targets.map(target => formattedTarget(target)).filter(Boolean).join(" · ")];
+  }
+}
+
+function CardioRows({ rows, clockStart, intervals, layout }: {
+  rows: CardioRow[]; clockStart: number | null; intervals: boolean; layout: keyof typeof cardioColumns;
+}) {
+  let clock = clockStart;
   return (
-    <div className={styles.checkCell}>
-      <button type="button" className={styles.logBubble} aria-label={`${action} ${row.label}`}
-        aria-pressed={checked} disabled={busy || unavailable} onClick={toggle}>
-        {checked ? "✓" : "○"}{desired !== null && <small>Retry</small>}
-      </button>
-      <span className={styles.checkStatus} role="status">{status}</span>
+    <div role="table" aria-label="Prescribed cardio" data-cardio={layout} className={styles.cardioTable}>
+      <div className={styles.cardioRow} role="row">
+        <span role="columnheader">Time</span>
+        <span role="columnheader">Segment</span>
+        {cardioColumns[layout].map(column => <span role="columnheader" key={column}>{column}</span>)}
+      </div>
+      {rows.map(({ label, duration, targets }, index) => {
+        const start: number | null = clock;
+        const end: number | null = start === null || duration === null ? null : start + duration;
+        const range = intervals && start !== null && end !== null;
+        const time = duration === null ? "" : range ? `${elapsed(start)}–${elapsed(end)}` : elapsed(duration);
+        clock = end;
+        return (
+          <div className={styles.cardioRow} role="row" key={index}>
+            <span role="cell" className={styles.clock} aria-label={time ? `${range ? "Planned elapsed range" : "Prescribed segment duration"} ${time}` : undefined}>{time}</span>
+            <span role="cell">{label}</span>
+            {cardioTargets(targets, layout).map((target, i) => <span role="cell" key={i}>{target}</span>)}
+          </div>
+        );
+      })}
     </div>
   );
 }
-function CardioRows({ rows, clockStart, intervals, data, disabled, busy, unavailable, save, changed }: {
-  rows: CardioRow[]; clockStart: number | null; intervals: boolean;
-  data: SessionResults; disabled: boolean; busy: boolean; unavailable: boolean; save: Save;
-  changed: (key: string, dirty: boolean) => void;
-}) {
-  let clock = clockStart;
-  const grid = intervals ? styles.intervalRow : styles.cardioRow;
-  return (
-    <>
-      {intervals && disabled && <p className={styles.cardioNote}>Finalized · read only. A dash means the segment was not checked.</p>}
-      {intervals && (clockStart === null || rows.some((row) => row.duration === null)) &&
-        <p className={styles.cardioNote}>A dash means planned time is unavailable for an untimed segment or one after it.</p>}
-      <div role="table" aria-label={intervals ? "Interval execution checklist" : "Prescribed steady cardio"}>
-        <div className={grid} role="row">
-          {intervals && <span role="columnheader" aria-label="Completion">Done</span>}
-          <span role="columnheader" aria-label="Workout">{intervals ? "Segment" : "Workout"}</span>
-          <span role="columnheader" aria-label={intervals ? "Running clock" : "Time"}>{intervals ? "Clock" : "Time"}</span>
-          <span role="columnheader" aria-label="Speed/Output">{intervals ? "Target" : "Speed/Output"}</span>
-        </div>
-        {rows.map((row, index) => {
-          const { label, duration, output, occurrenceId } = row;
-          const end: number | null = clock === null || duration === null ? null : clock + duration;
-          const time = intervals
-            ? (clock === null || end === null ? "—" : `${elapsed(clock)}–${elapsed(end)}`)
-            : (duration === null ? "Unknown" : elapsed(duration));
-          clock = end;
-          return (
-            <div className={grid} role="row" key={occurrenceId ?? index}>
-              {intervals && <div role="cell">{occurrenceId ? <ExecutionCheck row={{ ...row, occurrenceId }}
-                entry={data.entries.find((entry) => entry.kind === "execution_check" && entry.occurrence_id === occurrenceId)}
-                disabled={disabled} busy={busy} unavailable={unavailable} save={save} changed={changed} />
-                : <span aria-label="Pinned progress identity unavailable">—</span>}</div>}
-              <span role="cell">{label}</span><span role="cell" className={styles.clock}>{time}</span>
-              <span role="cell" className={styles.cardioOutput}>{output.length ? output.map((value, i) => <small key={i}>{value}</small>) : "—"}</span>
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-function segmentRow(segment: Segment, label = segment.label, occurrenceId?: string): CardioRow {
-  return { label, occurrenceId, duration: segment.durationSeconds, output: outputTargets(segment.targets, segment.modality) };
+
+function segmentRow(segment: Segment, label = segment.label): CardioRow {
+  return { label, duration: segment.durationSeconds, targets: segment.targets };
 }
 function strengthExercise(kind: string, exercise: NonNullable<WorkoutSession["snapshot"]>["exercises"][number]) {
   return exercise.sets !== null &&
@@ -516,6 +488,15 @@ export function PlayerView({
   if (!snapshot)
     return <p>Legacy session — prescription not pinned. Read only.</p>;
   const disabled = data.status === "completed";
+  const hasStrength = snapshot.exercises.some(exercise => strengthExercise(snapshot.kind, exercise) ||
+    [...(exercise.warmups ?? []), ...(exercise.intervalBlocks ?? []).flatMap(block => block.segments)]
+      .some(segment => segment.modality === "strength"));
+  const cardioOnly = !hasStrength && (cardioKinds.includes(snapshot.kind) ||
+    (snapshot.kind === "other" && snapshot.exercises.every(exercise => {
+      const segments = [...(exercise.warmups ?? []), ...(exercise.intervalBlocks ?? []).flatMap(block => block.segments)];
+      return segments.some(segment => cardioKinds.includes(segment.modality)) ||
+        !!exercise.targets?.length || exercise.target?.unit === "mph" || exercise.target?.unit === "km/h";
+    })));
   let clockStart: number | null = 0;
   return (
     <div className={styles.player}>
@@ -548,26 +529,26 @@ export function PlayerView({
         const strength = strengthExercise(snapshot.kind, exercise);
         const warmups = exercise.warmups ?? [];
         const blocks = exercise.intervalBlocks ?? [];
-        const modality = snapshot.kind;
-        const steadyOutput = outputTargets(exercise.targets ?? [], modality);
-        if (!steadyOutput.length && exercise.target && ["mph", "km/h"].includes(exercise.target.unit))
-          steadyOutput.push(`${exercise.target.value} ${exercise.target.unit}`);
-        const segmentIds = new Map(snapshot.occurrences.filter((item) => item.exercise === index && item.type !== "exercise")
-          .map((item) => [`${item.type}:${item.block ?? ""}:${item.repeat ?? ""}:${item.segment}`, item.id]));
+        const steadyTargets = [...(exercise.targets ?? [])];
+        if (exercise.target && (exercise.target.unit === "mph" || exercise.target.unit === "km/h") &&
+            !steadyTargets.some(target => (target.metric === "speed" || target.metric === "pace") && target.range)) {
+          steadyTargets.push({ metric: "speed", unit: exercise.target.unit,
+            range: { min: exercise.target.value, max: exercise.target.value } });
+        }
         const phaseCount: Record<string, number> = {};
-        const intervalRow = (segment: Segment, identity: string) => {
-          const phase = { warmup: "Warm-up", work: "Work", recovery: "Recovery", cooldown: "Cool-down", transition: "Transition" }[segment.phase] ?? segment.phase;
+        const intervalRow = (segment: Segment) => {
+          const phase = { warmup: "Warm-up", work: "Work", recovery: "Recovery", cooldown: "Cool-down", transition: "Transition" }[segment.phase];
           const number = phaseCount[phase] = (phaseCount[phase] ?? 0) + 1;
-          return segmentRow(segment, `${phase} ${number}`, segmentIds.get(identity));
+          return segmentRow(segment, segment.phase === "work" || segment.phase === "recovery" || number > 1
+            ? `${phase} ${number}` : phase);
         };
         const cardioRows = strength && !blocks.length ? [] : [
-          ...warmups.map((segment, i) => blocks.length ? intervalRow(segment, `warmup:::${i}`) : segmentRow(segment)),
-          ...(blocks.length ? blocks.flatMap((block, blockIndex) =>
-            Array.from({ length: block.repeat }, (_, cycle) =>
-              block.segments.map((segment, i) => intervalRow(segment, `interval:${blockIndex}:${cycle}:${i}`)),
-            ).flat(),
-          ) : [{ label: exercise.name, duration: exercise.durationSeconds, output: steadyOutput }]),
+          ...warmups.map(segment => blocks.length ? intervalRow(segment) : segmentRow(segment)),
+          ...(blocks.length ? blocks.flatMap(block =>
+            Array.from({ length: block.repeat }, () => block.segments.map(intervalRow)).flat(),
+          ) : [{ label: exercise.name, duration: exercise.durationSeconds, targets: steadyTargets }]),
         ];
+        const layout = cardioLayout(snapshot.kind, cardioRows, [...warmups, ...blocks.flatMap(block => block.segments)]);
         const start = clockStart;
         for (const row of cardioRows) {
           clockStart = clockStart === null || row.duration === null ? null : clockStart + row.duration;
@@ -604,7 +585,7 @@ export function PlayerView({
               ))}
             </div>
             {cardioRows.length > 0 && <CardioRows rows={cardioRows} clockStart={start} intervals={blocks.length > 0}
-              data={data} disabled={disabled} busy={busy} unavailable={resultsUnavailable} save={save} changed={changed} />}
+              layout={layout} />}
             {strength && (
               <div aria-label="Strength sets">
                 <div className={styles.strengthRow}>
@@ -647,7 +628,7 @@ export function PlayerView({
                 ))}
               </div>
             )}
-            <Note
+            {!cardioOnly && <Note
               title="Exercise Notes"
               identity={occurrence.id}
               initial={note && "notes" in note.value ? note.value.notes : ""}
@@ -657,7 +638,7 @@ export function PlayerView({
               busy={busy}
               save={save}
               changed={changed}
-            />
+            />}
           </section>
         );
       })}

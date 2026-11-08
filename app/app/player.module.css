@@ -89,8 +89,7 @@
 }
 
 .strengthRow,
-.cardioRow,
-.intervalRow {
+.cardioRow {
   display: grid;
   align-items: center;
   gap: 4px;
@@ -110,8 +109,7 @@
   min-width: 0;
 }
 
-.strengthRow small,
-.cardioRow small {
+.strengthRow small {
   display: block;
   font-size: 11px;
 }
@@ -157,24 +155,31 @@
   display: none;
 }
 
+.cardioTable {
+  --cardio-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1.6fr);
+}
+
+.cardioTable[data-cardio="run"] {
+  --cardio-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, .8fr);
+}
+
+.cardioTable[data-cardio="bike"] {
+  --cardio-columns: minmax(0, 61fr) minmax(0, 64fr) minmax(0, 58fr) minmax(0, 34fr) minmax(0, 68fr);
+}
+
+.cardioTable[data-cardio="row"] {
+  --cardio-columns: minmax(0, 56fr) minmax(0, 68fr) minmax(0, 56fr) minmax(0, 64fr) minmax(0, 41fr);
+}
+
 .cardioRow {
-  grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
-  column-gap: 8px;
-}
-
-.intervalRow {
-  grid-template-columns: 44px minmax(0, 0.85fr) 94px minmax(0, 1.15fr);
-  column-gap: 6px;
+  grid-template-columns: var(--cardio-columns);
   font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
-.intervalRow > * {
-  min-width: 0;
-}
-
-.intervalRow small {
-  display: block;
-  font-size: 12px;
+.cardioRow > [role="columnheader"] {
+  font-weight: 650;
 }
 
 .clock {
@@ -185,41 +190,10 @@
   width: 44px;
 }
 
-.checkStatus {
-  display: block;
-  font-size: 11px;
-}
-
-.checkStatus:empty {
-  display: none;
-}
-
 .plan:empty {
   display: none;
 }
 
 .completionHeading {
   font-size: 9px;
-}
-
-.checkCell button small {
-  font-size: 9px;
-  line-height: 1;
-}
-
-
-.intervalRow > *,
-.cardioRow > *,
-.cardioOutput {
-  overflow-wrap: anywhere;
-}
-
-.cardioOutput small {
-  line-height: 1.35;
-}
-
-.player .cardioNote {
-  margin: 6px 0;
-  color: #c3d2c9;
-  font-size: 12px;
 }

@@ -9,8 +9,8 @@ const target = (metric: MetricTarget["metric"], unit: MetricTarget["unit"], min:
   ({ metric, unit, range: { min, max } });
 const interval = (modality: Segment["modality"], durationSeconds: number | null, targets: MetricTarget[]): Segment =>
   ({ phase: "work", modality, label: "Work", durationSeconds, targets, rpe: null });
-const bike = interval("bike", 90, [target("power", "W", 120, 160), target("cycling_cadence", "rpm", 75, 90)]);
-const run = interval("run", 90, [target("speed", "mph", 5.4, 5.6)]);
+const bike = interval("bike", 90, [target("power", "W", 120, 160), target("cycling_cadence", "rpm", 75, 90), target("resistance", "level", 12, 18)]);
+const run = interval("run", 90, [target("speed", "mph", 5.4, 5.6), target("incline", "%", 0.5, 2.5)]);
 const row = interval("row", null, [target("distance", "m", 400), target("rowing_split", "sec/500m", 165, 175), target("stroke_rate", "spm", 20, 22)]);
 
 function session(name: string, segment: Segment, finalized = false): WorkoutSession {
@@ -21,11 +21,11 @@ function session(name: string, segment: Segment, finalized = false): WorkoutSess
   return {
     id: name, revision: 1, status: finalized ? "completed" : "in_progress", startedAt: "2026-01-01", prescriptionRevision: 1,
     snapshot: {
-      title: name, purpose: "Synthetic layout fixture", kind: segment.modality, overview: null, occurrences,
+      title: name, purpose: "Synthetic layout fixture", kind: segment.modality === "row" ? "other" : segment.modality, overview: null, occurrences,
       exercises: [{
         key: "exercise", name, sets: null, reps: null, durationSeconds: null, target: null, restSeconds: null, notes: null,
         ...(segment.modality === "run" ? { warmups: [{ ...segment, phase: "warmup", durationSeconds: 3540 }] } : {}),
-        intervalBlocks: [{ repeat: 3, segments: [segment, { ...segment, phase: "recovery", durationSeconds: 75, targets: [] }] }],
+        intervalBlocks: [{ repeat: 3, segments: [segment, { ...segment, phase: "recovery", durationSeconds: segment.modality === "row" ? 90 : 75, targets: [] }] }],
       }],
     },
   };

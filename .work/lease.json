@@ -1,14 +1,33 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "issue23-cardio-worker",
   "epoch": 1,
   "spec": "ec579fcdf507dc25a59cdb7c786eb25a22b569abdda2d831a7ae84d806b54750",
-  "heartbeat": "2026-11-08T13:12:58.659Z",
-  "expires": "2026-11-08T13:57:58.659Z",
-  "checkpoint": "Interactive Work recovery after scheduled worker paused. Exact seed checkout and frozen dependency install verified.",
+  "heartbeat": "2026-11-08T13:19:22.702320+00:00",
+  "expires": "2026-11-08T14:04:22.702320+00:00",
+  "checkpoint": "Issue 23 tested cardio implementation. Draft dependent PR and independent review handoff.",
   "attempts": 0,
   "correction": {
     "attempts": 0,
     "findings": []
-  }
+  },
+  "validation": {
+    "app": 79,
+    "ui": 16,
+    "workflow": 20,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "chromium": {
+      "375": {
+        "nestedWidth": 301,
+        "textRects": 94
+      },
+      "390": {
+        "nestedWidth": 316,
+        "textRects": 90
+      }
+    },
+    "hosted": "pending separate authorization"
+  },
+  "nextAction": "Independent current-head review"
 }

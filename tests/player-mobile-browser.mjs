@@ -87,7 +87,12 @@ try {
       return rects;
     }
     for (const [index, table] of tables.entries()) {
-      const expected = index === 3 ? ["Workout", "Time", "Speed/Output"] : ["Done", "Segment", "Clock", "Target"];
+      const expected = [
+        ["Time", "Segment", "Speed", "Incline"],
+        ["Time", "Segment", "Distance", "Split /500m", "SPM"],
+        ["Time", "Segment", "Output", "RPM", "Resistance"],
+        ["Time", "Segment", "Output", "RPM", "Resistance"],
+      ][index];
       const header = [...table.firstElementChild.children].map(cell => cell.textContent);
       if (JSON.stringify(header) !== JSON.stringify(expected)) errors.push(`table ${index} wrong headings`);
       for (const row of table.children) {
@@ -96,6 +101,10 @@ try {
         const boxes = cells.map(textRects);
         for (const [i, cell] of cells.entries()) {
           const box = cell.getBoundingClientRect();
+          if (cell.getAttribute("role") === "columnheader" && !cell.textContent.includes(" ") && boxes[i].length !== 1)
+            errors.push(`heading wraps: ${cell.textContent}`);
+          if (i === 1 && /^Recovery \d+$/.test(cell.textContent) && boxes[i].length !== 1)
+            errors.push(`recovery label wraps: ${cell.textContent}`);
           for (const rect of boxes[i]) {
             measured++;
             if (rect.left < box.left - 0.5 || rect.right > box.right + 0.5)
@@ -108,24 +117,21 @@ try {
           }
         }
       }
-      const notes = table.closest("section").querySelector("textarea");
-      if (!notes || notes.getBoundingClientRect().top <= table.getBoundingClientRect().bottom) errors.push("notes misplaced");
-      const buttons = [...table.querySelectorAll("button")];
-      if ((index < 2 && !buttons.length) || (index >= 2 && buttons.length)) errors.push("wrong toggle availability");
-      if (buttons.some(button => { const box = button.getBoundingClientRect(); return box.width < 44 || box.height < 44; }))
-        errors.push("small touch target");
+      const player = table.closest("article");
+      const notes = player.querySelectorAll("textarea");
+      if (notes.length !== 1 || notes[0].getBoundingClientRect().top <= table.getBoundingClientRect().bottom ||
+          !player.textContent.includes("Overall Workout Notes")) errors.push("notes misplaced");
+      if (table.querySelector("button")) errors.push("cardio table exposes progress controls");
     }
-    if (!tables[0].textContent.includes("59:00–60:30") || !tables[0].textContent.includes("5.4–5.6 mph"))
-      errors.push("run clock or speed lost");
-    if (!["400 m", "2:45–2:55 /500m", "20–22 spm"].every(value => tables[1].textContent.includes(value)) ||
-        tables[1].textContent.includes("Unknown") || !tables[1].textContent.includes("—"))
-      errors.push("rowing targets or untimed clock incorrect");
-    const rowSection = tables[1].closest("section");
-    if ([...rowSection.querySelectorAll("p")].filter(p => p.textContent.includes("planned time is unavailable")).length !== 1)
-      errors.push("missing untimed clock explanation");
-    if (!["120–160 W", "75–90 rpm"].every(value => tables[2].textContent.includes(value)) ||
-        !tables[2].parentElement.textContent.includes("Finalized · read only"))
-      errors.push("bike targets or finalized explanation missing");
+    if (!["59:00–60:30", "5.4–5.6 mph", "0.5–2.5%"].every(value => tables[0].textContent.includes(value)))
+      errors.push("run clock or targets lost");
+    const rowCells = [...tables[1].children].slice(1).map(row => [...row.children].map(cell => cell.textContent));
+    if (JSON.stringify(rowCells.slice(0, 2)) !== JSON.stringify([
+      ["", "Work 1", "400 m", "2:45–2:55", "20–22"], ["1:30", "Recovery 1", "", "", ""],
+    ])) errors.push("rowing targets or recovery time incorrect");
+    if (!["120–160 W", "75–90", "12–18 level"].every(value => tables[2].textContent.includes(value)) ||
+        !tables[2].closest("article").textContent.includes("Finalized · read only"))
+      errors.push("bike targets or finalized status missing");
     if (document.documentElement.scrollWidth !== innerWidth) errors.push("horizontal overflow");
     return { width: innerWidth, nestedWidth: Math.round(tables[0].getBoundingClientRect().width), measured, errors };
   }

@@ -35,14 +35,20 @@ const metricUnits = [
   ['rowing_split', ['sec/500m']],
   ['stroke_rate', ['spm']],
   ['cycling_cadence', ['rpm']],
+  ['incline', ['%']],
+  ['resistance', ['%', 'level']],
 ] as const
 
 export const metricTarget = z.strictObject({
-  metric: z.enum(['speed', 'pace', 'distance', 'power', 'rowing_split', 'stroke_rate', 'cycling_cadence']),
-  unit: z.enum(['mph', 'km/h', 'm/s', 'sec/km', 'sec/mi', 'm', 'km', 'mi', 'W', 'sec/500m', 'spm', 'rpm']),
+  metric: z.enum(['speed', 'pace', 'distance', 'power', 'rowing_split', 'stroke_rate', 'cycling_cadence', 'incline', 'resistance']),
+  unit: z.enum(['mph', 'km/h', 'm/s', 'sec/km', 'sec/mi', 'm', 'km', 'mi', 'W', 'sec/500m', 'spm', 'rpm', '%', 'level']),
   range: range.nullable(),
 }).refine(value => metricUnits.some(([metric, units]) =>
-  metric === value.metric && (units as readonly string[]).includes(value.unit)), 'Metric and unit must agree')
+  metric === value.metric && (units as readonly string[]).includes(value.unit)), 'Metric and unit must agree').refine(({ metric, unit, range }) => {
+  if (!range || (metric !== 'incline' && metric !== 'resistance')) return true
+  if (unit === '%') return range.max <= 100
+  return Number.isInteger(range.min) && Number.isInteger(range.max) && range.max <= 1000
+}, 'Incline and resistance targets must use bounded percentages or whole device levels')
 const segment = z.strictObject({
   phase: z.enum(['warmup', 'work', 'recovery', 'transition', 'cooldown']),
   modality: z.enum(['run', 'row', 'bike', 'ski', 'strength', 'mobility', 'other']),
@@ -51,7 +57,9 @@ const segment = z.strictObject({
   targets: z.array(metricTarget).max(8),
   rpe: rpe.nullable(),
   strength: dose.extend({ loadBasis: z.enum(['total', 'per_hand', 'added', 'bodyweight', 'unverified']) }).optional(),
-})
+}).refine(({ modality, targets }) => targets.every(({ metric }) =>
+  (metric !== 'incline' || modality === 'run') && (metric !== 'resistance' || modality === 'bike')
+), 'Incline requires running and resistance requires cycling')
 export const blockMethodology = z.strictObject({
   weeklyStructure: z.array(z.strictObject({
     weekday: z.number().int().min(1).max(7),
