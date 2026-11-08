@@ -1,11 +1,11 @@
 {
-  "state": "in-progress",
+  "state": "review",
   "owner": "issue23-cardio-worker",
   "epoch": 3,
   "spec": "1fdc4c65f3d622bd448f6f24aaaa967bf3e89a8e71452b98d72e35e5eabe1a72",
-  "heartbeat": "2026-11-08T15:32:59.991Z",
-  "expires": "2026-11-08T16:17:59.991Z",
-  "checkpoint": "Reserved bounded owner Safari acceptance refinements under renewed exact specification.",
+  "heartbeat": "2026-11-08T15:35:18.762395+00:00",
+  "expires": "2026-11-08T16:20:18.762395+00:00",
+  "checkpoint": "Implemented the two owner Safari presentation refinements. Validated source for independent review.",
   "attempts": 2,
   "correction": {
     "attempts": 2,
@@ -39,16 +39,16 @@
         "approvalComment": 6723402691,
         "reviewedHead": "2d14aa402855869e0bca49992bc97a08b60cf138",
         "lastAttemptedHead": "2d14aa402855869e0bca49992bc97a08b60cf138",
-        "result": "in-progress",
-        "nextAction": "Implement and verify owner-requested display change"
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head re-review"
       },
       {
         "key": "owner-row-spm-before-split",
         "approvalComment": 6723402691,
         "reviewedHead": "2d14aa402855869e0bca49992bc97a08b60cf138",
         "lastAttemptedHead": "2d14aa402855869e0bca49992bc97a08b60cf138",
-        "result": "in-progress",
-        "nextAction": "Implement and verify owner-requested display change"
+        "result": "awaiting-review",
+        "nextAction": "Independent current-head re-review"
       }
     ]
   },
@@ -61,16 +61,16 @@
     "chromium": {
       "375": {
         "nestedWidth": 301,
-        "textRects": 97
+        "textRects": 98
       },
       "390": {
         "nestedWidth": 316,
-        "textRects": 93
+        "textRects": 94
       }
     },
-    "hosted": "pending separate authorization"
+    "hosted": "prior reviewed commit only"
   },
-  "nextAction": "Implement both owner-requested refinements",
+  "nextAction": "Independent current-head re-review",
   "history": [
     {
       "state": "review",

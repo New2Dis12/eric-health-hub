@@ -168,7 +168,7 @@
 }
 
 .cardioTable[data-cardio="row"] {
-  --cardio-columns: minmax(0, 56fr) minmax(0, 68fr) minmax(0, 56fr) minmax(0, 64fr) minmax(0, 41fr);
+  --cardio-columns: minmax(0, 56fr) minmax(0, 68fr) minmax(0, 56fr) minmax(0, 41fr) minmax(0, 64fr);
 }
 
 .cardioRow {
@@ -180,6 +180,11 @@
 
 .cardioRow > [role="columnheader"] {
   font-weight: 650;
+}
+
+.cardioUnit {
+  display: block;
+  font-weight: 400;
 }
 
 .clock {

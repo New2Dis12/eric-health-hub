@@ -515,6 +515,7 @@ test("steady rows retain pinned output and unknown interval durations invalidate
   assert.deepEqual(time(), ["Time", "0:00–10:00", "10:00–11:00", "", "1:00", ""]);
   assert.match(text(tree), /500–600 sec\/mi/);
   assert.match(text(tree), /7–8 mph/);
+  assert.doesNotMatch(text(tree), /\(mph\)/);
   assert.doesNotMatch(text(tree), /sec\/500m/);
   assert.equal(rows().flatMap((row) => row.findAllByType("button")).length, 0);
   const steady = structuredClone(planned);
@@ -556,9 +557,12 @@ test("steady cycling keeps its bike columns and cross-modality running warmup ta
       save={async () => assert.fail("render must not write")} changed={() => {}} />);
   });
   const tables = tree.root.findAllByProps({ role: "table" }).map(table =>
-    table.findAllByProps({ role: "row" }).map(row => row.findAllByType("span").map(cell => cell.props.children)));
+    table.findAllByProps({ role: "row" }).map(row => row.children.map(cell => {
+      if (typeof cell === "string") return cell;
+      return cell.props.role === "columnheader" ? cell.props["aria-label"] ?? cell.props.children : cell.props.children;
+    })));
   assert.deepEqual(tables, [
-    [["Time", "Segment", "Speed", "Incline"], ["2:00", "Run warm-up", "4–5 mph", ""]],
+    [["Time", "Segment", "Speed (mph)", "Incline"], ["2:00", "Run warm-up", "4–5", ""]],
     [["Time", "Segment", "Output", "RPM", "Resistance"], ["10:00", "Steady bike", "120–160 W", "75–90", ""]],
   ]);
   assert.equal(tree.root.findAllByType("textarea").length, 1);
@@ -724,10 +728,10 @@ test("rowing has separate targets, no historical check control, and exactly one 
   const table = tree.root.findByProps({ role: "table" });
   const rows = table.findAllByProps({ role: "row" }).map(row => row.findAllByType("span").map(cell => cell.props.children));
   assert.deepEqual(rows, [
-    ["Time", "Segment", "Distance", "Split /500m", "SPM"],
-    ["", "Work 1", "400 m", "2:45.5–2:55.5", "20–22"],
+    ["Time", "Segment", "Distance", "SPM", "Split /500m"],
+    ["", "Work 1", "400 m", "20–22", "2:45.5–2:55.5"],
     ["1:30", "Recovery 1", "", "", ""],
-    ["", "Work 2", "400 m", "2:45.5–2:55.5", "20–22"],
+    ["", "Work 2", "400 m", "20–22", "2:45.5–2:55.5"],
     ["1:30", "Recovery 2", "", "", ""],
   ]);
   assert.equal(table.findAllByType("button").length, 0);

@@ -88,8 +88,8 @@ try {
     }
     for (const [index, table] of tables.entries()) {
       const expected = [
-        ["Time", "Segment", "Speed", "Incline"],
-        ["Time", "Segment", "Distance", "Split /500m", "SPM"],
+        ["Time", "Segment", "Speed (mph)", "Incline"],
+        ["Time", "Segment", "Distance", "SPM", "Split /500m"],
         ["Time", "Segment", "Output", "RPM", "Resistance"],
         ["Time", "Segment", "Output", "RPM", "Resistance"],
       ][index];
@@ -123,11 +123,17 @@ try {
           !player.textContent.includes("Overall Workout Notes")) errors.push("notes misplaced");
       if (table.querySelector("button")) errors.push("cardio table exposes progress controls");
     }
-    if (!["59:00–60:30", "5.4–5.6 mph", "0.5–2.5%"].every(value => tables[0].textContent.includes(value)))
+    if (!["59:00–60:30", "5.4–5.6", "0.5–2.5%"].every(value => tables[0].textContent.includes(value)))
       errors.push("run clock or targets lost");
+    const speedHeader = tables[0].firstElementChild.children[2];
+    const speedHeaderLines = textRects(speedHeader);
+    const speeds = [...tables[0].children].slice(1).map(row => row.children[2].textContent);
+    if (speedHeaderLines.length !== 2 || speedHeaderLines[1].top <= speedHeaderLines[0].top ||
+        !speeds.includes("5.4–5.6") || speeds.some(value => value.includes("mph")))
+      errors.push("mph belongs on a second header line only");
     const rowCells = [...tables[1].children].slice(1).map(row => [...row.children].map(cell => cell.textContent));
     if (JSON.stringify(rowCells.slice(0, 2)) !== JSON.stringify([
-      ["", "Work 1", "400 m", "2:45.5–2:55.5", "20–22"], ["1:30", "Recovery 1", "", "", ""],
+      ["", "Work 1", "400 m", "20–22", "2:45.5–2:55.5"], ["1:30", "Recovery 1", "", "", ""],
     ])) errors.push("rowing targets or recovery time incorrect");
     if (!["120–160 W", "75–90", "12–18 level"].every(value => tables[2].textContent.includes(value)) ||
         !tables[2].closest("article").textContent.includes("Finalized · read only"))

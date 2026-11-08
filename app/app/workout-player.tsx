@@ -390,7 +390,7 @@ const cardioKinds = ["run", "bike", "row", "ski", "swim"];
 const cardioColumns = {
   run: ["Speed", "Incline"],
   bike: ["Output", "RPM", "Resistance"],
-  row: ["Distance", "Split /500m", "SPM"],
+  row: ["Distance", "SPM", "Split /500m"],
   other: ["Target"],
 } as const;
 
@@ -425,15 +425,23 @@ function formattedTarget({ range, unit }: MetricTarget, omitUnit = false) {
   return omitUnit ? showRange(range) : `${showRange(range)}${unit === "%" ? "%" : ` ${unit}`}`;
 }
 
-function cardioTargets(targets: MetricTarget[], layout: keyof typeof cardioColumns) {
+function runningTarget(targets: MetricTarget[]) {
+  return targets.find(target => target.metric === "speed" && target.range !== null) ??
+    targets.find(target => target.metric === "pace" && target.range !== null);
+}
+
+function cardioTargets(targets: MetricTarget[], layout: keyof typeof cardioColumns, mphHeader: boolean) {
   const get = (metric: MetricTarget["metric"], omitUnit = false) => {
     const target = targets.find(item => item.metric === metric && item.range !== null);
     return target ? formattedTarget(target, omitUnit) : "";
   };
   switch (layout) {
-    case "run": return [get("speed") || get("pace"), get("incline")];
+    case "run": {
+      const target = runningTarget(targets);
+      return [target ? formattedTarget(target, mphHeader) : "", get("incline")];
+    }
     case "bike": return [get("power"), get("cycling_cadence", true), get("resistance")];
-    case "row": return [get("distance"), get("rowing_split", true), get("stroke_rate", true)];
+    case "row": return [get("distance"), get("stroke_rate", true), get("rowing_split", true)];
     default: return [targets.map(target => formattedTarget(target)).filter(Boolean).join(" · ")];
   }
 }
@@ -442,12 +450,18 @@ function CardioRows({ rows, clockStart, intervals, layout }: {
   rows: CardioRow[]; clockStart: number | null; intervals: boolean; layout: keyof typeof cardioColumns;
 }) {
   let clock = clockStart;
+  const speedTargets = layout === "run" ? rows.map(row => runningTarget(row.targets)).filter(target => target !== undefined) : [];
+  const mphHeader = speedTargets.length > 0 && speedTargets.every(target => target.unit === "mph");
   return (
     <div role="table" aria-label="Prescribed cardio" data-cardio={layout} className={styles.cardioTable}>
       <div className={styles.cardioRow} role="row">
         <span role="columnheader">Time</span>
         <span role="columnheader">Segment</span>
-        {cardioColumns[layout].map(column => <span role="columnheader" key={column}>{column}</span>)}
+        {cardioColumns[layout].map(column => column === "Speed" && mphHeader ? (
+          <span role="columnheader" aria-label="Speed (mph)" key={column}>
+            Speed<span className={styles.cardioUnit}>{" (mph)"}</span>
+          </span>
+        ) : <span role="columnheader" key={column}>{column}</span>)}
       </div>
       {rows.map(({ label, duration, targets }, index) => {
         const start: number | null = clock;
@@ -459,7 +473,7 @@ function CardioRows({ rows, clockStart, intervals, layout }: {
           <div className={styles.cardioRow} role="row" key={index}>
             <span role="cell" className={styles.clock} aria-label={time ? `${range ? "Planned elapsed range" : "Prescribed segment duration"} ${time}` : undefined}>{time}</span>
             <span role="cell">{label}</span>
-            {cardioTargets(targets, layout).map((target, i) => <span role="cell" key={i}>{target}</span>)}
+            {cardioTargets(targets, layout, mphHeader).map((target, i) => <span role="cell" key={i}>{target}</span>)}
           </div>
         );
       })}
