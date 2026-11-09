@@ -231,9 +231,10 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
       return (await response.json()).result.tools.map((tool: { name: string }) => tool.name)
     }
     assert.deepEqual(await toolNames('oura.read garmin.read'), ['get_oura_summary', 'get_garmin_activities'])
-    assert.deepEqual(await toolNames('training.read'), ['get_training_context'])
-    assert.deepEqual(await toolNames('oura.read garmin.read training.read'), ['get_oura_summary', 'get_garmin_activities', 'get_training_context'])
-    assert.equal((await list('training.write')).status, 401)
+    assert.deepEqual(await toolNames('training.read'), ['get_saved_workout_results', 'get_training_context'])
+    assert.deepEqual(await toolNames('oura.read garmin.read training.read'), ['get_oura_summary', 'get_garmin_activities', 'get_saved_workout_results', 'get_training_context'])
+    assert.deepEqual(await toolNames('training.write'), ['correct_saved_strength_result'])
+    assert.deepEqual(await toolNames('training.read training.write'), ['get_saved_workout_results', 'correct_saved_strength_result', 'get_training_context'])
     assert.equal((await list('garmin.read')).status, 401)
   } finally {
     if (prior.client) process.env.AUTH0_CLIENT_ID = prior.client
