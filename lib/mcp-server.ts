@@ -7,6 +7,7 @@ import { getGarminActivities, getGarminActivityFit } from '@/lib/garmin'
 import { getTrainingContext } from '@/lib/training/context'
 import { contextDate } from '@/lib/training/context-models'
 import type { TrainingPrincipal } from '@/lib/training/auth'
+import { actualsPage, actualsWrite, createMcpTrainingActuals } from '@/lib/training/mcp-actuals'
 
 const measurementSchema = z.object({
   value: z.number().nullable(),
@@ -128,6 +129,33 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
   }
 
   const principal = options.trainingPrincipal
+  if (process.env.STUNNA_ENABLED === 'true' && principal) {
+    const actuals = createMcpTrainingActuals()
+    if (principal.scopes.includes('training.read')) server.registerTool('get_saved_workout_results', {
+      title: 'Read saved workout actuals and history',
+      description: 'Read a bounded page of saved workout results for one owned session, optionally including chronological corrections and notes. Values and nulls are authoritative, not inferred.',
+      inputSchema: actualsPage.shape,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, async input => {
+      try {
+        const result = await actuals.read(principal, input)
+        const data = JSON.stringify(result)
+        if (Buffer.byteLength(data, 'utf8') > 128 * 1024) return errorResult('Response too large; reduce page size.')
+        return { structuredContent: result, content: [{ type: 'text' as const, text: data }] }
+      } catch { return errorResult('Saved workout results unavailable or access denied.') }
+    })
+    if (principal.scopes.includes('training.write')) server.registerTool('correct_saved_strength_result', {
+      title: 'Save or correct strength results and notes',
+      description: 'Write one validated strength set or exercise/workout note for an owned in-progress session. Requires exact revisions and a stable idempotency key; conflicting edits must be re-read.',
+      inputSchema: actualsWrite.shape,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, async input => {
+      try {
+        const result = await actuals.write(principal, input)
+        return { structuredContent: result, content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
+      } catch { return errorResult('Workout write rejected. Check access, session state, item revision and idempotency key; re-read before retrying.') }
+    })
+  }
   if (process.env.STUNNA_ENABLED === 'true' && principal?.scopes.includes('training.read')) {
     server.registerTool('get_training_context', {
       title: 'Get training context',

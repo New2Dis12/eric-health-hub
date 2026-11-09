@@ -36,7 +36,7 @@ async function handle(request: Request) {
   const token = await verifyHealthToken(authorization)
   const canReadOura = token?.scopes.includes('oura.read') ?? false
   const trainingToken = process.env.STUNNA_ENABLED === 'true' ? await verifyTrainingBearer(authorization) : null
-  const trainingPrincipal = trainingToken?.scopes.includes('training.read') ? trainingToken : undefined
+  const trainingPrincipal = trainingToken?.scopes.some(scope => scope === 'training.read' || scope === 'training.write') ? trainingToken : undefined
   if (!canReadOura && !trainingPrincipal) {
     return unauthorized()
   }

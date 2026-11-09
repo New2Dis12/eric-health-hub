@@ -1,0 +1,14 @@
+{
+  "owner": "issue26-mcp-worker",
+  "epoch": 1,
+  "state": "review",
+  "spec": "ed6fba56e707ff87b81c34281f8661c8c6787168066a813be5456b75b55f77b3",
+  "attempts": 0,
+  "correction": {
+    "attempts": 0,
+    "findings": []
+  },
+  "heartbeat": "2026-11-09T02:00:00Z",
+  "expires": "2026-11-09T04:00:00Z",
+  "checkpoint": "Implementation candidate submitted for CI validation; PR gated on green exact-head CI."
+}
