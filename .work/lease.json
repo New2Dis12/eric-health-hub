@@ -1,19 +1,21 @@
 {
   "owner": "issue26-mcp-worker",
-  "epoch": 3,
+  "epoch": 4,
   "state": "review",
   "spec": "ed6fba56e707ff87b81c34281f8661c8c6787168066a813be5456b75b55f77b3",
-  "attempts": 2,
+  "attempts": 3,
   "correction": {
-    "attempts": 2,
+    "attempts": 3,
     "findings": [
       "mcp-actual-session-discovery",
       "mcp-explicit-write-conflict",
       "mcp-http-actuals-parity-contract",
-      "mcp-training-oauth-metadata-discovery"
+      "mcp-training-oauth-metadata-discovery",
+      "mcp-preview-resource-identity-mismatch",
+      "mcp-oauth-challenge-overrequests-write"
     ]
   },
-  "heartbeat": "2026-11-09T06:05:20.345Z",
-  "expires": "2026-11-09T08:05:20.345Z",
-  "checkpoint": "Second cumulative scoped correction: conditional training scopes in OAuth resource metadata and unauthorized MCP challenge, synthetic ON/OFF regression. Await exact-head CI and independent PR review."
+  "heartbeat": "2026-11-09T16:04:25.262Z",
+  "expires": "2026-11-09T18:04:25.262Z",
+  "checkpoint": "Final bounded correction: trusted MCP_RESOURCE_URL identity and strict audience, least-privilege challenge, synthetic isolation tests. Pending exact-head CI and independent review."
 }

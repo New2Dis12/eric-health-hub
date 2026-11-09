@@ -1,9 +1,12 @@
 
 import 'server-only'
 
+import { mcpResourceUrl } from '@/lib/mcp-resource'
 export const dynamic = 'force-dynamic'
 
 export function GET() {
+  const resource = mcpResourceUrl()
+  if (!resource) return Response.json({ error: 'MCP resource not configured' }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
   const domain = process.env.AUTH0_DOMAIN
 
   if (!domain) {
@@ -22,7 +25,7 @@ export function GET() {
 
   return Response.json(
     {
-      resource: 'https://eric-health-hub.vercel.app/mcp',
+      resource,
       authorization_servers: [issuer],
       scopes_supported: scopesSupported,
     },

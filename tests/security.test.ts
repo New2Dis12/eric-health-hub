@@ -45,7 +45,7 @@ before(async () => {
   mock.method(globalThis, 'fetch', (...args: Parameters<typeof fetch>) => sdkFetch(...args))
   await getWebSubject(new Request(origin))
 })
-afterEach(() => { mock.restoreAll(); sdkFetch = async () => discovery() })
+afterEach(() => { mock.restoreAll(); sdkFetch = async () => discovery(); delete process.env.MCP_RESOURCE_URL; process.env.STUNNA_ENABLED = 'false' })
 
 async function cookie(sub = subject, expired = false) {
   return '__session=' + await generateSessionCookie({
@@ -113,14 +113,18 @@ test('OAuth metadata and unauthorized MCP challenges advertise training scopes o
   try {
     for (const [enabled, expectedScopes, expectedChallenge] of [
       ['false', ['oura.read', 'garmin.read'], 'scope="oura.read"'],
-      ['true', ['oura.read', 'garmin.read', 'training.read', 'training.write'], 'scope="oura.read training.read training.write"'],
+      ['true', ['oura.read', 'garmin.read', 'training.read', 'training.write'], 'scope="training.read"'],
     ] as const) {
       process.env.STUNNA_ENABLED = enabled
+      if (enabled === 'true') process.env.MCP_RESOURCE_URL = 'https://stage.invalid/mcp'
+      else delete process.env.MCP_RESOURCE_URL
+      const expectedResource = enabled === 'true' ? 'https://stage.invalid/mcp' : 'https://eric-health-hub.vercel.app/mcp'
+      const expectedMetadata = enabled === 'true' ? 'https://stage.invalid/.well-known/oauth-protected-resource' : 'https://eric-health-hub.vercel.app/.well-known/oauth-protected-resource'
       const metadata = oauthProtectedResource()
       assert.equal(metadata.status, 200)
       assert.equal(metadata.headers.get('cache-control'), 'no-store')
       const body = await metadata.json()
-      assert.equal(body.resource, 'https://eric-health-hub.vercel.app/mcp')
+      assert.equal(body.resource, expectedResource)
       assert.deepEqual(body.authorization_servers, ['https://tenant.invalid'])
       assert.deepEqual(body.scopes_supported, expectedScopes)
       for (const handler of [mcpGet, mcpPost, mcpDelete]) {
@@ -128,7 +132,7 @@ test('OAuth metadata and unauthorized MCP challenges advertise training scopes o
         assert.equal(response.status, 401)
         assert.equal(response.headers.get('cache-control'), 'no-store')
         const challenge = response.headers.get('www-authenticate')!
-        assert.match(challenge, /resource_metadata="https:\/\/eric-health-hub\.vercel\.app\/\.well-known\/oauth-protected-resource"/)
+        assert.ok(challenge.includes(`resource_metadata="${expectedMetadata}"`), challenge)
         assert.ok(challenge.includes(expectedChallenge), challenge)
       }
     }
@@ -256,6 +260,7 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
     assert.equal((await list('training.read training.write')).status, 401)
 
     process.env.STUNNA_ENABLED = 'true'
+    process.env.MCP_RESOURCE_URL = 'https://eric-health-hub.vercel.app/mcp'
     const toolNames = async (scope: string) => {
       const response = await list(scope)
       assert.equal(response.status, 200)
@@ -275,4 +280,32 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
     if (prior.stunna) process.env.STUNNA_ENABLED = prior.stunna
     else delete process.env.STUNNA_ENABLED
   }
+})
+
+test('staging resource differs from browser origin and rejects cross-environment audiences', async () => {
+  process.env.APP_BASE_URL = 'https://browser-branch.invalid'
+  process.env.STUNNA_ENABLED = 'true'
+  process.env.MCP_RESOURCE_URL = 'https://stage.invalid/mcp'
+  assert.equal((await oauthProtectedResource().json()).resource, 'https://stage.invalid/mcp')
+  const challenge = await mcpGet(new Request('https://attacker.invalid/mcp', { headers: { host: 'evil.invalid', 'x-forwarded-host': 'evil.invalid' } }))
+  assert.equal(challenge.status, 401)
+  assert.ok(challenge.headers.get('www-authenticate')!.includes('https://stage.invalid/.well-known/oauth-protected-resource'))
+  assert.doesNotMatch(challenge.headers.get('www-authenticate')!, /training.write|oura.read|evil.invalid|browser-branch.invalid/)
+  assert.equal(await verifyTrainingBearer(await bearer({}, 'https://eric-health-hub.vercel.app/mcp'), localKeys), null)
+  assert.ok(await verifyTrainingBearer(await bearer({}, 'https://stage.invalid/mcp'), localKeys))
+  process.env.STUNNA_ENABLED = 'false'
+  assert.equal(await verifyTrainingBearer(await bearer({}, 'https://stage.invalid/mcp'), localKeys), null)
+  assert.ok(await verifyTrainingBearer(await bearer({}, 'https://eric-health-hub.vercel.app/mcp'), localKeys))
+})
+test('enabled MCP fails closed without valid trusted resource; disabled legacy is preserved', async () => {
+  process.env.STUNNA_ENABLED = 'true'
+  for (const bad of [undefined, 'http://stage.invalid/mcp', 'https://stage.invalid/other', 'https://stage.invalid/mcp?x=1', 'https://evil.invalid@stage.invalid/mcp']) {
+    if (bad === undefined) delete process.env.MCP_RESOURCE_URL
+    else process.env.MCP_RESOURCE_URL = bad
+    assert.equal(oauthProtectedResource().status, 503)
+    assert.equal((await mcpGet(new Request('https://stage.invalid/mcp'))).status, 503)
+    assert.equal(await verifyTrainingBearer(await bearer({}, 'https://eric-health-hub.vercel.app/mcp'), localKeys), null)
+  }
+  process.env.STUNNA_ENABLED = 'false'
+  assert.equal((await oauthProtectedResource().json()).resource, 'https://eric-health-hub.vercel.app/mcp')
 })
