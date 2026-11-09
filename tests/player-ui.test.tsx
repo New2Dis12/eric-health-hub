@@ -823,3 +823,68 @@ test("server session state controls Start, Resume, and finalized labels independ
     Object.assign(globalThis, { window: previousWindow });
   }
 });
+
+test("invalid strength reps and load explain the limits without a save request", async () => {
+  let tree!: ReactTestRenderer;
+  let writes = 0;
+  await act(async () => {
+    tree = create(
+      <PlayerView
+        workout={workout}
+        data={data}
+        busy={false}
+        save={async () => { writes++; }}
+        changed={() => {}}
+      />,
+    );
+  });
+  try {
+    const edit = tree.root.findAllByType("button").find((node) => node.props.children === "Edit")!;
+    await act(async () => edit.props.onClick());
+    const input = (index: number) => tree.root.findAllByType("input")[index];
+    const save = () => tree.root.findAllByType("button").find((node) => node.props.children === "Save")!;
+    await act(async () => input(0).props.onChange({ target: { value: "501" } }));
+    await act(async () => save().props.onClick());
+    assert.match(text(tree), /Reps must be a whole number between 0 and 500/);
+    assert.equal(input(0).props.value, "501");
+    assert.equal(writes, 0);
+    await act(async () => input(0).props.onChange({ target: { value: "1.5" } }));
+    await act(async () => save().props.onClick());
+    assert.match(text(tree), /Reps must be a whole number between 0 and 500/);
+    assert.equal(writes, 0);
+    await act(async () => input(0).props.onChange({ target: { value: "-1" } }));
+    await act(async () => save().props.onClick());
+    assert.equal(writes, 0);
+
+    await act(async () => input(0).props.onChange({ target: { value: "500" } }));
+    await act(async () => input(1).props.onChange({ target: { value: "2001" } }));
+    await act(async () => save().props.onClick());
+    assert.match(text(tree), /Load must be between 0 and 2,000 lb or kg/);
+    assert.equal(input(1).props.value, "2001");
+    assert.equal(writes, 0);
+    await act(async () => input(1).props.onChange({ target: { value: "-2" } }));
+    await act(async () => save().props.onClick());
+    assert.equal(writes, 0);
+    await act(async () => input(1).props.onChange({ target: { value: "2000" } }));
+    assert.doesNotMatch(text(tree), /Load must be between 0 and 2,000 lb or kg/);
+    await act(async () => save().props.onClick());
+    assert.equal(writes, 1);
+    assert.match(text(tree), /Saved · Logged/);
+  } finally {
+    await act(async () => tree.unmount());
+  }
+});
+
+test("strength draft validation uses the server's numeric boundaries", () => {
+  const { validateStrengthDraft } = require("../lib/training/player-client") as typeof import("../lib/training/player-client");
+  assert.equal(validateStrengthDraft("", ""), null);
+  assert.equal(validateStrengthDraft("0", "0"), null);
+  assert.equal(validateStrengthDraft("500", "2000"), null);
+  assert.equal(validateStrengthDraft("10", "175.5"), null);
+  assert.match(validateStrengthDraft("501", "") ?? "", /Reps/);
+  assert.match(validateStrengthDraft("1.5", "") ?? "", /Reps/);
+  assert.match(validateStrengthDraft("-1", "") ?? "", /Reps/);
+  assert.match(validateStrengthDraft("1", "2001") ?? "", /Load/);
+  assert.match(validateStrengthDraft("1", "-1") ?? "", /Load/);
+  assert.match(validateStrengthDraft("1", "Infinity") ?? "", /Load/);
+});
