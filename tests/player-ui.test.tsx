@@ -11,6 +11,7 @@ import {
   proposedReps,
   PlayerError,
   rpeOptions,
+  validateStrengthDraft,
 } from "../lib/training/player-client";
 import type { WorkoutSession } from "../lib/training/session";
 import type { SessionResults } from "../lib/training/logging-models";
@@ -876,7 +877,6 @@ test("invalid strength reps and load explain the limits without a save request",
 });
 
 test("strength draft validation uses the server's numeric boundaries", () => {
-  const { validateStrengthDraft } = require("../lib/training/player-client") as typeof import("../lib/training/player-client");
   assert.equal(validateStrengthDraft("", ""), null);
   assert.equal(validateStrengthDraft("0", "0"), null);
   assert.equal(validateStrengthDraft("500", "2000"), null);
