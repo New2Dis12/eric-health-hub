@@ -12,6 +12,10 @@ const RESOURCE = 'https://eric-health-hub.vercel.app/mcp'
 const METADATA = `${RESOURCE.replace(/\/mcp$/, '')}/.well-known/oauth-protected-resource`
 
 function unauthorized() {
+  const advertisedScopes = process.env.STUNNA_ENABLED === 'true'
+    ? 'oura.read training.read training.write'
+    : 'oura.read'
+
   return Response.json(
     {
       jsonrpc: '2.0',
@@ -24,7 +28,7 @@ function unauthorized() {
     {
       status: 401,
       headers: {
-        'WWW-Authenticate': `Bearer resource_metadata="${METADATA}", scope="oura.read"`,
+        'WWW-Authenticate': `Bearer resource_metadata="${METADATA}", scope="${advertisedScopes}"`,
         'Cache-Control': 'no-store',
       },
     },

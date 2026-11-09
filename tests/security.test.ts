@@ -13,6 +13,7 @@ import { GET as ouraAuthorize } from '../app/api/oura/authorize/route'
 import { GET as ouraCallback } from '../app/api/oura/callback/route'
 import { GET as garminTest } from '../app/api/garmin/test/route'
 import { GET as mcpGet, POST as mcpPost, DELETE as mcpDelete } from '../app/mcp/route'
+import { GET as oauthProtectedResource } from '../app/.well-known/oauth-protected-resource/route'
 import { proxy } from '../proxy'
 
 const subject = 'auth0|synthetic-athlete'
@@ -105,6 +106,36 @@ test('real bearer request authorization uses Auth0 JWKS and cannot gain training
   assert.equal((await requireTrainingPrincipal(req(await bearer()), 'training.write')).source, 'api')
   await assert.rejects(requireTrainingPrincipal(req(await bearer({ scope: 'training.read' })), 'training.write'), status(403))
   await assert.rejects(requireTrainingPrincipal(req(await bearer({ scope: 'oura.read' })), 'training.read'), status(403))
+})
+
+test('OAuth metadata and unauthorized MCP challenges advertise training scopes only when Stunna is enabled', async () => {
+  const prior = process.env.STUNNA_ENABLED
+  try {
+    for (const [enabled, expectedScopes, expectedChallenge] of [
+      ['false', ['oura.read', 'garmin.read'], 'scope="oura.read"'],
+      ['true', ['oura.read', 'garmin.read', 'training.read', 'training.write'], 'scope="oura.read training.read training.write"'],
+    ] as const) {
+      process.env.STUNNA_ENABLED = enabled
+      const metadata = oauthProtectedResource()
+      assert.equal(metadata.status, 200)
+      assert.equal(metadata.headers.get('cache-control'), 'no-store')
+      const body = await metadata.json()
+      assert.equal(body.resource, 'https://eric-health-hub.vercel.app/mcp')
+      assert.deepEqual(body.authorization_servers, ['https://tenant.invalid'])
+      assert.deepEqual(body.scopes_supported, expectedScopes)
+      for (const handler of [mcpGet, mcpPost, mcpDelete]) {
+        const response = await handler(new Request(origin+'/mcp'))
+        assert.equal(response.status, 401)
+        assert.equal(response.headers.get('cache-control'), 'no-store')
+        const challenge = response.headers.get('www-authenticate')!
+        assert.match(challenge, /resource_metadata="https:\/\/eric-health-hub\.vercel\.app\/\.well-known\/oauth-protected-resource"/)
+        assert.ok(challenge.includes(expectedChallenge), challenge)
+      }
+    }
+  } finally {
+    if (prior === undefined) delete process.env.STUNNA_ENABLED
+    else process.env.STUNNA_ENABLED = prior
+  }
 })
 
 test('anonymous provider APIs and MCP methods stop before provider/Redis access', async () => {

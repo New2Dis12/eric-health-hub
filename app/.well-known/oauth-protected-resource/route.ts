@@ -15,11 +15,16 @@ export function GET() {
 
   const issuer = `https://${domain.replace(/^https?:\/\//, '').replace(/\/$/, '')}`
 
+  const scopesSupported = ['oura.read', 'garmin.read']
+  if (process.env.STUNNA_ENABLED === 'true') {
+    scopesSupported.push('training.read', 'training.write')
+  }
+
   return Response.json(
     {
       resource: 'https://eric-health-hub.vercel.app/mcp',
       authorization_servers: [issuer],
-      scopes_supported: ['oura.read', 'garmin.read'],
+      scopes_supported: scopesSupported,
     },
     {
       headers: { 'Cache-Control': 'no-store' },

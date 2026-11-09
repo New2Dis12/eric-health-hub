@@ -1,18 +1,19 @@
 {
   "owner": "issue26-mcp-worker",
-  "epoch": 2,
+  "epoch": 3,
   "state": "review",
   "spec": "ed6fba56e707ff87b81c34281f8661c8c6787168066a813be5456b75b55f77b3",
-  "attempts": 1,
+  "attempts": 2,
   "correction": {
-    "attempts": 1,
+    "attempts": 2,
     "findings": [
       "mcp-actual-session-discovery",
       "mcp-explicit-write-conflict",
-      "mcp-http-actuals-parity-contract"
+      "mcp-http-actuals-parity-contract",
+      "mcp-training-oauth-metadata-discovery"
     ]
   },
-  "heartbeat": "2026-11-09T03:59:35.447Z",
-  "expires": "2026-11-09T05:59:35.447Z",
-  "checkpoint": "First bounded current-head correction: planned workout session discovery, distinct write conflicts, transport-level synthetic contract. Await exact-head CI and independent review."
+  "heartbeat": "2026-11-09T06:05:20.345Z",
+  "expires": "2026-11-09T08:05:20.345Z",
+  "checkpoint": "Second cumulative scoped correction: conditional training scopes in OAuth resource metadata and unauthorized MCP challenge, synthetic ON/OFF regression. Await exact-head CI and independent PR review."
 }
