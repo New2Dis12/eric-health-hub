@@ -281,7 +281,7 @@ test('synthetic HTTP browser save to authenticated MCP tools/call and MCP correc
   const post=await handlers.POST(new Request(origin+'/api/training/results',{method:'POST',headers:{cookie,origin,'content-type':'application/json'},body:JSON.stringify(httpSave)}))
   assert.equal(post.status,200)
   const api={...principal,source:'api' as const}
-  const call=async (name:string,args:object,scopes=['training.read','training.write'],sub=subject)=>{
+  const call=async (name:string,args:object,scopes:TrainingPrincipal['scopes']=['training.read','training.write'],sub=subject)=>{
     const server=createEricHealthMcpServer(false,{canReadOura:false,trainingPrincipal:{...api,scopes,subject:sub},actualsAdapter:adapter})
     const transport=new WebStandardStreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true})
     try {
@@ -307,7 +307,7 @@ test('synthetic HTTP browser save to authenticated MCP tools/call and MCP correc
   assert.deepEqual(retry.structuredContent,write.structuredContent)
   const browser=await handlers.GET(new Request(origin+'/api/training/results?session='+strength.id+'&history=true&limit=100',{headers:{cookie}}))
   assert.equal(browser.status,200)
-  const saved=await browser.json()
+  const saved=await browser.json() as {entries:Array<{id:string,value:{reps:number|null}}>}
   assert.equal(saved.entries.find((e:{id:string})=>e.id===write.structuredContent?.entryId).value.reps,9)
   assert.equal((await db.query('SELECT count(*)::int AS n FROM stunna.audit_events WHERE entity_id=$1',[write.structuredContent?.entryId])).rows[0].n,1)
   const conflict=await call('correct_saved_strength_result',{...command,idempotencyKey:randomUUID()})
