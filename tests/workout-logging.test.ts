@@ -308,8 +308,8 @@ test('synthetic HTTP browser save to authenticated MCP tools/call and MCP correc
   const browser=await handlers.GET(new Request(origin+'/api/training/results?session='+strength.id+'&history=true&limit=100',{headers:{cookie}}))
   assert.equal(browser.status,200)
   const saved=await browser.json() as {entries:Array<{id:string,value:{reps:number|null}}>}
-  assert.equal(saved.entries.find((e:{id:string})=>e.id===write.structuredContent?.entryId).value.reps,9)
-  assert.equal((await db.query('SELECT count(*)::int AS n FROM stunna.audit_events WHERE entity_id=$1',[write.structuredContent?.entryId])).rows[0].n,1)
+  assert.equal(saved.entries.find((e:{id:string})=>e.id===write.structuredContent?.entryId)?.value.reps,9)
+  assert.equal((await db.query<{n:number}>('SELECT count(*)::int AS n FROM stunna.audit_events WHERE entity_id=$1',[write.structuredContent?.entryId])).rows[0].n,1)
   const conflict=await call('correct_saved_strength_result',{...command,idempotencyKey:randomUUID()})
   assert.equal(conflict.isError,true)
   assert.equal(conflict.structuredContent?.errorCode,'REVISION_CONFLICT')
