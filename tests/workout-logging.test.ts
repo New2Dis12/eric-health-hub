@@ -219,3 +219,49 @@ test('execution checks reject malformed, stale, unauthorized, and nonsegment wri
   await db.query("UPDATE stunna.actual_sessions SET status='completed',completed_at=started_at WHERE id=$1",[intervals.id])
   await assert.rejects(service.write(principal,await log(intervals,item,1)),reject(409))
 })
+
+test('MCP actuals adapters share durable browser service with bounded history, revisions, notes and isolation',async()=>{
+  const {createMcpTrainingActuals}=await import('../lib/training/mcp-actuals')
+  const adapter=createMcpTrainingActuals(()=>service)
+  process.env.STUNNA_ENABLED='true'
+  const browser=await log(strength,{kind:'exercise_note',occurrenceId:occ(strength),notes:'Synthetic browser-to-MCP note'},
+    (await service.results(principal,strength.id)).entries.filter(e=>e.kind==='exercise_note').at(-1)?.revision??0)
+  await service.write(principal,browser)
+  const api={...principal,source:'api' as const}
+  const page=await adapter.read(api,{sessionId:strength.id,history:true,limit:50,offset:0})
+  assert.ok(page.entries.some(e=>e.kind==='exercise_note'&&e.value&&'notes' in e.value&&e.value.notes==='Synthetic browser-to-MCP note'))
+  assert.ok(page.entries.some(e=>e.kind==='strength_set'&&e.value&&'load' in e.value&&e.value.load?.basis==='per_hand'))
+  assert.equal(page.sessionId,strength.id)
+  const bounded=await adapter.read(api,{sessionId:strength.id,history:true,limit:1,offset:0})
+  assert.equal(bounded.entries.length,1)
+  assert.equal((await adapter.read(api,{sessionId:other.id,history:false,limit:50,offset:0})).sessionId,other.id)
+  await assert.rejects(adapter.read({...api,scopes:['training.write']},{sessionId:strength.id,history:false,limit:25,offset:0}),reject(403))
+  await assert.rejects(adapter.read({...api,subject:'auth0|synthetic-wrong'},{sessionId:strength.id,history:false,limit:25,offset:0}),reject(403))
+  await assert.rejects(adapter.read(api,{sessionId:strength.id,history:false,limit:101,offset:0}))
+})
+test('MCP corrections share browser audit and idempotency with stale-revision and scope guards',async()=>{
+  const {createMcpTrainingActuals}=await import('../lib/training/mcp-actuals')
+  const adapter=createMcpTrainingActuals(()=>service)
+  process.env.STUNNA_ENABLED='true'
+  const api={...principal,source:'api' as const}
+  const state=await service.results(principal,strength.id)
+  const existing=state.entries.find(e=>e.kind==='strength_set'&&e.set_ordinal===2)!
+  const item={kind:'strength_set' as const,occurrenceId:occ(strength),setOrdinal:2,actual:{reps:8,load:{value:35,unit:'lb' as const,basis:'per_hand' as const},rpe:7,source:'user_reported' as const}}
+  const command={idempotencyKey:randomUUID(),reason:'Synthetic MCP correction',sessionId:strength.id,expectedSessionRevision:state.sessionRevision,expectedItemRevision:existing.revision,item}
+  const receipt=await adapter.write(api,command)
+  assert.deepEqual(await adapter.write(api,command),receipt)
+  const browser=await service.results(principal,strength.id,true,100,0)
+  const saved=browser.entries.find(e=>e.id===receipt.entryId)!
+  assert.equal((saved.value as typeof item.actual).reps,8)
+  assert.deepEqual(saved.before_value,existing.value)
+  assert.equal(saved.source,'api')
+  assert.equal(saved.session_revision,receipt.sessionRevision)
+  assert.equal((await db.query('SELECT * FROM stunna.audit_events WHERE entity_id=$1',[receipt.entryId])).rows.length,1)
+  await assert.rejects(adapter.write(api,{...command,idempotencyKey:randomUUID()}),reject(409))
+  await assert.rejects(adapter.write({...api,scopes:['training.read']},{...command,idempotencyKey:randomUUID()}),reject(403))
+  await assert.rejects(adapter.write({...api,subject:'auth0|synthetic-wrong'},{...command,idempotencyKey:randomUUID()}),reject(403))
+  const notes=await service.results(principal,strength.id)
+  const noteCommand={idempotencyKey:randomUUID(),reason:'Synthetic MCP note correction',sessionId:strength.id,expectedSessionRevision:notes.sessionRevision,expectedItemRevision:notes.notesRevision,item:{kind:'workout_note' as const,notes:'Synthetic MCP overall'}}
+  await adapter.write(api,noteCommand)
+  assert.equal((await service.results(principal,strength.id)).notes,'Synthetic MCP overall')
+})
