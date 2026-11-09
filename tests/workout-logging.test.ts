@@ -288,7 +288,9 @@ test('synthetic HTTP browser save to authenticated MCP tools/call and MCP correc
       await server.connect(transport)
       const response=await transport.handleRequest(new Request(origin+'/mcp',{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}})}))
       assert.equal(response.status,200)
-      return (await response.json()).result as {isError?:boolean;structuredContent?:Record<string,unknown>;content:{type:string;text:string}[]}
+      const payload=await response.json()
+      if (payload.error) return {isError:true,content:[{type:'text',text:'Tool unavailable'}]}
+      return payload.result as {isError?:boolean;structuredContent?:Record<string,unknown>;content:{type:string;text:string}[]}
     } finally {await transport.close();await server.close()}
   }
   const read=await call('get_saved_workout_results',{plannedSessionId,history:true,limit:50,offset:0})
