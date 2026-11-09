@@ -828,13 +828,14 @@ test("server session state controls Start, Resume, and finalized labels independ
 test("invalid strength reps and load explain the limits without a save request", async () => {
   let tree!: ReactTestRenderer;
   let writes = 0;
+  let lastWrite: unknown;
   await act(async () => {
     tree = create(
       <PlayerView
         workout={workout}
         data={data}
         busy={false}
-        save={async () => { writes++; }}
+        save={async (item) => { writes++; lastWrite = item; }}
         changed={() => {}}
       />,
     );
@@ -870,7 +871,19 @@ test("invalid strength reps and load explain the limits without a save request",
     assert.doesNotMatch(text(tree), /Load must be between 0 and 2,000 lb or kg/);
     await act(async () => save().props.onClick());
     assert.equal(writes, 1);
-    assert.match(text(tree), /Saved · Logged/);
+    // The save stub does not update server-provided props; assert the write
+    // boundary rather than fabricating a confirmed readback.
+    assert.deepEqual(lastWrite, {
+      kind: "strength_set",
+      occurrenceId: "exercise-a",
+      setOrdinal: 1,
+      actual: {
+        reps: 500,
+        load: { value: 2000, unit: "lb", basis: "total" },
+        rpe: null,
+        source: "user_reported",
+      },
+    });
   } finally {
     await act(async () => tree.unmount());
   }
