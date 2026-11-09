@@ -1,21 +1,22 @@
 {
   "owner": "issue26-mcp-worker",
-  "epoch": 4,
+  "epoch": 5,
   "state": "review",
   "spec": "ed6fba56e707ff87b81c34281f8661c8c6787168066a813be5456b75b55f77b3",
-  "attempts": 3,
+  "attempts": 4,
   "correction": {
-    "attempts": 3,
+    "attempts": 4,
     "findings": [
       "mcp-actual-session-discovery",
       "mcp-explicit-write-conflict",
       "mcp-http-actuals-parity-contract",
       "mcp-training-oauth-metadata-discovery",
       "mcp-preview-resource-identity-mismatch",
-      "mcp-oauth-challenge-overrequests-write"
+      "mcp-oauth-challenge-overrequests-write",
+      "issue26-ci-auth0-mixed-line-endings"
     ]
   },
-  "heartbeat": "2026-11-09T16:04:25.262Z",
-  "expires": "2026-11-09T18:04:25.262Z",
-  "checkpoint": "Final bounded correction: trusted MCP_RESOURCE_URL identity and strict audience, least-privilege challenge, synthetic isolation tests. Pending exact-head CI and independent review."
+  "heartbeat": "2026-11-09T17:05:00.000Z",
+  "expires": "2026-11-09T19:05:00.000Z",
+  "checkpoint": "Owner-specific one-time fourth correction: lib/auth0.ts newline-only LF normalization, no code semantics changed. Await exact-head CI and independent review; no further correction authorized."
 }
