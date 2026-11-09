@@ -7,7 +7,8 @@ import { trainingService, type createTrainingService } from './service'
 
 // Use the same RLS-enforced service, validated command and durable idempotency ledger as the browser API.
 export const actualsPage = z.strictObject({
-  sessionId: z.uuid(),
+  sessionId: z.uuid().optional(),
+  plannedSessionId: z.uuid().optional(),
   history: z.boolean().default(false),
   limit: z.number().int().min(1).max(50).default(25),
   offset: z.number().int().min(0).max(10000).default(0),
@@ -36,9 +37,14 @@ export function createMcpTrainingActuals(service: () => Service = trainingServic
       assertTrainingAccess(principal, 'training.read')
       if (process.env.STUNNA_ENABLED !== 'true') throw new ApiError(404,'Not found')
       const page = actualsPage.parse(input)
-      // Exact service result includes nullable actuals, actor/source, item/session revisions,
-      // previous values, notes and stable chronological pagination.
-      return service().results(principal,page.sessionId,page.history,page.limit,page.offset)
+      // A calendar returns a planned workout ID, whereas the results reader uses the
+      // actual-session ID. Resolve only the authenticated athlete's existing session.
+      if ((page.sessionId === undefined) === (page.plannedSessionId === undefined)) throw new ApiError(400, 'Supply exactly one workout identifier')
+      const sessionId = page.plannedSessionId
+        ? (await service().workout(principal, page.plannedSessionId))?.id
+        : page.sessionId
+      if (!sessionId) throw new ApiError(404, 'Saved session not found')
+      return service().results(principal,sessionId,page.history,page.limit,page.offset)
     },
     async write(principal: TrainingPrincipal, input: z.infer<typeof actualsWrite>) {
       assertTrainingAccess(principal, 'training.write')

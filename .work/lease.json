@@ -1,14 +1,18 @@
 {
   "owner": "issue26-mcp-worker",
-  "epoch": 1,
+  "epoch": 2,
   "state": "review",
   "spec": "ed6fba56e707ff87b81c34281f8661c8c6787168066a813be5456b75b55f77b3",
-  "attempts": 0,
+  "attempts": 1,
   "correction": {
-    "attempts": 0,
-    "findings": []
+    "attempts": 1,
+    "findings": [
+      "mcp-actual-session-discovery",
+      "mcp-explicit-write-conflict",
+      "mcp-http-actuals-parity-contract"
+    ]
   },
-  "heartbeat": "2026-11-09T02:07:00Z",
-  "expires": "2026-11-09T04:07:00Z",
-  "checkpoint": "Implementation complete; synthetic CI passed on source head 19e2411. Review-state metadata publication awaiting its own exact-head CI. Independent reviewer and owner gates remain."
+  "heartbeat": "2026-11-09T03:59:35.447Z",
+  "expires": "2026-11-09T05:59:35.447Z",
+  "checkpoint": "First bounded current-head correction: planned workout session discovery, distinct write conflicts, transport-level synthetic contract. Await exact-head CI and independent review."
 }

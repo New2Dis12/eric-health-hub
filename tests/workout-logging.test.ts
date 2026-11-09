@@ -10,6 +10,8 @@ import {requireTrainingPrincipal,type TrainingPrincipal} from '../lib/training/a
 import type {TrainingDatabase,Queryable} from '../lib/training/database'
 import type {WorkoutSession} from '../lib/training/session'
 import {ApiError} from '../lib/private-api'
+import {createEricHealthMcpServer} from '../lib/mcp-server'
+import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 const db=new PGlite(), subject='auth0|synthetic-task2'
 const principal:TrainingPrincipal={subject,source:'browser',scopes:['training.read','training.write']}
 const database:TrainingDatabase={transaction:(sub,fn)=>db.transaction(async tx=>{
@@ -264,4 +266,59 @@ test('MCP corrections share browser audit and idempotency with stale-revision an
   const noteCommand={idempotencyKey:randomUUID(),reason:'Synthetic MCP note correction',sessionId:strength.id,expectedSessionRevision:notes.sessionRevision,expectedItemRevision:notes.notesRevision,item:{kind:'workout_note' as const,notes:'Synthetic MCP overall'}}
   await adapter.write(api,noteCommand)
   assert.equal((await service.results(principal,strength.id)).notes,'Synthetic MCP overall')
+})
+
+test('synthetic HTTP browser save to authenticated MCP tools/call and MCP correction to browser reload', async () => {
+  const {createMcpTrainingActuals}=await import('../lib/training/mcp-actuals')
+  const adapter=createMcpTrainingActuals(()=>service)
+  process.env.STUNNA_ENABLED='true'
+  const origin='https://task4.invalid'
+  Object.assign(process.env,{AUTH0_DOMAIN:'tenant.invalid',AUTH0_CLIENT_ID:'synthetic',AUTH0_CLIENT_SECRET:'synthetic',AUTH0_SECRET:'2a'.repeat(32),APP_BASE_URL:origin})
+  const cookie='__session='+await generateSessionCookie({user:{sub:subject},tokenSet:{accessToken:'synthetic',expiresAt:Math.floor(Date.now()/1000)+3600},internal:{sid:'synthetic',createdAt:Math.floor(Date.now()/1000)}},{secret:process.env.AUTH0_SECRET!})
+  const handlers=createLoggingHandlers({enabled:()=>true,principal:requireTrainingPrincipal,service:()=>service})
+  const plannedSessionId=(await db.query<{planned_session_id:string}>('SELECT planned_session_id FROM stunna.actual_sessions WHERE id=$1',[strength.id])).rows[0].planned_session_id
+  const httpSave=await log(strength,{kind:'workout_note',notes:'Synthetic transport browser note'},(await service.results(principal,strength.id)).notesRevision)
+  const post=await handlers.POST(new Request(origin+'/api/training/results',{method:'POST',headers:{cookie,origin,'content-type':'application/json'},body:JSON.stringify(httpSave)}))
+  assert.equal(post.status,200)
+  const api={...principal,source:'api' as const}
+  const call=async (name:string,args:object,scopes=['training.read','training.write'],sub=subject)=>{
+    const server=createEricHealthMcpServer(false,{canReadOura:false,trainingPrincipal:{...api,scopes,subject:sub},actualsAdapter:adapter})
+    const transport=new WebStandardStreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true})
+    try {
+      await server.connect(transport)
+      const response=await transport.handleRequest(new Request(origin+'/mcp',{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}})}))
+      assert.equal(response.status,200)
+      return (await response.json()).result as {isError?:boolean;structuredContent?:Record<string,unknown>;content:{type:string;text:string}[]}
+    } finally {await transport.close();await server.close()}
+  }
+  const read=await call('get_saved_workout_results',{plannedSessionId,history:true,limit:50,offset:0})
+  assert.equal(read.isError,undefined)
+  assert.equal(read.structuredContent?.sessionId,strength.id)
+  assert.equal(read.structuredContent?.notes,'Synthetic transport browser note')
+  const current=await service.results(principal,strength.id)
+  const existing=current.entries.find(e=>e.kind==='strength_set'&&e.set_ordinal===1)!
+  const command={idempotencyKey:randomUUID(),reason:'Synthetic transport correction',sessionId:strength.id,expectedSessionRevision:current.sessionRevision,expectedItemRevision:existing.revision,
+    item:{kind:'strength_set',occurrenceId:occ(strength),setOrdinal:1,actual:{reps:9,load:{value:25,unit:'lb',basis:'per_hand'},rpe:8,source:'user_reported'}}}
+  const write=await call('correct_saved_strength_result',command)
+  assert.equal(write.isError,undefined)
+  const retry=await call('correct_saved_strength_result',command)
+  assert.deepEqual(retry.structuredContent,write.structuredContent)
+  const browser=await handlers.GET(new Request(origin+'/api/training/results?session='+strength.id+'&history=true&limit=100',{headers:{cookie}}))
+  assert.equal(browser.status,200)
+  const saved=await browser.json()
+  assert.equal(saved.entries.find((e:{id:string})=>e.id===write.structuredContent?.entryId).value.reps,9)
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM stunna.audit_events WHERE entity_id=$1',[write.structuredContent?.entryId])).rows[0].n,1)
+  const conflict=await call('correct_saved_strength_result',{...command,idempotencyKey:randomUUID()})
+  assert.equal(conflict.isError,true)
+  assert.equal(conflict.structuredContent?.errorCode,'REVISION_CONFLICT')
+  const deniedWrite=await call('correct_saved_strength_result',{...command,idempotencyKey:randomUUID()},['training.read'])
+  assert.equal(deniedWrite.isError,true)
+  const deniedRead=await call('get_saved_workout_results',{plannedSessionId},['training.write'])
+  assert.equal(deniedRead.isError,true)
+  const wrong=await call('get_saved_workout_results',{plannedSessionId},['training.read'],'auth0|wrong')
+  assert.equal(wrong.isError,true)
+  const otherRead=await call('get_saved_workout_results',{sessionId:other.id},['training.read'])
+  assert.equal(otherRead.structuredContent?.sessionId,other.id)
+  assert.equal((await call('get_saved_workout_results',{sessionId:strength.id,plannedSessionId},['training.read'])).isError,true)
+  assert.equal((await call('get_saved_workout_results',{plannedSessionId,limit:51},['training.read'])).isError,true)
 })

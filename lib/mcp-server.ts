@@ -2,6 +2,7 @@
 import 'server-only'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import { ApiError } from '@/lib/private-api'
 import { getOuraTestResultFromStore } from '@/lib/oura-data'
 import { getGarminActivities, getGarminActivityFit } from '@/lib/garmin'
 import { getTrainingContext } from '@/lib/training/context'
@@ -29,6 +30,7 @@ function errorResult(message: string) {
 export function createEricHealthMcpServer(canReadGarmin = false, options: {
   canReadOura?: boolean
   trainingPrincipal?: TrainingPrincipal
+  actualsAdapter?: ReturnType<typeof createMcpTrainingActuals>
 } = {}) {
   const server = new McpServer({ name: 'eric-health-hub', version: '0.1.0' })
 
@@ -130,10 +132,10 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
 
   const principal = options.trainingPrincipal
   if (process.env.STUNNA_ENABLED === 'true' && principal) {
-    const actuals = createMcpTrainingActuals()
+    const actuals = options.actualsAdapter ?? createMcpTrainingActuals()
     if (principal.scopes.includes('training.read')) server.registerTool('get_saved_workout_results', {
       title: 'Read saved workout actuals and history',
-      description: 'Read a bounded page of saved workout results for one owned session, optionally including chronological corrections and notes. Values and nulls are authoritative, not inferred.',
+      description: 'Read bounded saved workout results by actual session UUID or planned workout UUID from the training calendar, optionally including chronological corrections and notes. Supply exactly one identifier. Values and nulls are authoritative.',
       inputSchema: actualsPage.shape,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async input => {
@@ -153,7 +155,12 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
       try {
         const result = await actuals.write(principal, input)
         return { structuredContent: result, content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
-      } catch { return errorResult('Workout write rejected. Check access, session state, item revision and idempotency key; re-read before retrying.') }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          return { ...errorResult('Workout revision or idempotency conflict. Re-read current results before retrying.'), structuredContent: { errorCode: 'REVISION_CONFLICT' } }
+        }
+        return errorResult('Workout write rejected. Check access and session state before retrying.')
+      }
     })
   }
   if (process.env.STUNNA_ENABLED === 'true' && principal?.scopes.includes('training.read')) {
