@@ -80,4 +80,18 @@ export function proposedReps(exercise: {
 }) {
   return exercise.repsRange?.max ?? exercise.reps ?? null;
 }
+// Mirror the existing server-side bounds before submitting a strength set.
+export function validateStrengthDraft(reps: string, load: string): string | null {
+  if (reps.trim() !== "") {
+    const value = Number(reps);
+    if (!Number.isInteger(value) || value < 0 || value > 500)
+      return "Reps must be a whole number between 0 and 500.";
+  }
+  if (load.trim() !== "") {
+    const value = Number(load);
+    if (!Number.isFinite(value) || value < 0 || value > 2000)
+      return "Load must be between 0 and 2,000 lb or kg.";
+  }
+  return null;
+}
 export const rpeOptions = Array.from({ length: 21 }, (_, i) => String(i / 2));

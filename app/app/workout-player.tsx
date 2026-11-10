@@ -13,6 +13,7 @@ import {
   PlayerError,
   proposedReps,
   rpeOptions,
+  validateStrengthDraft,
 } from "@/lib/training/player-client";
 import styles from "./player.module.css";
 
@@ -126,6 +127,14 @@ function SetRow({
       setStatus("Use Edit to enter a value before logging.");
       onExpand();
       return;
+    }
+    if (!pending.current) {
+      const validationError = validateStrengthDraft(draft.reps, draft.load);
+      if (validationError) {
+        setStatus(validationError);
+        onExpand();
+        return;
+      }
     }
     const baseRevision = dirty ? draftRevision : revision;
     setDraftRevision(baseRevision);
