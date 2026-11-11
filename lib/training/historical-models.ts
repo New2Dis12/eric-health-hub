@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { createHash } from 'node:crypto'
 
 const date = z.iso.date()
 const uuid = z.uuid()
@@ -28,6 +29,8 @@ const metric = z.strictObject({
 }).refine(m => m.value === null || m.unit !== null, 'Measured metric requires original unit')
 const workout = z.strictObject({
   sourceRecordId: z.string().min(1).max(150),
+  // Optional stable identity shared by multiple independent source files.
+  logicalRecordId: z.string().regex(/^[a-zA-Z0-9_.:-]{1,150}$/).optional(),
   category: z.literal('workout'),
   occurredOn: date,
   modality,
@@ -109,4 +112,108 @@ export function inspectMarkdownStructure(fileClass: SourceClass, markdown: strin
   return { fileClass, supportedCategories:classMapping[fileClass], headingCount:headings.length,
     // Never return raw source excerpts in a public coverage report.
     requiresPrivateMapping: true, deferredWhenUnmapped: ['unknown'] }
+}
+
+// Strict, private-only Markdown adapter. A source record must carry an explicit,
+// stable marker; unmarked headings and ambiguous values are enumerated, not guessed.
+// Example: <!-- stunna-record: session-1 --> followed by '- category: workout'.
+export function normalizeHistoricalMarkdown(input: {
+  fileClass: SourceClass; sourceKey: string; fileVersion: number;
+  authority: number; markdown: string
+}) {
+  if (Buffer.byteLength(input.markdown,'utf8') > 2_000_000) throw new Error('Source too large')
+  const marker = /<!--\s*stunna-record:\s*([a-zA-Z0-9_.:-]{1,150})\s*-->/g
+  const matches=[...input.markdown.matchAll(marker)]
+  const records: HistoricalRecord[]=[]
+  const unmappedCategories = new Set<string>()
+  const deferredIds:string[]=[]
+  const expected=new Set<string>(classMapping[input.fileClass])
+  if (!matches.length) unmappedCategories.add('unmarked_markdown')
+  const sections = input.markdown.split(/^#{1,6}\s+[^\n]+$/m)
+  if (sections.some(section=>section.trim() && !section.includes('stunna-record:')) && !matches.length)
+    unmappedCategories.add('unmarked_sections')
+  for (let i=0;i<matches.length;i++) {
+    const id=matches[i][1]
+    const text=input.markdown.slice(matches[i].index!+matches[i][0].length,
+      i+1<matches.length?matches[i+1].index:undefined)
+    const fields:Record<string,string>={}
+    for (const line of text.split(/\r?\n/)) {
+      const pair=/^\s*-\s+([a-zA-Z][a-zA-Z0-9_.]*):\s*(.*?)\s*$/.exec(line)
+      if (pair) fields[pair[1]]=pair[2]
+    }
+    const category=fields.category??'unknown'
+    if (!expected.has(category)) unmappedCategories.add(category)
+    // All ambiguous or malformed records remain explicit deferred evidence.
+    const defer=(reason:string)=>{
+      deferredIds.push(id)
+      records.push({sourceRecordId:id,category:'unknown',occurredOn:null,
+        provenance:'unknown',representation:'deferred',
+        attributes:{reason,sourceCategory:category}})
+    }
+    if (!expected.has(category)) {defer('unsupported_category');continue}
+    if (category==='workout') {
+      const on=fields.occurredOn
+      const precision=fields.precision
+      const completion=fields.completion
+      if (!on || !/^\d{4}-\d{2}-\d{2}$/.test(on) ||
+          !fields.modality || !precision || !completion) {
+        defer('incomplete_workout');continue
+      }
+      let strength:unknown=[],metrics:unknown=[]
+      try {
+        if (fields.strength) strength=JSON.parse(fields.strength)
+        if (fields.metrics) metrics=JSON.parse(fields.metrics)
+        // Native Markdown tables can carry partial sets without JSON or
+        // fabricated reps. Unknown/blank numeric cells become truthful nulls.
+        const lines=text.split(/\r?\n/).filter(line=>/^\s*\|/.test(line))
+        const cells=(line:string)=>line.trim().replace(/^\|/,'').replace(/\|$/,'')
+          .split('|').map(cell=>cell.trim())
+        const number=(value:string)=>value && value!=='?' && value!=='unknown'
+          ? Number(value) : null
+        for(let n=0;n<lines.length;n++){
+          const header=cells(lines[n])
+          if(header.join('|')==='exercise|sets|reps|load|unit|basis|rpe|verification') {
+            const rows:unknown[]=[]
+            for(let j=n+2;j<lines.length;j++){
+              const row=cells(lines[j]); if(row.length!==8) break
+              const loadValue=number(row[3])
+              rows.push({exercise:row[0],sets:number(row[1]),reps:number(row[2]),
+                load:loadValue===null?null:{value:loadValue,unit:row[4],basis:row[5]},
+                rpe:number(row[6]),verification:row[7]})
+            }
+            strength=rows
+          }
+        }
+      } catch {defer('invalid_structured_observation');continue}
+      const parsed=historicalRecord.safeParse({
+        sourceRecordId:id,logicalRecordId:fields.logicalRecordId||undefined,
+        category:'workout',occurredOn:on,modality:fields.modality,
+        completion,precision,startedAt:fields.startedAt||null,
+        rpe:fields.rpe && fields.rpe!=='unknown'?Number(fields.rpe):null,
+        notes:fields.notes||null,strength,metrics,provenance:fields.provenance||'unknown',
+      })
+      if (!parsed.success) {defer('invalid_workout');continue}
+      records.push(parsed.data)
+    } else {
+      const attrs:Record<string,string|number|boolean|null>={}
+      for (const [key,value] of Object.entries(fields)) if (key.startsWith('attr.')) {
+        const name=key.slice(5)
+        if (value==='null') attrs[name]=null
+        else if (value==='true'||value==='false') attrs[name]=value==='true'
+        else if (/^-?\d+(?:\.\d+)?$/.test(value)) attrs[name]=Number(value)
+        else attrs[name]=value
+      }
+      const parsed=historicalRecord.safeParse({sourceRecordId:id,category,
+        occurredOn:fields.occurredOn||null,provenance:fields.provenance||'unknown',
+        representation:fields.representation||'deferred',attributes:attrs})
+      if (!parsed.success) {defer('invalid_nonworkout');continue}
+      records.push(parsed.data)
+    }
+  }
+  const batch=historicalBatch.parse({
+    sourceKey:input.sourceKey,fileVersion:input.fileVersion,authority:input.authority,
+    checksum:createHash('sha256').update(input.markdown,'utf8').digest('hex'),records,
+  })
+  return {batch,unmappedCategories:[...unmappedCategories].sort(),
+    deferredIds,unmarkedSectionCount:matches.length?0:sections.filter(x=>x.trim()).length}
 }

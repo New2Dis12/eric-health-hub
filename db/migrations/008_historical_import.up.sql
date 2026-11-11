@@ -18,6 +18,7 @@ ALTER TABLE stunna.actual_sessions ADD CONSTRAINT actual_sessions_live_or_histor
   OR
   (is_historical AND source='reviewed_import' AND planned_session_id IS NULL
    AND historical_on IS NOT NULL AND status='completed' AND completed_at IS NULL
+   AND historical_modality IS NOT NULL AND historical_precision IS NOT NULL
    AND historical_modality IN ('strength','run','bike','swim','row','ski','mobility','other')
    AND historical_precision IN ('date','exact')
    AND ((historical_precision='date' AND started_at IS NULL)
@@ -41,6 +42,7 @@ CREATE TABLE stunna.historical_evidence (
   athlete_id uuid NOT NULL REFERENCES stunna.athletes(id),
   source_key text NOT NULL,
   source_record_id text NOT NULL CHECK (length(source_record_id) BETWEEN 1 AND 150),
+  logical_record_id text CHECK (length(logical_record_id) BETWEEN 1 AND 150),
   source_version integer NOT NULL,
   revision integer NOT NULL CHECK (revision > 0),
   category text NOT NULL CHECK (category IN
@@ -62,6 +64,8 @@ CREATE TABLE stunna.historical_evidence (
 );
 CREATE INDEX historical_evidence_latest ON stunna.historical_evidence
   (athlete_id,source_key,source_record_id,revision DESC);
+CREATE INDEX historical_evidence_logical ON stunna.historical_evidence
+  (athlete_id,logical_record_id) WHERE logical_record_id IS NOT NULL;
 CREATE INDEX historical_evidence_session ON stunna.historical_evidence
   (athlete_id,session_id,revision DESC) WHERE session_id IS NOT NULL;
 ALTER TABLE stunna.historical_import_files ENABLE ROW LEVEL SECURITY;

@@ -42,7 +42,7 @@ export function createTrainingService(database: TrainingDatabase) {
         return {
           blocks: (await tx.query<TrainingBlock>('SELECT * FROM stunna.training_blocks WHERE athlete_id=$1 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3', params)).rows,
           plans: (await tx.query<PlannedSession>('SELECT * FROM stunna.planned_sessions WHERE athlete_id=$1 ORDER BY scheduled_at DESC, id DESC LIMIT $2 OFFSET $3', params)).rows,
-          sessions: (await tx.query<ActualSession>('SELECT * FROM stunna.actual_sessions WHERE athlete_id=$1 ORDER BY started_at DESC, id DESC LIMIT $2 OFFSET $3', params)).rows,
+          sessions: (await tx.query<ActualSession>('SELECT * FROM stunna.actual_sessions WHERE athlete_id=$1 AND is_historical=false ORDER BY started_at DESC, id DESC LIMIT $2 OFFSET $3', params)).rows,
           measurements: (await tx.query<BodyMeasurement>('SELECT * FROM stunna.body_measurements WHERE athlete_id=$1 ORDER BY measured_at DESC, id DESC LIMIT $2 OFFSET $3', params)).rows,
         }
       })
