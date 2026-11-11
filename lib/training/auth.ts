@@ -5,7 +5,7 @@ import { isAllowedSubject } from '../web-auth'
 
 export type TrainingScope = 'training.read' | 'training.write'
 export type TrainingPrincipal = { subject: string; scopes: readonly TrainingScope[]; source: 'browser' | 'api' }
-const audience = 'https://eric-health-hub.vercel.app/mcp'
+import { mcpResourceUrl } from '../mcp-resource'
 let keySet: { domain: string; getKey: JWTVerifyGetKey } | undefined
 
 // Additive verifier: existing HealthScope and /mcp semantics remain unchanged.
@@ -13,6 +13,8 @@ export async function verifyTrainingBearer(header: string | null, testKey?: JWTV
   const match = /^Bearer (\S+)$/i.exec(header ?? '')
   if (!match) return null
   try {
+    const audience = mcpResourceUrl()
+    if (!audience) return null
     const domain = process.env.AUTH0_DOMAIN?.replace(/^https?:\/\//, '').replace(/\/$/, '')
     if (!domain) return null
     if (!testKey && keySet?.domain !== domain) keySet = { domain, getKey: createRemoteJWKSet(new URL(`https://${domain}/.well-known/jwks.json`)) }

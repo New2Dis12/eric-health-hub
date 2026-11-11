@@ -2,11 +2,13 @@
 import 'server-only'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import { ApiError } from '@/lib/private-api'
 import { getOuraTestResultFromStore } from '@/lib/oura-data'
 import { getGarminActivities, getGarminActivityFit } from '@/lib/garmin'
 import { getTrainingContext } from '@/lib/training/context'
 import { contextDate } from '@/lib/training/context-models'
 import type { TrainingPrincipal } from '@/lib/training/auth'
+import { actualsPage, actualsWrite, createMcpTrainingActuals } from '@/lib/training/mcp-actuals'
 
 const measurementSchema = z.object({
   value: z.number().nullable(),
@@ -28,6 +30,7 @@ function errorResult(message: string) {
 export function createEricHealthMcpServer(canReadGarmin = false, options: {
   canReadOura?: boolean
   trainingPrincipal?: TrainingPrincipal
+  actualsAdapter?: ReturnType<typeof createMcpTrainingActuals>
 } = {}) {
   const server = new McpServer({ name: 'eric-health-hub', version: '0.1.0' })
 
@@ -128,6 +131,38 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
   }
 
   const principal = options.trainingPrincipal
+  if (process.env.STUNNA_ENABLED === 'true' && principal) {
+    const actuals = options.actualsAdapter ?? createMcpTrainingActuals()
+    if (principal.scopes.includes('training.read')) server.registerTool('get_saved_workout_results', {
+      title: 'Read saved workout actuals and history',
+      description: 'Read bounded saved workout results by actual session UUID or planned workout UUID from the training calendar, optionally including chronological corrections and notes. Supply exactly one identifier. Values and nulls are authoritative.',
+      inputSchema: actualsPage.shape,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, async input => {
+      try {
+        const result = await actuals.read(principal, input)
+        const data = JSON.stringify(result)
+        if (Buffer.byteLength(data, 'utf8') > 128 * 1024) return errorResult('Response too large; reduce page size.')
+        return { structuredContent: result, content: [{ type: 'text' as const, text: data }] }
+      } catch { return errorResult('Saved workout results unavailable or access denied.') }
+    })
+    if (principal.scopes.includes('training.write')) server.registerTool('correct_saved_strength_result', {
+      title: 'Save or correct strength results and notes',
+      description: 'Write one validated strength set or exercise/workout note for an owned in-progress session. Requires exact revisions and a stable idempotency key; conflicting edits must be re-read.',
+      inputSchema: actualsWrite.shape,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, async input => {
+      try {
+        const result = await actuals.write(principal, input)
+        return { structuredContent: result, content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          return { ...errorResult('Workout revision or idempotency conflict. Re-read current results before retrying.'), structuredContent: { errorCode: 'REVISION_CONFLICT' } }
+        }
+        return errorResult('Workout write rejected. Check access and session state before retrying.')
+      }
+    })
+  }
   if (process.env.STUNNA_ENABLED === 'true' && principal?.scopes.includes('training.read')) {
     server.registerTool('get_training_context', {
       title: 'Get training context',

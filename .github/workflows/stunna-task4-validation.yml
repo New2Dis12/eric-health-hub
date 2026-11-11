@@ -1,0 +1,45 @@
+name: Stunna Task 4 synthetic validation
+
+on:
+  push:
+    branches:
+      - work/issue-26
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stunna-issue-26-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout exact branch commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@12.3.4
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Application and service tests
+        run: pnpm test
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Optimized build
+        run: pnpm build
+      - name: Workflow regression suite
+        run: node --test tests/workflow/*.test.mjs
+      - name: Whitespace check
+        run: git diff --check HEAD~1 HEAD

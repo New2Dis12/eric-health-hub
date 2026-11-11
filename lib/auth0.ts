@@ -2,7 +2,7 @@
 import 'server-only'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 
-const RESOURCE = 'https://eric-health-hub.vercel.app/mcp'
+import { mcpResourceUrl } from './mcp-resource'
 
 export type HealthScope = 'oura.read' | 'garmin.read'
 
@@ -45,11 +45,13 @@ export async function verifyHealthToken(
   if (!match) return null
 
   try {
+    const resource = mcpResourceUrl()
+    if (!resource) return null
     const { issuer, jwks } = getAuth0Config()
 
     const { payload } = await jwtVerify(match[1], jwks, {
       issuer,
-      audience: RESOURCE,
+      audience: resource,
       algorithms: ['RS256'],
       clockTolerance: 30,
     })
