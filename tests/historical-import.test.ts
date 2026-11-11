@@ -305,3 +305,102 @@ test('database rejects NULL historical modality and precision, not UNKNOWN CHECK
   await assert.rejects(insert('run',null))
   await assert.rejects(insert(null,null))
 })
+
+test('mixed marked/unmarked Markdown isolates heading fields and counts unmapped sections',()=>{
+  const markdown=`# Marked workout
+<!-- stunna-record: marked-session -->
+- category: workout
+- occurredOn: 2024-07-01
+- modality: strength
+- completion: confirmed
+- precision: date
+- provenance: reported
+## Unmarked recovery
+- category: recovery
+- notes: must not bleed into the marked workout
+## Another marked record
+<!-- stunna-record: second-session -->
+- category: workout
+- occurredOn: 2024-07-02
+- modality: run
+- completion: confirmed
+- precision: date
+- provenance: reported
+`
+  const normalized=normalizeHistoricalMarkdown({fileClass:'training_log',
+    sourceKey:'mixed_headings',fileVersion:1,authority:70,markdown})
+  assert.equal(normalized.unmarkedSectionCount,1)
+  assert.ok(normalized.unmappedCategories.includes('unmarked_sections'))
+  assert.equal(normalized.batch.records.length,2)
+  assert.deepEqual(normalized.batch.records.map(x=>x.category),['workout','workout'])
+  assert.deepEqual(normalized.batch.records.map(x=>x.sourceRecordId),
+    ['marked-session','second-session'])
+})
+
+test('later source version repairs a previously deferred workout with same source ID',async()=>{
+  const initial=normalizeHistoricalMarkdown({fileClass:'training_log',
+    sourceKey:'deferred_repair',fileVersion:1,authority:75,
+    markdown:`# Incomplete
+<!-- stunna-record: repaired-one -->
+- category: workout
+- occurredOn: 2024-08-01
+`})
+  assert.equal(initial.batch.records[0].category,'unknown')
+  await service.importHistory(principal,initial.batch,
+    {dryRun:false,explicitPrivateAuthorization:true})
+  const repaired=normalizeHistoricalMarkdown({fileClass:'training_log',
+    sourceKey:'deferred_repair',fileVersion:2,authority:75,
+    markdown:`# Repaired
+<!-- stunna-record: repaired-one -->
+- category: workout
+- occurredOn: 2024-08-01
+- modality: strength
+- completion: confirmed
+- precision: date
+- provenance: reported
+`})
+  assert.equal((await service.importHistory(principal,repaired.batch,{dryRun:true})).updated,1)
+  assert.equal((await service.importHistory(principal,repaired.batch,
+    {dryRun:false,explicitPrivateAuthorization:true})).updated,1)
+  const rows=(await service.history(principal,{revisions:true,limit:50,offset:0})).items as any[]
+  const history=rows.filter(x=>x.source_key==='deferred_repair')
+  assert.deepEqual(history.map(x=>x.category).sort(),['unknown','workout'])
+  assert.equal(history.find(x=>x.category==='workout').session_id!==null,true)
+})
+
+test('explicit IDs cannot collide with source-local IDs and fallback is bounded',async()=>{
+  const local=historicalBatch.parse({sourceKey:'namespace_local',fileVersion:1,
+    checksum:checksum('b'),authority:60,records:[workout('record')]})
+  const explicit=historicalBatch.parse({sourceKey:'namespace_other',fileVersion:1,
+    checksum:checksum('c'),authority:60,records:[{
+      ...workout('another'),logicalRecordId:'namespace_local:record'}]})
+  await service.importHistory(principal,local,{dryRun:false,explicitPrivateAuthorization:true})
+  await service.importHistory(principal,explicit,{dryRun:false,explicitPrivateAuthorization:true})
+  const long=historicalBatch.parse({sourceKey:'s'.repeat(120),fileVersion:1,
+    checksum:checksum('d'),authority:60,records:[workout('r'.repeat(150))]})
+  await service.importHistory(principal,long,{dryRun:false,explicitPrivateAuthorization:true})
+  const rows=(await service.history(principal,{limit:50,offset:0})).items as any[]
+  const a=rows.find(x=>x.source_key==='namespace_local')
+  const b=rows.find(x=>x.source_key==='namespace_other')
+  assert.ok(a?.session_id && b?.session_id)
+  assert.notEqual(a.session_id,b.session_id)
+  const stored=(await db.query<{logical_record_id:string}>(
+    'SELECT logical_record_id FROM stunna.historical_evidence WHERE source_key=$1',
+    ['s'.repeat(120)])).rows[0]
+  assert.ok(stored.logical_record_id.length<=150)
+})
+
+test('history does not cast free-text startedAt from non-workout evidence',async()=>{
+  const nonworkout=historicalBatch.parse({sourceKey:'recovery_free_text',fileVersion:1,
+    checksum:checksum('e'),authority:60,records:[{
+      sourceRecordId:'recovery-one',category:'recovery',occurredOn:'2024-03-05',
+      provenance:'reported',representation:'deferred',
+      attributes:{startedAt:'after lunch, no precise time'}}]})
+  await service.importHistory(principal,nonworkout,
+    {dryRun:false,explicitPrivateAuthorization:true})
+  const page=await service.history(principal,{date:'2024-03-05',limit:50,offset:0})
+  const item=(page.items as any[]).find(x=>x.source_key==='recovery_free_text')
+  assert.equal(item?.started_at,null)
+  assert.equal(item?.historical_precision,null)
+  assert.equal(item?.category,'recovery')
+})

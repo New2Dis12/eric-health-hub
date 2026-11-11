@@ -129,13 +129,21 @@ export function normalizeHistoricalMarkdown(input: {
   const deferredIds:string[]=[]
   const expected=new Set<string>(classMapping[input.fileClass])
   if (!matches.length) unmappedCategories.add('unmarked_markdown')
-  const sections = input.markdown.split(/^#{1,6}\s+[^\n]+$/m)
-  if (sections.some(section=>section.trim() && !section.includes('stunna-record:')) && !matches.length)
-    unmappedCategories.add('unmarked_sections')
+  // Heading boundaries isolate records: a later unmarked heading cannot
+  // donate its fields to the preceding marked record.
+  const headingStarts=[...input.markdown.matchAll(/^#{1,6}\s+[^\r\n]+/gm)]
+    .map(match=>match.index!)
+  const sections=input.markdown.split(/(?=^#{1,6}\s+[^\r\n]+)/gm)
+  const unmarkedSectionCount=sections.filter(section=>
+    section.trim() && !/<!--\s*stunna-record:/.test(section)).length
+  if (unmarkedSectionCount) unmappedCategories.add('unmarked_sections')
   for (let i=0;i<matches.length;i++) {
     const id=matches[i][1]
+    const nextMarker=i+1<matches.length?matches[i+1].index!:input.markdown.length
+    const nextHeading=headingStarts.find(start=>start>matches[i].index!)
+      ??input.markdown.length
     const text=input.markdown.slice(matches[i].index!+matches[i][0].length,
-      i+1<matches.length?matches[i+1].index:undefined)
+      Math.min(nextMarker,nextHeading))
     const fields:Record<string,string>={}
     for (const line of text.split(/\r?\n/)) {
       const pair=/^\s*-\s+([a-zA-Z][a-zA-Z0-9_.]*):\s*(.*?)\s*$/.exec(line)
@@ -215,5 +223,5 @@ export function normalizeHistoricalMarkdown(input: {
     checksum:createHash('sha256').update(input.markdown,'utf8').digest('hex'),records,
   })
   return {batch,unmappedCategories:[...unmappedCategories].sort(),
-    deferredIds,unmarkedSectionCount:matches.length?0:sections.filter(x=>x.trim()).length}
+    deferredIds,unmarkedSectionCount}
 }

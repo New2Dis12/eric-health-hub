@@ -14,11 +14,17 @@ function stable(value: unknown): string {
       .map(([k,v]) => JSON.stringify(k)+':'+stable(v)).join(',') + '}'
   return JSON.stringify(value) ?? 'null'
 }
+// Explicit cross-source IDs and generated source-local IDs must never collide.
+// The hash bounds fallback length even for two maximum-length source identifiers.
+function logicalIdentity(sourceKey:string, sourceRecordId:string, explicit?:string):string {
+  return explicit ? 'explicit:'+createHash('sha256').update(explicit).digest('hex') :
+    'source:'+createHash('sha256').update(sourceKey+'\0'+sourceRecordId).digest('hex')
+}
 function sessionUUID(athlete: string, logicalRecordId: string): string {
   const hex = createHash('sha256').update(athlete+'\0'+logicalRecordId).digest('hex')
   return hex.slice(0,8)+'-'+hex.slice(8,12)+'-5'+hex.slice(13,16)+'-a'+hex.slice(17,20)+'-'+hex.slice(20,32)
 }
-type Previous = {revision:number;payload:unknown;session_id:string|null;category:string;logical_record_id:string|null}
+type Previous = {revision:number;payload:unknown;session_id:string|null;category:string;representation:string;logical_record_id:string|null}
 type FileRow = {file_version:number;checksum:string;authority:number}
 export function createHistoricalService(database: TrainingDatabase) {
   return {
@@ -31,9 +37,10 @@ export function createHistoricalService(database: TrainingDatabase) {
         if (!athlete) return {items:[],limit:p.data.limit,offset:p.data.offset}
         const {rows}=await tx.query(`SELECT e.id,e.source_key,e.source_record_id,e.source_version,
           e.revision,e.category,e.representation,e.provenance,e.session_id,e.observed_on::text AS observed_on,e.payload,
-          e.payload->'details'->>'modality' AS historical_modality,
-          e.payload->'details'->>'precision' AS historical_precision,
-          (e.payload->'details'->>'startedAt')::timestamptz AS started_at,
+          CASE WHEN e.category='workout' THEN e.payload->'details'->>'modality' END AS historical_modality,
+          CASE WHEN e.category='workout' THEN e.payload->'details'->>'precision' END AS historical_precision,
+          CASE WHEN e.category='workout' THEN
+            (e.payload->'details'->>'startedAt')::timestamptz END AS started_at,
           CASE WHEN e.category='workout' AND e.payload->'details'->>'completion'='confirmed'
             THEN 'completed' ELSE NULL END AS status
           FROM stunna.historical_evidence e
@@ -78,13 +85,20 @@ export function createHistoricalService(database: TrainingDatabase) {
         const changes: {record:HistoricalBatch['records'][number];previous:Previous|null;payload:unknown;representation:string}[]=[]
         let unchanged=0,deferred=0,created=0,updated=0
         for (const record of b.records) {
-          const prev=(await tx.query<Previous>(`SELECT revision,payload,session_id,category,logical_record_id FROM stunna.historical_evidence
+          const prev=(await tx.query<Previous>(`SELECT revision,payload,session_id,category,representation,logical_record_id FROM stunna.historical_evidence
             WHERE athlete_id=$1 AND source_key=$2 AND source_record_id=$3 ORDER BY revision DESC LIMIT 1`,
             [athlete.id,b.sourceKey,record.sourceRecordId])).rows[0]??null
-          if (prev && prev.category!==record.category) throw new ApiError(409,'Source category changed; review required')
+          // An explicitly deferred parser record can be repaired by a later
+          // version of the same source ID, but not silently reclassified.
+          const previousDetails=(prev?.payload as {details?:{sourceCategory?:string}}|null)?.details
+          const repairingDeferred=prev?.category==='unknown' &&
+            prev.representation==='deferred' &&
+            previousDetails?.sourceCategory===record.category
+          if (prev && prev.category!==record.category && !repairingDeferred)
+            throw new ApiError(409,'Source category changed; review required')
           const logicalId=record.category==='workout'
-            ? (record.logicalRecordId??b.sourceKey+':'+record.sourceRecordId) : null
-          if (prev && prev.logical_record_id!==logicalId)
+            ? logicalIdentity(b.sourceKey,record.sourceRecordId,record.logicalRecordId) : null
+          if (prev && prev.logical_record_id!==logicalId && !repairingDeferred)
             throw new ApiError(409,'Logical identity changed; review required')
           const represented=record.category==='workout' && record.completion==='confirmed'
           if (prev?.session_id && !represented) throw new ApiError(409,'Cannot demote confirmed history')
@@ -116,7 +130,7 @@ export function createHistoricalService(database: TrainingDatabase) {
           const r=c.record
           let sessionId:string|null=c.previous?.session_id??null
           const logicalId=r.category==='workout'
-            ? (r.logicalRecordId??b.sourceKey+':'+r.sourceRecordId) : null
+            ? logicalIdentity(b.sourceKey,r.sourceRecordId,r.logicalRecordId) : null
           if (r.category==='workout' && r.completion==='confirmed') {
             sessionId??=sessionUUID(athlete.id,logicalId!)
             // A shared logical identity yields ONE session even when independent
