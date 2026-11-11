@@ -57,6 +57,8 @@ test('migrations are repeatable; down/up recreates the schema and tracks version
   try {
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'up'))
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
+    assert.equal((await fresh.query<{tab:string|null}>("SELECT to_regclass('stunna.historical_evidence') AS tab")).rows[0].tab, null)
+    await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
     assert.equal((await fresh.query("SELECT 1 FROM pg_trigger WHERE tgname='session_entry_execution_occurrence'")).rows.length, 0)
     assert.ok((await fresh.query<{tab:string|null}>("SELECT to_regclass('stunna.session_entries') AS tab")).rows[0].tab)
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
@@ -73,7 +75,7 @@ test('migrations are repeatable; down/up recreates the schema and tracks version
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'down'))
     assert.equal((await fresh.query<{ tab: string | null }>("SELECT to_regclass('stunna.actual_sessions') AS tab")).rows[0].tab, null)
     await fresh.transaction(tx => migrate(migrationConnection(tx), 'up'))
-    assert.equal((await fresh.query('SELECT * FROM public.stunna_schema_migrations')).rows.length, 7)
+    assert.equal((await fresh.query('SELECT * FROM public.stunna_schema_migrations')).rows.length, 8)
   } finally { await fresh.close() }
 })
 

@@ -8,6 +8,8 @@ import { getGarminActivities, getGarminActivityFit } from '@/lib/garmin'
 import { getTrainingContext } from '@/lib/training/context'
 import { contextDate } from '@/lib/training/context-models'
 import type { TrainingPrincipal } from '@/lib/training/auth'
+import { historicalPage } from '@/lib/training/historical-models'
+import { trainingService } from '@/lib/training/service'
 import { actualsPage, actualsWrite, createMcpTrainingActuals } from '@/lib/training/mcp-actuals'
 
 const measurementSchema = z.object({
@@ -133,6 +135,19 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
   const principal = options.trainingPrincipal
   if (process.env.STUNNA_ENABLED === 'true' && principal) {
     const actuals = options.actualsAdapter ?? createMcpTrainingActuals()
+    if (principal.scopes.includes('training.read')) server.registerTool('get_historical_training',
+      {title:'Read historical training and provenance',
+       description:'Read bounded imported historical observations by date or actual session UUID. Date-only history retains null timestamps, source versions and evidence provenance.',
+       inputSchema:historicalPage.shape,
+       annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},
+      async input=>{
+        try {
+          const result=await trainingService().history(principal,input)
+          const data=JSON.stringify(result)
+          if (Buffer.byteLength(data,'utf8')>128*1024) return errorResult('Response too large; reduce page size.')
+          return {structuredContent:result,content:[{type:'text' as const,text:data}]}
+        } catch {return errorResult('Historical training unavailable or access denied.')}
+      })
     if (principal.scopes.includes('training.read')) server.registerTool('get_saved_workout_results', {
       title: 'Read saved workout actuals and history',
       description: 'Read bounded saved workout results by actual session UUID or planned workout UUID from the training calendar, optionally including chronological corrections and notes. Supply exactly one identifier. Values and nulls are authoritative.',

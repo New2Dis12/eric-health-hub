@@ -1,22 +1,14 @@
 {
-  "owner": "issue26-mcp-worker",
-  "epoch": 5,
-  "state": "review",
-  "spec": "ed6fba56e707ff87b81c34281f8661c8c6787168066a813be5456b75b55f77b3",
-  "attempts": 4,
+  "owner": "issue30-historical-worker",
+  "epoch": 1,
+  "state": "in-progress",
+  "spec": "cb2f28e5b359dc54babc0352f1f81ffc759a09e03f3eb0ec12cf46d176dd7ad6",
+  "attempts": 0,
   "correction": {
-    "attempts": 4,
-    "findings": [
-      "mcp-actual-session-discovery",
-      "mcp-explicit-write-conflict",
-      "mcp-http-actuals-parity-contract",
-      "mcp-training-oauth-metadata-discovery",
-      "mcp-preview-resource-identity-mismatch",
-      "mcp-oauth-challenge-overrequests-write",
-      "issue26-ci-auth0-mixed-line-endings"
-    ]
+    "attempts": 0,
+    "findings": []
   },
-  "heartbeat": "2026-11-09T17:05:00.000Z",
-  "expires": "2026-11-09T19:05:00.000Z",
-  "checkpoint": "Owner-specific one-time fourth correction: lib/auth0.ts newline-only LF normalization, no code semantics changed. Await exact-head CI and independent review; no further correction authorized."
+  "heartbeat": "2026-11-11T15:12:57Z",
+  "expires": "2026-11-11T16:07:57Z",
+  "checkpoint": "Initial synthetic-only Issue30 implementation. Await exact-head CI and one PR; no hosted SQL/import/deploy."
 }

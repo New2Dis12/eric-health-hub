@@ -1,4 +1,5 @@
 import 'server-only'
+import { createHistoricalService } from './historical'
 import { logResult, readResults } from './logging'
 import { readWorkoutSession, startWorkout, workoutId } from './session'
 import { createHash, randomUUID } from 'node:crypto'
@@ -9,6 +10,7 @@ import { ApiError } from '../private-api'
 
 export function createTrainingService(database: TrainingDatabase) {
   return {
+    ...createHistoricalService(database),
     async results(principal: TrainingPrincipal, sessionId: unknown, history=false, limit=50, offset=0) {
       assertTrainingAccess(principal, 'training.read')
       if (!workoutId.safeParse(sessionId).success || typeof history!=='boolean' || !Number.isInteger(limit) || limit<1 || limit>100 || !Number.isInteger(offset) || offset<0 || offset>10000) throw new ApiError(400,'Invalid result page')

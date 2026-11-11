@@ -30,3 +30,13 @@ DO $$ BEGIN
     GRANT SELECT,INSERT ON stunna.session_entries TO stunna_runtime;
   END IF;
 END $$;
+
+-- Task 5 source-only history: append-only evidence/import ledger, restricted session edits.
+DO $$ BEGIN
+  IF to_regclass('stunna.historical_evidence') IS NOT NULL THEN
+    REVOKE ALL ON stunna.historical_evidence, stunna.historical_import_files FROM stunna_runtime;
+    GRANT SELECT,INSERT ON stunna.historical_evidence, stunna.historical_import_files TO stunna_runtime;
+    GRANT UPDATE(historical_on,historical_modality,historical_precision,notes,rpe,revision,updated_at)
+      ON stunna.actual_sessions TO stunna_runtime;
+  END IF;
+END $$;
