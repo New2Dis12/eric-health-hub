@@ -404,3 +404,57 @@ test('history does not cast free-text startedAt from non-workout evidence',async
   assert.equal(item?.historical_precision,null)
   assert.equal(item?.category,'recovery')
 })
+
+test('malformed marker is counted as unmapped beside valid record',()=>{
+  const markdown=['# Malformed','<!-- stunna-record: invalid id -->',
+    '- category: workout','## Valid','<!-- stunna-record: valid-one -->',
+    '- category: workout','- occurredOn: 2024-09-01','- modality: strength',
+    '- completion: confirmed','- precision: date','- provenance: reported'].join('\n')
+  const result=normalizeHistoricalMarkdown({fileClass:'training_log',sourceKey:'malformed_marker',
+    fileVersion:1,authority:50,markdown})
+  assert.equal(result.unmarkedSectionCount,1)
+  assert.ok(result.unmappedCategories.includes('unmarked_sections'))
+  assert.deepEqual(result.batch.records.map(r=>r.sourceRecordId),['valid-one'])
+})
+
+test('missing category can be repaired on later version with same ID',async()=>{
+  const first=normalizeHistoricalMarkdown({fileClass:'training_log',
+    sourceKey:'missing_category_repair',fileVersion:1,authority:60,
+    markdown:['# Missing','<!-- stunna-record: category-later -->',
+      '- occurredOn: 2024-09-02'].join('\n')})
+  assert.equal(first.batch.records[0].category,'unknown')
+  assert.equal(first.batch.records[0].category==='unknown' &&
+    first.batch.records[0].attributes.reason,'missing_category')
+  await service.importHistory(principal,first.batch,
+    {dryRun:false,explicitPrivateAuthorization:true})
+  const second=normalizeHistoricalMarkdown({fileClass:'training_log',
+    sourceKey:'missing_category_repair',fileVersion:2,authority:60,
+    markdown:['# Repaired','<!-- stunna-record: category-later -->',
+      '- category: workout','- occurredOn: 2024-09-02','- modality: run',
+      '- completion: confirmed','- precision: date','- provenance: reported'].join('\n')})
+  assert.equal((await service.importHistory(principal,second.batch,{dryRun:true})).updated,1)
+  assert.equal((await service.importHistory(principal,second.batch,
+    {dryRun:false,explicitPrivateAuthorization:true})).updated,1)
+  const rows=(await service.history(principal,{revisions:true,limit:50,offset:0})).items as any[]
+  assert.deepEqual(rows.filter(x=>x.source_key==='missing_category_repair')
+    .map(x=>x.category).sort(),['unknown','workout'])
+})
+
+test('fenced backtick and tilde examples never become workout evidence',()=>{
+  const markdown=['# Examples','```markdown','## Fake heading',
+    '<!-- stunna-record: fake-backtick -->','- category: workout',
+    '- occurredOn: 2024-09-03','- modality: run',
+    '- completion: confirmed','- precision: date','```',
+    '~~~md','<!-- stunna-record: fake-tilde -->',
+    '- category: workout','- occurredOn: 2024-09-04',
+    '- modality: strength','- completion: confirmed','- precision: date','~~~',
+    '## Actual','<!-- stunna-record: real-outside-fence -->',
+    '- category: workout','- occurredOn: 2024-09-05',
+    '- modality: bike','- completion: confirmed','- precision: date',
+    '- provenance: reported'].join('\r\n')
+  const parsed=normalizeHistoricalMarkdown({fileClass:'training_log',
+    sourceKey:'fenced_examples',fileVersion:1,authority:50,markdown})
+  assert.deepEqual(parsed.batch.records.map(r=>r.sourceRecordId),['real-outside-fence'])
+  assert.equal(parsed.unmarkedSectionCount,1)
+  assert.equal(inspectMarkdownStructure('training_log',markdown).headingCount,2)
+})

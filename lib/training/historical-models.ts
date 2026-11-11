@@ -105,9 +105,25 @@ export const classMapping: Record<SourceClass, readonly string[]> = {
   wearable_rules:['wearable_rule'],events_benchmarks:['event','benchmark'],
   coaching_handoff:['coaching','profile'],sync_manifest:['unknown'],
 }
+// Exclude fenced Markdown examples without shifting marker offsets.
+function maskFencedMarkdown(markdown: string): string {
+  let fence: {char:string;length:number}|null = null
+  return markdown.split(/(\r?\n)/).map(line => {
+    if (line === '\n' || line === '\r\n') return line
+    if (fence) {
+      const close = new RegExp('^ {0,3}' + fence.char + '{' + fence.length + ',}[ \\t]*$')
+      if (close.test(line)) fence = null
+      return ' '.repeat(line.length)
+    }
+    const open = /^ {0,3}(\x60{3,}|~{3,})[^\r\n]*$/.exec(line)
+    if (open) { fence = {char:open[1][0],length:open[1].length}; return ' '.repeat(line.length) }
+    return line
+  }).join('')
+}
 export function inspectMarkdownStructure(fileClass: SourceClass, markdown: string) {
   if (Buffer.byteLength(markdown,'utf8') > 2_000_000) throw new Error('Source too large')
-  const headings = [...markdown.matchAll(/^(#{1,6})\s+(.+?)\s*#*\s*$/gm)]
+  const visible=maskFencedMarkdown(markdown)
+  const headings = [...visible.matchAll(/^(#{1,6})\s+(.+?)\s*#*\s*$/gm)]
     .map(m => ({ level:m[1].length, heading:m[2].slice(0,200) }))
   return { fileClass, supportedCategories:classMapping[fileClass], headingCount:headings.length,
     // Never return raw source excerpts in a public coverage report.
@@ -122,8 +138,9 @@ export function normalizeHistoricalMarkdown(input: {
   authority: number; markdown: string
 }) {
   if (Buffer.byteLength(input.markdown,'utf8') > 2_000_000) throw new Error('Source too large')
+  const visible=maskFencedMarkdown(input.markdown)
   const marker = /<!--\s*stunna-record:\s*([a-zA-Z0-9_.:-]{1,150})\s*-->/g
-  const matches=[...input.markdown.matchAll(marker)]
+  const matches=[...visible.matchAll(marker)]
   const records: HistoricalRecord[]=[]
   const unmappedCategories = new Set<string>()
   const deferredIds:string[]=[]
@@ -131,18 +148,19 @@ export function normalizeHistoricalMarkdown(input: {
   if (!matches.length) unmappedCategories.add('unmarked_markdown')
   // Heading boundaries isolate records: a later unmarked heading cannot
   // donate its fields to the preceding marked record.
-  const headingStarts=[...input.markdown.matchAll(/^#{1,6}\s+[^\r\n]+/gm)]
+  const headingStarts=[...visible.matchAll(/^#{1,6}\s+[^\r\n]+/gm)]
     .map(match=>match.index!)
-  const sections=input.markdown.split(/(?=^#{1,6}\s+[^\r\n]+)/gm)
+  const sections=visible.split(/(?=^#{1,6}\s+[^\r\n]+)/gm)
+  // Only valid unfenced markers suppress unmapped-section accounting.
   const unmarkedSectionCount=sections.filter(section=>
-    section.trim() && !/<!--\s*stunna-record:/.test(section)).length
+    section.trim() && !new RegExp(marker.source).test(section)).length
   if (unmarkedSectionCount) unmappedCategories.add('unmarked_sections')
   for (let i=0;i<matches.length;i++) {
     const id=matches[i][1]
-    const nextMarker=i+1<matches.length?matches[i+1].index!:input.markdown.length
+    const nextMarker=i+1<matches.length?matches[i+1].index!:visible.length
     const nextHeading=headingStarts.find(start=>start>matches[i].index!)
-      ??input.markdown.length
-    const text=input.markdown.slice(matches[i].index!+matches[i][0].length,
+      ??visible.length
+    const text=visible.slice(matches[i].index!+matches[i][0].length,
       Math.min(nextMarker,nextHeading))
     const fields:Record<string,string>={}
     for (const line of text.split(/\r?\n/)) {
@@ -158,7 +176,9 @@ export function normalizeHistoricalMarkdown(input: {
         provenance:'unknown',representation:'deferred',
         attributes:{reason,sourceCategory:category}})
     }
-    if (!expected.has(category)) {defer('unsupported_category');continue}
+    if (!expected.has(category)) {
+      defer(fields.category===undefined?'missing_category':'unsupported_category');continue
+    }
     if (category==='workout') {
       const on=fields.occurredOn
       const precision=fields.precision

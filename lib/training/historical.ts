@@ -90,10 +90,12 @@ export function createHistoricalService(database: TrainingDatabase) {
             [athlete.id,b.sourceKey,record.sourceRecordId])).rows[0]??null
           // An explicitly deferred parser record can be repaired by a later
           // version of the same source ID, but not silently reclassified.
-          const previousDetails=(prev?.payload as {details?:{sourceCategory?:string}}|null)?.details
+          const previousDetails=(prev?.payload as {details?:{sourceCategory?:string;reason?:string}}|null)?.details
           const repairingDeferred=prev?.category==='unknown' &&
             prev.representation==='deferred' &&
-            previousDetails?.sourceCategory===record.category
+            (previousDetails?.sourceCategory===record.category ||
+             (previousDetails?.sourceCategory==='unknown' &&
+              previousDetails?.reason==='missing_category'))
           if (prev && prev.category!==record.category && !repairingDeferred)
             throw new ApiError(409,'Source category changed; review required')
           const logicalId=record.category==='workout'
