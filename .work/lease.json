@@ -1,14 +1,14 @@
 {
   "owner": "issue30-historical-worker",
   "epoch": 1,
-  "state": "in-progress",
+  "state": "review",
   "spec": "cb2f28e5b359dc54babc0352f1f81ffc759a09e03f3eb0ec12cf46d176dd7ad6",
   "attempts": 0,
   "correction": {
     "attempts": 0,
     "findings": []
   },
-  "heartbeat": "2026-11-11T15:12:57Z",
-  "expires": "2026-11-11T16:07:57Z",
-  "checkpoint": "Initial synthetic-only Issue30 implementation. Await exact-head CI and one PR; no hosted SQL/import/deploy."
+  "heartbeat": "2026-11-11T15:19:48.677Z",
+  "expires": "2026-11-11T16:14:48.677Z",
+  "checkpoint": "Initial Issue30 synthetic source validated at b8bc9c8352cd45496881dbb4a189e5ca32451e6b: 94 app/service, 19 React, 20 workflow, typecheck/build/whitespace PASS in GitHub Actions #43047108826. Await one PR and independent read-only review; no hosted changes."
 }
