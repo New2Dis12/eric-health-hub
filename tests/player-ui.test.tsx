@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { create, act, type ReactTestRenderer } from "react-test-renderer";
 import { SessionStart } from "../app/app/session-start";
-import { PlayerView, WorkoutPlayer } from "../app/app/workout-player";
+import { PlayerView, WorkoutPlayer, hasCardioExercise } from "../app/app/workout-player";
 import {
   loadPlayerResults,
   savePlayerItem,
@@ -902,6 +902,51 @@ test("strength draft validation uses the server's numeric boundaries", () => {
   assert.match(validateStrengthDraft("1", "2001") ?? "", /Load/);
   assert.match(validateStrengthDraft("1", "-1") ?? "", /Load/);
   assert.match(validateStrengthDraft("1", "Infinity") ?? "", /Load/);
+});
+
+test('completed device-evidence notice follows pinned cardio modality, not timing alone', () => {
+  const timedStrength = structuredClone(workout);
+  timedStrength.snapshot!.kind = 'strength';
+  timedStrength.snapshot!.exercises = [timedStrength.snapshot!.exercises[0]];
+  timedStrength.snapshot!.exercises[0].durationSeconds = 90;
+  timedStrength.snapshot!.exercises[0].warmups = [{
+    phase:'warmup', modality:'strength', label:'Timed strength warmup',
+    durationSeconds:45, targets:[], rpe:null,
+  }];
+  assert.equal(hasCardioExercise(timedStrength), false);
+
+  const strengthOnlyWarmup = structuredClone(timedStrength);
+  strengthOnlyWarmup.snapshot!.exercises[0].intervalBlocks = [{
+    repeat:2, segments:[{
+      phase:'work', modality:'strength', label:'Timed strength interval',
+      durationSeconds:30, targets:[], rpe:null,
+    }],
+  }];
+  assert.equal(hasCardioExercise(strengthOnlyWarmup), false);
+
+  const mixed = structuredClone(timedStrength);
+  mixed.snapshot!.exercises[0].warmups!.push({
+    phase:'warmup', modality:'run', label:'Easy jog', durationSeconds:60,
+    targets:[], rpe:null,
+  });
+  assert.equal(hasCardioExercise(mixed), true);
+
+  const legacy = structuredClone(timedStrength);
+  legacy.snapshot!.kind = 'other';
+  legacy.snapshot!.exercises = [{
+    ...legacy.snapshot!.exercises[0], sets:null, reps:null, repsRange:undefined,
+    warmups:[], durationSeconds:600, target:{value:5.5,unit:'mph'},
+  }];
+  assert.equal(hasCardioExercise(legacy), true);
+  const legacyMetric = structuredClone(legacy);
+  legacyMetric.snapshot!.exercises[0].target = null;
+  legacyMetric.snapshot!.exercises[0].targets = [{
+    metric:'speed', unit:'mph', range:{min:5,max:6},
+  }];
+  assert.equal(hasCardioExercise(legacyMetric), true);
+  const unspecified = structuredClone(legacyMetric);
+  unspecified.snapshot!.exercises[0].targets = [];
+  assert.equal(hasCardioExercise(unspecified), false);
 });
 
 test('completion summary counts saved strength sets but never assumes absent cardio or missing sets', () => {

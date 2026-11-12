@@ -500,6 +500,26 @@ function strengthExercise(kind: string, exercise: NonNullable<WorkoutSession["sn
     (exercise.reps !== null || !!exercise.repsRange ||
       (kind === "strength" && !exercise.intervalBlocks?.length));
 }
+// Only explicit pinned cardio modalities/targets imply pending device evidence.
+// Duration, warmups and interval structure alone also describe strength work.
+export function hasCardioExercise(workout: WorkoutSession): boolean {
+  const snapshot = workout.snapshot;
+  if (!snapshot) return false;
+  if (cardioKinds.includes(snapshot.kind)) return true;
+  return snapshot.exercises.some((exercise) => {
+    const segments = [
+      ...(exercise.warmups ?? []),
+      ...(exercise.intervalBlocks ?? []).flatMap((block) => block.segments),
+    ];
+    if (segments.some((segment) => cardioKinds.includes(segment.modality))) return true;
+    if (strengthExercise(snapshot.kind, exercise)) return false;
+    if (exercise.target && (exercise.target.unit === "mph" || exercise.target.unit === "km/h")) return true;
+    return (exercise.targets ?? []).some((target) =>
+      ["speed", "pace", "distance", "power", "rowing_split", "stroke_rate",
+        "cycling_cadence", "incline", "resistance"].includes(target.metric));
+  });
+}
+
 export function PlayerView({
   workout,
   data,
@@ -831,10 +851,7 @@ export function WorkoutPlayer({
   }
   const currentData = data?.sessionId === workout.id ? data : null;
   const summary = currentData ? completionSummary(workout, currentData) : null;
-  const cardio = workout.snapshot?.exercises.some(exercise =>
-    !!exercise.intervalBlocks?.length || !!exercise.warmups?.length ||
-    ['run','bike','row','ski','swim'].includes(workout.snapshot?.kind ?? '') ||
-    !!exercise.targets?.length || exercise.durationSeconds !== null);
+  const cardio = hasCardioExercise(workout);
   return (
     <section aria-label="Workout player">
       <button

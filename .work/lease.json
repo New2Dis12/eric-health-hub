@@ -1,14 +1,17 @@
 {
   "owner": "issue34-completion-worker",
-  "epoch": 1,
+  "epoch": 2,
   "state": "review",
   "spec": "3b063298a07a8a0d13c07b14f353111bc27d7289f78db948f649f0376b4fe454",
-  "attempts": 0,
+  "attempts": 1,
   "correction": {
-    "attempts": 0,
-    "findings": []
+    "attempts": 1,
+    "findings": [
+      "completion-cardio-evidence-modality",
+      "completion-mobile-flow-uncovered"
+    ]
   },
-  "heartbeat": "2026-11-12T00:07:11Z",
-  "expires": "2026-11-12T02:07:11Z",
-  "checkpoint": "Issue34 synthetic implementation validated in isolated development sandbox. Await exact-head GitHub CI and independent read-only PR review; no hosted deployment or release."
+  "heartbeat": "2026-11-12T01:06:36Z",
+  "expires": "2026-11-12T03:06:36Z",
+  "checkpoint": "Issue34 correction 1/3: resolve pinned cardio-evidence modality and exercise actual Complete Workout UI at 375/390 with synthetic ambiguous-response retry. Sandbox tests/typecheck/build/browser passed; await exact-head CI and independent review."
 }
