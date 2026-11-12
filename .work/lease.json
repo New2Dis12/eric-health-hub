@@ -1,14 +1,14 @@
 {
   "owner": "issue36-jit-worker",
   "epoch": 1,
-  "state": "in-progress",
+  "state": "review",
   "spec": "6b3c4f487b10e7029bcdeae65b478b49145c384b1c480f7391ebf38f2b5c2ea6",
   "attempts": 1,
   "correction": {
     "attempts": 0,
     "findings": []
   },
-  "heartbeat": "2026-11-12T03:13:00Z",
-  "expires": "2026-11-12T04:03:00Z",
-  "checkpoint": "Issue36 owner-approved synthetic source implemented and locally validated: 98 app/service, 24 React, 20 workflow; TS/build/privacy/whitespace passed; no browser Chromium binary. First publication must disable Vercel branch deployments; exact-head CI and independent review pending."
+  "heartbeat": "2026-11-12T03:20:30Z",
+  "expires": "2026-11-12T04:10:30Z",
+  "checkpoint": "Issue36 source commit 58f7b5ca69d2d216f17366b951ccd00e3ca775c2 exact-head CI PASS run 43147358770 (98 app/service, 24 React, 20 workflow, TypeScript/build/whitespace/privacy); PR #37 open unmerged. Await independent READ-ONLY current-head technical review; no hosted deployment/DB/Auth0/real data. Correction attempts 0/3."
 }
