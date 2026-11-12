@@ -9,7 +9,7 @@ import { createMcpTrainingPublisher } from '../lib/training/mcp-publishing'
 import type { TrainingDatabase, Queryable } from '../lib/training/database'
 import type { TrainingPrincipal } from '../lib/training/auth'
 import { ApiError } from '../lib/private-api'
-import { weeklyIntentFields } from '../lib/training/models'
+import { commandSchema, weeklyIntentFields } from '../lib/training/models'
 import { readFile } from 'node:fs/promises'
 
 const db = new PGlite()
@@ -22,7 +22,8 @@ const database: TrainingDatabase = { transaction: (identity, work) => db.transac
   await tx.query("SELECT set_config('stunna.subject',$1,true)", [identity])
   return work(tx as Queryable)
 }) }
-const service = createTrainingService(database)
+let publishNow = new Date('2026-11-09T16:00:00Z')
+const service = createTrainingService(database, () => publishNow)
 const read = createTrainingContextReader(() => database, () => new Date('2026-11-09T16:00:00Z'))
 const publisher = createMcpTrainingPublisher(() => service)
 const request = (command: Record<string, unknown>) => ({ idempotencyKey: randomUUID(), reason: 'Synthetic owner approval test', ...command })
@@ -65,9 +66,9 @@ test('weekly intent is date-only, not executable until owner-approved details pu
   thursday = result.plannedSessionIds![1]
   assert.deepEqual(await publisher.week(owner, asMcp(intent) as never), result, 'exact retries must reuse original receipts')
   const beforePublish = await read(owner, { date: '2026-11-10' })
-  assert.equal(beforePublish.workouts[0].prescription, null)
-  assert.equal(beforePublish.workouts[0].scheduledAt, null)
-  assert.equal(beforePublish.workouts[0].trainingDate, '2026-11-10')
+  assert.equal(beforePublish.dateOnlyWorkouts[0].prescription, null)
+  assert.equal(beforePublish.dateOnlyWorkouts[0].scheduledAt, null)
+  assert.equal(beforePublish.dateOnlyWorkouts[0].trainingDate, '2026-11-10')
   assert.equal(beforePublish.calendar.find(x => x.date === '2026-11-12')?.workoutCount, 1)
   await assert.rejects(service.write(owner, request({ operation: 'start_workout', plannedSessionId: tuesday,
     expectedPrescriptionRevision: 1, expectedSessionRevision: 0 })), status(404))
@@ -80,19 +81,22 @@ test('weekly intent is date-only, not executable until owner-approved details pu
   const inApp = await read({ ...owner, source: 'browser' }, { date: '2026-11-10' })
   const inMcp = await read(owner, { date: '2026-11-10' })
   assert.deepEqual(inApp, inMcp)
-  assert.deepEqual(inMcp.workouts[0].prescription?.exercises.map(x => x.key), ['squat', 'row'])
-  assert.equal(inMcp.workouts[0].prescription?.exercises[0].target?.unit, 'kg')
-  assert.equal(inMcp.workouts[0].prescription?.approvalNote, 'Owner explicitly approved the exact Tuesday prescription in synthetic conversation')
-  assert.equal(inMcp.workouts[0].scheduledAt, null)
-  assert.equal((await read(owner, { date: '2026-11-12' })).workouts[0].prescription, null)
+  assert.deepEqual(inMcp.dateOnlyWorkouts[0].prescription?.exercises.map(x => x.key), ['squat', 'row'])
+  assert.equal(inMcp.dateOnlyWorkouts[0].prescription?.exercises[0].target?.unit, 'kg')
+  assert.equal(inMcp.dateOnlyWorkouts[0].prescription?.approvalNote, 'Owner explicitly approved the exact Tuesday prescription in synthetic conversation')
+  assert.equal(inMcp.dateOnlyWorkouts[0].scheduledAt, null)
+  assert.equal((await read(owner, { date: '2026-11-12' })).dateOnlyWorkouts[0].prescription, null)
   const runApproved = request({ operation: 'publish_approved_workout', plannedSessionId: thursday,
     expectedPrescriptionRevision: 0, title: 'Synthetic Thursday run', overview, exercises: run,
     approvalNote: 'Owner explicitly approved the exact Thursday prescription in synthetic conversation' })
+  await assert.rejects(publisher.publish(owner, asMcp(runApproved) as never), status(400),
+    'an existing Thursday placeholder cannot receive detail on Monday')
+  publishNow = new Date('2026-11-12T15:00:00Z')
   const thursdayResult = await publisher.publish(owner, asMcp(runApproved) as never)
   assert.equal(thursdayResult.prescriptionRevision, 1)
   const thursdayDay = await read(owner, { date: '2026-11-12' })
-  assert.equal(thursdayDay.workouts[0].prescription?.exercises[0].intervalBlocks?.[0].segments[0].targets[0].unit, 'sec/km')
-  assert.equal(thursdayDay.workouts[0].scheduledAt, null)
+  assert.equal(thursdayDay.dateOnlyWorkouts[0].prescription?.exercises[0].intervalBlocks?.[0].segments[0].targets[0].unit, 'sec/km')
+  assert.equal(thursdayDay.dateOnlyWorkouts[0].scheduledAt, null)
 })
 
 test('approved revisions append immutably; stale revisions conflict and started sessions stay pinned', async () => {
@@ -109,7 +113,7 @@ test('approved revisions append immutably; stale revisions conflict and started 
   await assert.rejects(publisher.publish(owner, asMcp({ ...changed, title: 'Reused key' }) as never), status(409))
   assert.equal((await service.workout(owner, tuesday))?.prescriptionRevision, 1)
   assert.equal((await service.workout(owner, tuesday))?.snapshot?.exercises[0].reps, 5)
-  assert.equal((await read(owner, { date: '2026-11-10' })).workouts[0].prescription?.revision, 2)
+  assert.equal((await read(owner, { date: '2026-11-10' })).dateOnlyWorkouts[0].prescription?.revision, 2)
   const versions = await database.transaction(subject, async tx => tx.query<{ revision:number; approval_note:string }>(
     'SELECT revision,approval_note FROM stunna.prescription_revisions WHERE planned_session_id=$1 ORDER BY revision', [tuesday]))
   assert.deepEqual(versions.rows.map(x => x.revision), [1, 2])
@@ -130,25 +134,27 @@ test('scope, subject, ownership, validation and RLS reject unauthorized or phant
     assert.equal(rows.rows.length, 0)
     await assert.rejects(tx.query('UPDATE stunna.prescription_revisions SET title=$1 WHERE planned_session_id=$2', ['Tamper', thursday]))
   })
-  assert.equal((await read(owner, { date: '2026-11-12' })).workouts[0].prescription?.revision, 1)
+  assert.equal((await read(owner, { date: '2026-11-12' })).dateOnlyWorkouts[0].prescription?.revision, 1)
 })
 
 test('minimal single-day owner-approved publication works without weekly plan', async () => {
+  publishNow = new Date('2026-11-12T15:00:00Z')
   const result = await publisher.publish(owner, asMcp(request({ operation: 'publish_approved_workout',
     newPlan: { date: '2026-11-13', timeZone: 'America/Chicago', kind: 'run', purpose: 'Synthetic one-day plan' },
     expectedPrescriptionRevision: 0, title: 'Synthetic Friday easy run', overview, exercises: run,
     approvalNote: 'Owner explicitly approved exact Friday synthetic workout in conversation' })) as never)
   assert.equal(result.prescriptionRevision, 1)
-  assert.equal((await read(owner, { date: '2026-11-13' })).workouts[0].prescription?.title, 'Synthetic Friday easy run')
+  assert.equal((await read(owner, { date: '2026-11-13' })).dateOnlyWorkouts[0].prescription?.title, 'Synthetic Friday easy run')
   assert.ok(blockId)
+  publishNow = new Date('2026-11-10T15:00:00Z')
   const sameDay = await publisher.publish(owner, asMcp(request({ operation: 'publish_approved_workout',
     newPlan: { blockId, date: '2026-11-10', timeZone: 'America/Chicago', kind: 'run', purpose: 'Synthetic second Tuesday modality' },
     expectedPrescriptionRevision: 0, title: 'Synthetic Tuesday run', overview, exercises: run,
     approvalNote: 'Owner explicitly approved independent Tuesday synthetic run in conversation' })) as never)
   assert.equal(sameDay.prescriptionRevision, 1)
   const tuesdayDay = await read(owner, { date: '2026-11-10' })
-  assert.equal(tuesdayDay.workouts.length, 2)
-  assert.deepEqual(new Set(tuesdayDay.workouts.map(x => x.kind)), new Set(['strength','run']))
+  assert.equal(tuesdayDay.dateOnlyWorkouts.length, 2)
+  assert.deepEqual(new Set(tuesdayDay.dateOnlyWorkouts.map(x => x.kind)), new Set(['strength','run']))
   assert.equal((await service.workout(owner, tuesday))?.snapshot?.exercises[0].reps, 5)
 })
 
@@ -165,7 +171,7 @@ test('failed audit rolls back approval and idempotency; concurrent approvals req
     } } as Queryable)
   }) })
   await assert.rejects(failing.write(owner, approval), /Synthetic audit storage failure/)
-  assert.equal((await read(owner, { date: '2026-11-12' })).workouts[0].prescription?.revision, 1)
+  assert.equal((await read(owner, { date: '2026-11-12' })).dateOnlyWorkouts[0].prescription?.revision, 1)
   const succeeded = await publisher.publish(owner, asMcp(approval) as never)
   assert.equal(succeeded.prescriptionRevision, 2)
   const next = (name: string) => request({ operation: 'publish_approved_workout', plannedSessionId: thursday,
@@ -177,8 +183,47 @@ test('failed audit rolls back approval and idempotency; concurrent approvals req
   ])
   assert.equal(attempts.filter(x => x.status === 'fulfilled').length, 1)
   assert.equal(attempts.filter(x => x.status === 'rejected' && status(409)(x.reason)).length, 1)
-  assert.equal((await read(owner, { date: '2026-11-12' })).workouts[0].prescription?.revision, 3)
+  assert.equal((await read(owner, { date: '2026-11-12' })).dateOnlyWorkouts[0].prescription?.revision, 3)
   const audits = await database.transaction(subject, tx => tx.query<{n:number}>(
     "SELECT count(*)::int AS n FROM stunna.audit_events WHERE operation='publish_approved_workout' AND entity_id=$1", [thursday]))
   assert.equal(audits.rows[0].n, 3)
+})
+
+test('shared HTTP/service command validation retains week and single-plan refinements', async () => {
+  const week = request({ operation: 'save_weekly_intent', weekStartsOn: '2026-11-10', timeZone: 'America/Chicago',
+    title: 'Synthetic invalid week', focus: 'Aerobic', days: [{ date: '2026-11-10', kind: 'run', purpose: 'Run' }] })
+  assert.equal(commandSchema.safeParse(week).success, false, 'Tuesday is not a valid week start')
+  await assert.rejects(service.write(owner, week), status(400))
+  const outOfWeek = { ...week, weekStartsOn: '2026-11-09',
+    days: [{ date: '2026-11-17', kind: 'run', purpose: 'Outside selected week' }] }
+  assert.equal(commandSchema.safeParse(outOfWeek).success, false)
+  await assert.rejects(service.write(owner, outOfWeek), status(400))
+  const ambiguous = request({ operation: 'publish_approved_workout', plannedSessionId: tuesday,
+    newPlan: { date: '2026-11-10', timeZone: 'America/Chicago', kind: 'run', purpose: 'Ambiguous' },
+    expectedPrescriptionRevision: 2, title: 'Synthetic ambiguous', overview, exercises: run,
+    approvalNote: 'Owner explicitly approved exact synthetic workout in conversation' })
+  assert.equal(commandSchema.safeParse(ambiguous).success, false)
+  await assert.rejects(service.write(owner, ambiguous), status(400))
+})
+
+test('initial publication is restricted to athlete-local day before/day of, with truthful null overview', async () => {
+  publishNow = new Date('2026-11-09T15:00:00Z')
+  const make = (date: string, extra: Record<string, unknown> = {}) => request({
+    operation: 'publish_approved_workout',
+    newPlan: { date, timeZone: 'America/Chicago', kind: 'run', purpose: 'Synthetic day-specific run' },
+    expectedPrescriptionRevision: 0, title: 'Synthetic day-specific run', overview: null, exercises: run,
+    approvalNote: 'Owner explicitly approved exact synthetic workout in conversation', ...extra,
+  })
+  await assert.rejects(publisher.publish(owner, asMcp(make('2026-11-13')) as never), status(400))
+  await assert.rejects(publisher.publish(owner, asMcp(make('2026-11-08')) as never), status(400))
+  const countBefore = await database.transaction(subject, async tx =>
+    tx.query<{n:number}>("SELECT count(*)::int AS n FROM stunna.planned_sessions WHERE purpose='Synthetic day-specific run'"))
+  assert.equal(countBefore.rows[0].n, 0, 'failed publication must roll back new plan')
+  const valid = await publisher.publish(owner, asMcp(make('2026-11-10')) as never)
+  assert.equal(valid.prescriptionRevision, 1)
+  const saved = (await read(owner, { date: '2026-11-10' })).dateOnlyWorkouts.find(w => w.id === valid.plannedSessionId)
+  assert.equal(saved?.prescription?.overview, null, 'SQL NULL overview must round-trip')
+  const stored = await database.transaction(subject, async tx =>
+    tx.query<{overview: unknown}>('SELECT overview FROM stunna.prescription_revisions WHERE planned_session_id=$1', [valid.plannedSessionId]))
+  assert.equal(stored.rows[0].overview, null)
 })

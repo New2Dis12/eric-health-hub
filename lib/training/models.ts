@@ -61,8 +61,8 @@ export const approvedWorkoutFields = z.strictObject({
   'Supply exactly one existing planned session or a new date-only plan')
 
 export const commandSchema = z.discriminatedUnion('operation', [
-  z.strictObject({ operation: z.literal('save_weekly_intent'), ...weeklyIntentFields.shape }),
-  z.strictObject({ operation: z.literal('publish_approved_workout'), ...approvedWorkoutFields.shape }),
+  weeklyIntentFields.safeExtend({ operation: z.literal('save_weekly_intent') }),
+  approvedWorkoutFields.safeExtend({ operation: z.literal('publish_approved_workout') }),
   z.strictObject({ ...envelope, operation: z.literal('log_workout'), ...logFields }),
   z.strictObject({ ...envelope, operation: z.literal('start_workout'), ...startWorkoutFields }),
   z.strictObject({ ...envelope, operation: z.literal('complete_workout'), ...completeWorkoutFields }),

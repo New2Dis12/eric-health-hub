@@ -1,7 +1,7 @@
 import type { TrainingContext } from './context'
 import type { Segment } from './context-models'
 
-export type Workout = TrainingContext['workouts'][number]
+export type Workout = TrainingContext['workouts'][number] | TrainingContext['dateOnlyWorkouts'][number]
 type Exercise = NonNullable<Workout['prescription']>['exercises'][number]
 
 export function durationEstimate(workout: Workout) {

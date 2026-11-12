@@ -6,9 +6,9 @@ import { commandSchema, type TrainingCommand, type WriteResult, type TrainingHis
 import { assertTrainingAccess, type TrainingPrincipal } from './auth'
 import { getTrainingDatabase, type TrainingDatabase, type Queryable } from './database'
 import { ApiError } from '../private-api'
-import { blockMethodology, moveTrainingDate, prescriptionExercisesFor } from './context-models'
+import { blockMethodology, localTrainingDate, moveTrainingDate, prescriptionExercisesFor } from './context-models'
 
-export function createTrainingService(database: TrainingDatabase) {
+export function createTrainingService(database: TrainingDatabase, now = () => new Date()) {
   return {
     async results(principal: TrainingPrincipal, sessionId: unknown, history=false, limit=50, offset=0) {
       assertTrainingAccess(principal, 'training.read')
@@ -71,7 +71,7 @@ export function createTrainingService(database: TrainingDatabase) {
               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
             [randomUUID(), athleteId, principal.subject, command.operation, entity, entityId, before, after, command.reason, principal.source])
           }
-          const result = await execute(tx, athleteId, command, principal, audit)
+          const result = await execute(tx, athleteId, command, principal, audit, now)
           await tx.query('INSERT INTO stunna.write_requests(athlete_id,idempotency_key,request_hash,result) VALUES($1,$2,$3,$4)',
             [athleteId, command.idempotencyKey, hash, JSON.stringify(result)])
           return result
@@ -89,7 +89,7 @@ export function createTrainingService(database: TrainingDatabase) {
 }
 
 async function execute(tx: Queryable, athleteId: string, command: TrainingCommand, principal: TrainingPrincipal,
-  audit: (entity: string, id: string, before: number | null, after?: number) => Promise<void>): Promise<WriteResult> {
+  audit: (entity: string, id: string, before: number | null, after?: number) => Promise<void>, now: () => Date): Promise<WriteResult> {
   const id = randomUUID()
   if (command.operation === 'log_workout') {
     const result = await logResult(tx,athleteId,command,principal.subject,principal.source,command.reason)
@@ -164,9 +164,20 @@ async function execute(tx: Queryable, athleteId: string, command: TrainingComman
         [plannedSessionId, athleteId, blockId, plan.date, plan.timeZone, plan.kind, plan.purpose])
       await audit('planned_session', plannedSessionId, null)
     }
-    const { rows: plans } = await tx.query<{kind:string}>(`SELECT kind FROM stunna.planned_sessions
+    const { rows: plans } = await tx.query<{kind:string; planned_on: string | Date | null; scheduled_at: Date | string | null; time_zone: string}>(`SELECT kind, planned_on, scheduled_at, time_zone FROM stunna.planned_sessions
       WHERE id=$1 AND athlete_id=$2`, [plannedSessionId, athleteId])
     if (!plans[0]) throw new ApiError(404, 'Planned workout not found')
+    // An initial executable prescription may only be published the night before
+    // or on the athlete's local training day. Existing revisions remain immutable.
+    if (command.expectedPrescriptionRevision === 0) {
+      const plan = plans[0]
+      const planDate = plan.planned_on
+        ? (plan.planned_on instanceof Date ? plan.planned_on.toISOString().slice(0, 10) : String(plan.planned_on).slice(0, 10))
+        : localTrainingDate(new Date(plan.scheduled_at!), plan.time_zone)
+      const today = localTrainingDate(now(), plan.time_zone)
+      if (planDate !== today && planDate !== moveTrainingDate(today, 1))
+        throw new ApiError(400, 'Initial workout publication is allowed only the day before or day of training')
+    }
     const exercises = prescriptionExercisesFor(plans[0].kind).safeParse(command.exercises)
     if (!exercises.success) throw new ApiError(400, 'Invalid exercises or incompatible modality targets')
     const encoded = JSON.stringify(exercises.data)
@@ -184,7 +195,7 @@ async function execute(tx: Queryable, athleteId: string, command: TrainingComman
     const { rows: published } = await tx.query<{approved_at:Date}>(`INSERT INTO stunna.prescription_revisions
       (athlete_id,planned_session_id,revision,title,overview,exercises,change_reason,source,approval_note,approved_at)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,transaction_timestamp()) RETURNING approved_at`,
-      [athleteId, plannedSessionId, revision, command.title, JSON.stringify(command.overview),
+      [athleteId, plannedSessionId, revision, command.title, command.overview === null ? null : JSON.stringify(command.overview),
         encoded, command.reason, principal.source === 'api' ? 'api' : 'manual', command.approvalNote])
     await audit('prescription_revision', plannedSessionId!, previous || null, revision)
     return { plannedSessionId, prescriptionRevision: revision,

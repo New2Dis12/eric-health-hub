@@ -169,6 +169,7 @@ export default async function StunnaPage({ searchParams }: { searchParams: Promi
   }
 
   const isToday = context.date === context.today
+  const workouts = [...context.workouts, ...context.dateOnlyWorkouts]
   return (
     <main className={styles.shell}>
       <div className={styles.content}>
@@ -213,17 +214,17 @@ export default async function StunnaPage({ searchParams }: { searchParams: Promi
           </div>
         </nav>
 
-        {context.workouts[0]?.block.methodology && <details className={styles.methodology}>
+        {workouts[0]?.block.methodology && <details className={styles.methodology}>
           <summary>Block guidance & weekly structure</summary>
-          <ul>{context.workouts[0].block.methodology.progressionRules.map((rule, i) => <li key={i}>{rule}</li>)}</ul>
-          <ol>{context.workouts[0].block.methodology.weeklyStructure.map((day, i) => <li key={i}>Day {day.weekday} · {day.slots.join(' → ')}</li>)}</ol>
+          <ul>{workouts[0].block.methodology.progressionRules.map((rule, i) => <li key={i}>{rule}</li>)}</ul>
+          <ol>{workouts[0].block.methodology.weeklyStructure.map((day, i) => <li key={i}>Day {day.weekday} · {day.slots.join(' → ')}</li>)}</ol>
         </details>}
         <div className={styles.scheduleLabel}>
           <span>Workout overviews</span>
         </div>
         <div className={styles.schedule}>
-          {context.workouts.length
-            ? context.workouts.map(workout => <WorkoutOverview key={workout.id} workout={workout} showPrevious={context.preferences.showPrevious} />)
+          {workouts.length
+            ? workouts.map(workout => <WorkoutOverview key={workout.id} workout={workout} showPrevious={context.preferences.showPrevious} />)
             : <section className={styles.empty}><h2>No workouts scheduled</h2><p>Select another day to view its saved plan.</p></section>}
           {context.hasMoreWorkouts && <p className={styles.muted}>Showing the first eight workouts scheduled for this day.</p>}
         </div>

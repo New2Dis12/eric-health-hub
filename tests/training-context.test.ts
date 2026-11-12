@@ -50,6 +50,8 @@ test('browser and API principals read the same corrected prescription and previo
   assert.equal(day.timeZone, 'America/Chicago')
   assert.deepEqual(day.calendar.map(entry => entry.date), ['2026-11-02','2026-11-03','2026-11-04','2026-11-05','2026-11-06','2026-11-07','2026-11-08'])
   assert.equal(day.workouts.length, 1)
+  assert.equal(day.dateOnlyWorkouts.length, 0)
+  assert.match(day.workouts[0].scheduledAt, /^\d{4}-\d{2}-\d{2}T/)
   const plan = day.workouts[0].prescription!
   assert.equal(plan.revision, 2)
   assert.deepEqual(plan.exercises.map(item => item.position), [1, 2, 3])

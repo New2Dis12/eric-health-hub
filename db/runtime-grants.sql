@@ -20,7 +20,13 @@ BEGIN
     IF to_regclass(format('stunna.%I', tab)) IS NOT NULL THEN
       EXECUTE format('REVOKE INSERT, UPDATE, DELETE ON stunna.%I FROM stunna_runtime', tab);
       EXECUTE format('GRANT SELECT ON stunna.%I TO stunna_runtime', tab);
-      IF tab IN ('prescription_revisions','block_context_revisions') THEN
+      IF tab IN ('prescription_revisions','block_context_revisions')
+        -- Migration 008 is the JIT grant boundary. Table existence alone is
+        -- insufficient: both tables existed as read-only before this migration.
+        AND EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_schema='stunna' AND table_name='planned_sessions' AND column_name='planned_on')
+        AND EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_schema='stunna' AND table_name='prescription_revisions' AND column_name='approval_note') THEN
         -- Append-only owner-approved JIT publications; no UPDATE/DELETE.
         EXECUTE format('GRANT INSERT ON stunna.%I TO stunna_runtime', tab);
       END IF;

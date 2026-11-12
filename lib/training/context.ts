@@ -101,10 +101,7 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
         verification: 'verified' as const,
       }]))
 
-      return {
-        date, today, timeZone, calendar, preferences,
-        hasMoreWorkouts: (calendar.find(day => day.date === date)?.workoutCount ?? 0) > maxWorkoutsPerDay,
-        workouts: rows.map((row, index) => ({
+      const scheduleWorkouts = rows.map((row, index) => ({
           id: row.id,
           kind: row.kind,
           purpose: row.purpose,
@@ -123,7 +120,14 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
               ...exercise, position: position + 1, previous: previous.get(JSON.stringify([exercise.key, exercise.comparisonContext ?? ''])) ?? null,
             })),
           },
-        })),
+        }))
+      // Keep the legacy workouts[].scheduledAt ISO-string contract unchanged.
+      // Date-only intent has no scheduled time and is exposed additively.
+      return {
+        date, today, timeZone, calendar, preferences,
+        hasMoreWorkouts: (calendar.find(day => day.date === date)?.workoutCount ?? 0) > maxWorkoutsPerDay,
+        workouts: scheduleWorkouts.filter((row): row is typeof row & { scheduledAt: string } => row.scheduledAt !== null),
+        dateOnlyWorkouts: scheduleWorkouts.filter((row): row is typeof row & { scheduledAt: null } => row.scheduledAt === null),
       }
     })
   }
