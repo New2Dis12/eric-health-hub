@@ -31,6 +31,7 @@ before(async () => {
   await db.exec(await file('../db/migrations/002_prescriptions.up.sql'))
   await db.exec(await file('../db/migrations/003_methodology.up.sql'))
   await db.exec(await file('../db/migrations/004_workout_overviews.up.sql'))
+  await db.exec(await file('../db/migrations/008_jit_publishing.up.sql'))
   await db.exec('CREATE ROLE stunna_runtime')
   await db.exec(await file('../db/runtime-grants.sql'))
   const fixture = await file('../db/fixtures/sprint-2-synthetic.sql')
@@ -49,6 +50,8 @@ test('browser and API principals read the same corrected prescription and previo
   assert.equal(day.timeZone, 'America/Chicago')
   assert.deepEqual(day.calendar.map(entry => entry.date), ['2026-11-02','2026-11-03','2026-11-04','2026-11-05','2026-11-06','2026-11-07','2026-11-08'])
   assert.equal(day.workouts.length, 1)
+  assert.equal(day.dateOnlyWorkouts.length, 0)
+  assert.match(day.workouts[0].scheduledAt, /^\d{4}-\d{2}-\d{2}T/)
   const plan = day.workouts[0].prescription!
   assert.equal(plan.revision, 2)
   assert.deepEqual(plan.exercises.map(item => item.position), [1, 2, 3])

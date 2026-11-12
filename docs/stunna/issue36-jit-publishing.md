@@ -1,0 +1,19 @@
+# Issue #36 — high-level week and just-in-time approved workout publication
+
+This is a **development-only, synthetic-tested** addition to the existing Stunna backend. Neither the source migration nor its runtime grants have been applied to hosted Neon. Production must remain `STUNNA_ENABLED=false` until a separately approved hosted validation and release.
+
+## Coaching consent boundary
+
+The coach first proposes a high-level week (focus, dates, modalities and purposes), obtains the owner's approval and calls `save_weekly_training_intent` with a fresh UUID idempotency key. This creates date-only, **non-executable** planned sessions, without scheduled times or exercise targets. The owner later receives the complete proposed detailed workout, including ordered exercises/intervals, targets, units, rest, RPE, adjustments and instructions. **Only after the owner expressly approves that exact proposal** may the coach call `publish_approved_workout` with the existing planned-session ID (or an approved one-day `newPlan`), `expectedPrescriptionRevision`, a stable UUID idempotency key, reason, and approval note. Neither tool proves chat-side consent cryptographically; the caller is responsible for obtaining it. The backend validates, versions and audits the caller's assertion. Do not auto-publish generated proposals.
+
+`training.write` and the allowlisted Auth0 subject are required for either write. `training.read` alone cannot publish. `get_training_context` retains its tool name and existing fields, adding `trainingDate` and `approvalNote` while allowing `scheduledAt:null` for date-only sessions. Browser and MCP use the same `TrainingService` and transaction/RLS boundary. Exact retries return the original receipt; reused keys with different input fail; stale revisions return a conflict. A correction appends a new immutable approved revision; already-started sessions keep their original pinned snapshot and actuals. The UI's Start control stays unavailable for a placeholder without an approved prescription.
+
+## Source-only schema and rollback
+
+`008_jit_publishing.up.sql` makes `planned_sessions.scheduled_at` nullable and adds `planned_on date` with an exclusive-or constraint: a plan has **either** an exact scheduled instant **or** a date-only intent, never neither or both. It adds optional `approval_note` to immutable prescription revisions and permits `api` as a source. Existing scheduled records and old prescription revisions remain valid. `db/runtime-grants.sql` grants only append-only INSERT/SELECT on approved revision tables to the existing non-owner `stunna_runtime` role; UPDATE/DELETE and owner/DDL privileges remain denied, with existing FORCE RLS and subject checks unchanged.
+
+`008_jit_publishing.down.sql` refuses rollback if date-only placeholders or new approval provenance remain, because deleting them would silently discard training intent or owner evidence. After a separate reviewed export/remediation of those records, rollback revokes the extra INSERT grants and restores old constraints. No hosted migration, grants, data, OAuth configuration, deployment or Production flags are changed by this PR.
+
+## Validation boundaries
+
+Synthetic PGlite/PostgreSQL tests exercise exact service SQL and RLS, week/date-only intent, Tuesday strength and Thursday intervals, browser/MCP read parity, unapproved Start denial, append-only corrections, idempotent retry, stale/concurrent conflict, pinned execution, malformed modality units, cross-subject denial and audit rollback. Existing suites cover Auth0 bearer/scope, browser CSRF and origin-null, Garmin/Oura, workout logging and completion. Full GitHub Actions must pass on the published exact head; owner iPhone and hosted ChatGPT OAuth discovery/write parity remain unverified until separately authorized.

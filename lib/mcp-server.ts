@@ -9,6 +9,8 @@ import { getTrainingContext } from '@/lib/training/context'
 import { contextDate } from '@/lib/training/context-models'
 import type { TrainingPrincipal } from '@/lib/training/auth'
 import { actualsPage, actualsWrite, createMcpTrainingActuals } from '@/lib/training/mcp-actuals'
+import { weeklyIntentFields, approvedWorkoutFields } from '@/lib/training/models'
+import { createMcpTrainingPublisher } from '@/lib/training/mcp-publishing'
 
 const measurementSchema = z.object({
   value: z.number().nullable(),
@@ -31,6 +33,7 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
   canReadOura?: boolean
   trainingPrincipal?: TrainingPrincipal
   actualsAdapter?: ReturnType<typeof createMcpTrainingActuals>
+  publishingAdapter?: ReturnType<typeof createMcpTrainingPublisher>
 } = {}) {
   const server = new McpServer({ name: 'eric-health-hub', version: '0.1.0' })
 
@@ -146,6 +149,39 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
         return { structuredContent: result, content: [{ type: 'text' as const, text: data }] }
       } catch { return errorResult('Saved workout results unavailable or access denied.') }
     })
+    if (principal.scopes.includes('training.write')) {
+      const publisher = options.publishingAdapter ?? createMcpTrainingPublisher()
+      server.registerTool('save_weekly_training_intent', {
+        title: 'Save approved high-level training week',
+        description: 'After the owner approves the high-level weekly focus and intended workout dates/types, save date-only non-executable placeholders. Do not invent times or detailed exercises for the week. This is a write; confirm the proposal with the owner first.',
+        inputSchema: weeklyIntentFields.shape,
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      }, async input => {
+        try {
+          const result = await publisher.week(principal, input)
+          return { structuredContent: result, content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 409)
+            return { ...errorResult('Weekly intent conflict. Re-read before retrying.'), structuredContent: { errorCode: 'REVISION_CONFLICT' } }
+          return errorResult('Weekly intent rejected. Check scope, dates and ownership.')
+        }
+      })
+      server.registerTool('publish_approved_workout', {
+        title: 'Publish an explicitly owner-approved detailed workout',
+        description: 'ONLY call AFTER showing the owner the COMPLETE proposed ordered detailed prescription (exercises, intervals, units, targets, rest, RPE, adjustments) and receiving explicit approval of THAT exact proposal in this conversation. Never auto-publish a suggestion. Include the approval note, source provenance, reason, expected current revision and stable idempotency key. Server audit records the caller assertion; it cannot independently prove conversational consent. Re-read the latest approved revision on conflict.',
+        inputSchema: approvedWorkoutFields.shape,
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      }, async input => {
+        try {
+          const result = await publisher.publish(principal, input)
+          return { structuredContent: result, content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 409)
+            return { ...errorResult('Prescription revision or idempotency conflict. Re-read before retrying.'), structuredContent: { errorCode: 'REVISION_CONFLICT' } }
+          return errorResult('Approved workout publication rejected. Check scope, plan and validated prescription.')
+        }
+      })
+    }
     if (principal.scopes.includes('training.write')) server.registerTool('correct_saved_strength_result', {
       title: 'Save or correct strength results and notes',
       description: 'Write one validated strength set or exercise/workout note for an owned in-progress session. Requires exact revisions and a stable idempotency key; conflicting edits must be re-read.',

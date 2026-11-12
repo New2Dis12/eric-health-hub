@@ -6,8 +6,9 @@ import { commandSchema, type TrainingCommand, type WriteResult, type TrainingHis
 import { assertTrainingAccess, type TrainingPrincipal } from './auth'
 import { getTrainingDatabase, type TrainingDatabase, type Queryable } from './database'
 import { ApiError } from '../private-api'
+import { blockMethodology, localTrainingDate, moveTrainingDate, prescriptionExercisesFor } from './context-models'
 
-export function createTrainingService(database: TrainingDatabase) {
+export function createTrainingService(database: TrainingDatabase, now = () => new Date()) {
   return {
     async results(principal: TrainingPrincipal, sessionId: unknown, history=false, limit=50, offset=0) {
       assertTrainingAccess(principal, 'training.read')
@@ -39,7 +40,7 @@ export function createTrainingService(database: TrainingDatabase) {
         const params = [athletes[0].id, limit, offset]
         return {
           blocks: (await tx.query<TrainingBlock>('SELECT * FROM stunna.training_blocks WHERE athlete_id=$1 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3', params)).rows,
-          plans: (await tx.query<PlannedSession>('SELECT * FROM stunna.planned_sessions WHERE athlete_id=$1 ORDER BY scheduled_at DESC, id DESC LIMIT $2 OFFSET $3', params)).rows,
+          plans: (await tx.query<PlannedSession>('SELECT * FROM stunna.planned_sessions WHERE athlete_id=$1 ORDER BY COALESCE(planned_on, (scheduled_at AT TIME ZONE time_zone)::date) DESC, id DESC LIMIT $2 OFFSET $3', params)).rows,
           sessions: (await tx.query<ActualSession>('SELECT * FROM stunna.actual_sessions WHERE athlete_id=$1 ORDER BY started_at DESC, id DESC LIMIT $2 OFFSET $3', params)).rows,
           measurements: (await tx.query<BodyMeasurement>('SELECT * FROM stunna.body_measurements WHERE athlete_id=$1 ORDER BY measured_at DESC, id DESC LIMIT $2 OFFSET $3', params)).rows,
         }
@@ -70,7 +71,7 @@ export function createTrainingService(database: TrainingDatabase) {
               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
             [randomUUID(), athleteId, principal.subject, command.operation, entity, entityId, before, after, command.reason, principal.source])
           }
-          const result = await execute(tx, athleteId, command, principal, audit)
+          const result = await execute(tx, athleteId, command, principal, audit, now)
           await tx.query('INSERT INTO stunna.write_requests(athlete_id,idempotency_key,request_hash,result) VALUES($1,$2,$3,$4)',
             [athleteId, command.idempotencyKey, hash, JSON.stringify(result)])
           return result
@@ -88,7 +89,7 @@ export function createTrainingService(database: TrainingDatabase) {
 }
 
 async function execute(tx: Queryable, athleteId: string, command: TrainingCommand, principal: TrainingPrincipal,
-  audit: (entity: string, id: string, before: number | null, after?: number) => Promise<void>): Promise<WriteResult> {
+  audit: (entity: string, id: string, before: number | null, after?: number) => Promise<void>, now: () => Date): Promise<WriteResult> {
   const id = randomUUID()
   if (command.operation === 'log_workout') {
     const result = await logResult(tx,athleteId,command,principal.subject,principal.source,command.reason)
@@ -104,6 +105,101 @@ async function execute(tx: Queryable, athleteId: string, command: TrainingComman
     const result = await completeWorkout(tx, athleteId, command)
     await audit('actual_session', result.actualSessionId, command.expectedSessionRevision, result.sessionRevision)
     return result
+  }
+  if (command.operation === 'save_weekly_intent') {
+    const week = command
+    const blockId = id
+    const end = moveTrainingDate(week.weekStartsOn, 6)
+    await tx.query(`INSERT INTO stunna.training_blocks(id,athlete_id,title,goal,starts_on,ends_on,source)
+      VALUES($1,$2,$3,$4,$5,$6,'manual')`,
+      [blockId, athleteId, week.title, week.focus, week.weekStartsOn, end])
+    await audit('training_block', blockId, null)
+    const plannedSessionIds: string[] = []
+    for (const day of week.days) {
+      const planId = randomUUID()
+      await tx.query(`INSERT INTO stunna.planned_sessions
+        (id,athlete_id,block_id,scheduled_at,planned_on,time_zone,kind,purpose,source)
+        VALUES($1,$2,$3,NULL,$4,$5,$6,$7,'manual')`,
+        [planId, athleteId, blockId, day.date, week.timeZone, day.kind, day.purpose])
+      await audit('planned_session', planId, null)
+      plannedSessionIds.push(planId)
+    }
+    const methodology = week.methodology ?? {
+      weeklyStructure: [...new Set(week.days.map(day => day.date))].map(date => ({
+        weekday: ((new Date(date + 'T12:00:00Z').getUTCDay() + 6) % 7) + 1,
+        slots: week.days.filter(day => day.date === date).map(day => day.purpose),
+      })),
+      progressionRules: [], sourceReferences: [],
+    }
+    const parsedMethodology = blockMethodology.safeParse(methodology)
+    if (!parsedMethodology.success) throw new ApiError(400, 'Invalid weekly training structure')
+    await tx.query(`INSERT INTO stunna.block_context_revisions
+      (athlete_id,block_id,revision,context,change_reason)
+      VALUES($1,$2,1,$3,$4)`,
+      [athleteId, blockId, JSON.stringify(parsedMethodology.data), week.reason])
+    await audit('block_context_revision', blockId, null)
+    return { blockId, plannedSessionIds }
+  }
+  if (command.operation === 'publish_approved_workout') {
+    let plannedSessionId = command.plannedSessionId
+    if (command.newPlan) {
+      if (command.expectedPrescriptionRevision !== 0) throw new ApiError(409, 'New workout must start at revision zero')
+      const plan = command.newPlan
+      let blockId = plan.blockId
+      if (!blockId) {
+        blockId = randomUUID()
+        await tx.query(`INSERT INTO stunna.training_blocks(id,athlete_id,title,goal,starts_on,ends_on,source)
+          VALUES($1,$2,$3,$4,$5,$5,'manual')`,
+          [blockId, athleteId, command.title, plan.purpose, plan.date])
+        await audit('training_block', blockId, null)
+      }
+      const { rows: blocks } = await tx.query<{id:string}>(`SELECT id FROM stunna.training_blocks
+        WHERE id=$1 AND athlete_id=$2 AND starts_on <= $3::date AND ends_on >= $3::date`,
+        [blockId, athleteId, plan.date])
+      if (!blocks[0]) throw new ApiError(404, 'Training block not found for date')
+      plannedSessionId = randomUUID()
+      await tx.query(`INSERT INTO stunna.planned_sessions
+        (id,athlete_id,block_id,scheduled_at,planned_on,time_zone,kind,purpose,source)
+        VALUES($1,$2,$3,NULL,$4,$5,$6,$7,'manual')`,
+        [plannedSessionId, athleteId, blockId, plan.date, plan.timeZone, plan.kind, plan.purpose])
+      await audit('planned_session', plannedSessionId, null)
+    }
+    const { rows: plans } = await tx.query<{kind:string; planned_on: string | null; scheduled_at: Date | string | null; time_zone: string}>(`SELECT kind, planned_on::text AS planned_on, scheduled_at, time_zone FROM stunna.planned_sessions
+      WHERE id=$1 AND athlete_id=$2`, [plannedSessionId, athleteId])
+    if (!plans[0]) throw new ApiError(404, 'Planned workout not found')
+    // An initial executable prescription may only be published the night before
+    // or on the athlete's local training day. Existing revisions remain immutable.
+    if (command.expectedPrescriptionRevision === 0) {
+      const plan = plans[0]
+      const planDate = plan.planned_on
+        ? plan.planned_on
+        : localTrainingDate(new Date(plan.scheduled_at!), plan.time_zone)
+      const today = localTrainingDate(now(), plan.time_zone)
+      if (planDate !== today && planDate !== moveTrainingDate(today, 1))
+        throw new ApiError(400, 'Initial workout publication is allowed only the day before or day of training')
+    }
+    const exercises = prescriptionExercisesFor(plans[0].kind).safeParse(command.exercises)
+    if (!exercises.success) throw new ApiError(400, 'Invalid exercises or incompatible modality targets')
+    const encoded = JSON.stringify(exercises.data)
+    if (Buffer.byteLength(encoded, 'utf8') > 20000) throw new ApiError(400, 'Prescription exceeds storage limit')
+    const occurrences = exercises.data.reduce((total, exercise) =>
+      total + 1 + (exercise.warmups?.length ?? 0) +
+      (exercise.intervalBlocks?.reduce((sum, block) => sum + block.repeat * block.segments.length, 0) ?? 0), 0)
+    if (occurrences > 4096) throw new ApiError(400, 'Prescription exceeds execution limit')
+    const { rows: latest } = await tx.query<{revision:number}>(`SELECT revision FROM stunna.prescription_revisions
+      WHERE athlete_id=$1 AND planned_session_id=$2 ORDER BY revision DESC LIMIT 1`,
+      [athleteId, plannedSessionId])
+    const previous = latest[0]?.revision ?? 0
+    if (previous !== command.expectedPrescriptionRevision) throw new ApiError(409, 'Prescription revision conflict; re-read before publishing')
+    const revision = previous + 1
+    const { rows: published } = await tx.query<{approved_at:Date}>(`INSERT INTO stunna.prescription_revisions
+      (athlete_id,planned_session_id,revision,title,overview,exercises,change_reason,source,approval_note,approved_at)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,transaction_timestamp()) RETURNING approved_at`,
+      [athleteId, plannedSessionId, revision, command.title, command.overview === null ? null : JSON.stringify(command.overview),
+        encoded, command.reason, principal.source === 'api' ? 'api' : 'manual', command.approvalNote])
+    await audit('prescription_revision', plannedSessionId!, previous || null, revision)
+    return { plannedSessionId, prescriptionRevision: revision,
+      approvedAt: new Date(published[0].approved_at).toISOString() }
   }
   if (command.operation === 'create_block') {
     const b = command.block
