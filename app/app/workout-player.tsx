@@ -14,6 +14,8 @@ import {
   proposedReps,
   rpeOptions,
   validateStrengthDraft,
+  completionSummary,
+  completePlayerWorkout,
 } from "@/lib/training/player-client";
 import styles from "./player.module.css";
 
@@ -498,6 +500,26 @@ function strengthExercise(kind: string, exercise: NonNullable<WorkoutSession["sn
     (exercise.reps !== null || !!exercise.repsRange ||
       (kind === "strength" && !exercise.intervalBlocks?.length));
 }
+// Only explicit pinned cardio modalities/targets imply pending device evidence.
+// Duration, warmups and interval structure alone also describe strength work.
+export function hasCardioExercise(workout: WorkoutSession): boolean {
+  const snapshot = workout.snapshot;
+  if (!snapshot) return false;
+  if (cardioKinds.includes(snapshot.kind)) return true;
+  return snapshot.exercises.some((exercise) => {
+    const segments = [
+      ...(exercise.warmups ?? []),
+      ...(exercise.intervalBlocks ?? []).flatMap((block) => block.segments),
+    ];
+    if (segments.some((segment) => cardioKinds.includes(segment.modality))) return true;
+    if (strengthExercise(snapshot.kind, exercise)) return false;
+    if (exercise.target && (exercise.target.unit === "mph" || exercise.target.unit === "km/h")) return true;
+    return (exercise.targets ?? []).some((target) =>
+      ["speed", "pace", "distance", "power", "rowing_split", "stroke_rate",
+        "cycling_cadence", "incline", "resistance"].includes(target.metric));
+  });
+}
+
 export function PlayerView({
   workout,
   data,
@@ -518,15 +540,6 @@ export function PlayerView({
   if (!snapshot)
     return <p>Legacy session — prescription not pinned. Read only.</p>;
   const disabled = data.status === "completed";
-  const hasStrength = snapshot.exercises.some(exercise => strengthExercise(snapshot.kind, exercise) ||
-    [...(exercise.warmups ?? []), ...(exercise.intervalBlocks ?? []).flatMap(block => block.segments)]
-      .some(segment => segment.modality === "strength"));
-  const cardioOnly = !hasStrength && (cardioKinds.includes(snapshot.kind) ||
-    (snapshot.kind === "other" && snapshot.exercises.every(exercise => {
-      const segments = [...(exercise.warmups ?? []), ...(exercise.intervalBlocks ?? []).flatMap(block => block.segments)];
-      return segments.some(segment => cardioKinds.includes(segment.modality)) ||
-        !!exercise.targets?.length || exercise.target?.unit === "mph" || exercise.target?.unit === "km/h";
-    })));
   let clockStart: number | null = 0;
   return (
     <div className={styles.player}>
@@ -667,7 +680,7 @@ export function PlayerView({
                 ))}
               </div>
             )}
-            {!cardioOnly && <Note
+            <Note
               title="Exercise Notes"
               identity={occurrence.id}
               initial={note && "notes" in note.value ? note.value.notes : ""}
@@ -677,7 +690,7 @@ export function PlayerView({
               busy={busy}
               save={save}
               changed={changed}
-            />}
+            />
           </section>
         );
       })}
@@ -704,9 +717,12 @@ export function WorkoutPlayer({
 }) {
   const [data, setData] = useState<SessionResults | null>(null),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [confirming, setConfirming] = useState(false),
+    [completionError, setCompletionError] = useState("");
   const dirty = useRef(new Set<string>()),
-    inFlight = useRef(false);
+    inFlight = useRef(false),
+    completionPending = useRef<unknown>(null);
   const changed = (key: string, value: boolean) => {
     if (value) dirty.current.add(key);
     else dirty.current.delete(key);
@@ -741,6 +757,12 @@ export function WorkoutPlayer({
     }
   }
   useEffect(() => {
+    setData(null);
+    setError("");
+    setConfirming(false);
+    setCompletionError("");
+    completionPending.current = null;
+    dirty.current.clear();
     let active = true;
     loadPlayerResults(fetch, workout.id)
       .then((result) => {
@@ -754,7 +776,7 @@ export function WorkoutPlayer({
     };
   }, [workout.id]);
   const save: Save = async (item, revision, pending) => {
-    if (inFlight.current || !data || error) throw new PlayerError("failed");
+    if (inFlight.current || !data || data.sessionId !== workout.id || data.status !== "in_progress" || error) throw new PlayerError("failed");
     inFlight.current = true;
     setBusy(true);
     pending.current ??= {
@@ -792,6 +814,44 @@ export function WorkoutPlayer({
       setBusy(false);
     }
   };
+  async function complete() {
+    if (!data || data.sessionId !== workout.id || inFlight.current || error || data.status === 'completed') return;
+    if (dirty.current.size) {
+      setCompletionError('Unsaved drafts are not included. Save or discard them before completing.');
+      return;
+    }
+    completionPending.current ??= {
+      operation: 'complete_workout', idempotencyKey: crypto.randomUUID(),
+      reason: 'Athlete confirmed workout completion', sessionId: workout.id,
+      expectedSessionRevision: data.sessionRevision,
+    };
+    inFlight.current = true;
+    setBusy(true);
+    setCompletionError('');
+    try {
+      const current = await completePlayerWorkout(fetch, workout.id, completionPending.current);
+      setData(current);
+      setConfirming(false);
+      completionPending.current = null;
+    } catch (e) {
+      if (e instanceof PlayerError && e.kind === 'conflict') {
+        completionPending.current = null;
+        setConfirming(false);
+        await refresh();
+      }
+      setCompletionError(e instanceof PlayerError && e.kind === 'conflict'
+        ? 'Workout changed or was finalized elsewhere. Review saved results before trying again.'
+        : e instanceof PlayerError && e.kind === 'access'
+          ? 'Completion unconfirmed. Sign in and retry the same request.'
+          : 'Completion unconfirmed. Retry the same request to verify whether it was saved.');
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
+  const currentData = data?.sessionId === workout.id ? data : null;
+  const summary = currentData ? completionSummary(workout, currentData) : null;
+  const cardio = hasCardioExercise(workout);
   return (
     <section aria-label="Workout player">
       <button
@@ -816,10 +876,10 @@ export function WorkoutPlayer({
       )}
       {!workout.snapshot ? (
         <p>Legacy session — read only. No prescription available.</p>
-      ) : data ? (
+      ) : currentData ? (
         <PlayerView
           workout={workout}
-          data={data}
+          data={currentData}
           busy={busy || !!error}
           resultsUnavailable={!!error}
           save={save}
@@ -828,6 +888,39 @@ export function WorkoutPlayer({
       ) : (
         <p role="status">Loading saved actuals and notes…</p>
       )}
+      {currentData?.status === 'completed' ? (
+        <div className={styles.finishPanel} role="status">
+          <strong>Completed — workout saved</strong>
+          <p>Saved actuals and notes are read only.</p>
+          {cardio && <p>Device results not yet attached. Completion does not imply Garmin or Peloton metrics.</p>}
+        </div>
+      ) : currentData && workout.snapshot && !error ? (
+        <div className={styles.finishPanel}>
+          {!confirming ? (
+            <button type="button" disabled={busy} onClick={() => {
+              setCompletionError('');
+              setConfirming(true);
+            }}>Complete Workout</button>
+          ) : (
+            <div aria-label="Confirm workout completion">
+              <h4>Complete Workout?</h4>
+              <p>Recorded strength sets: {summary?.recorded ?? 0} of {summary?.prescribed ?? 0}.
+                Unrecorded: {summary?.unrecorded ?? 0}.</p>
+              <p>Saved overall notes: {summary?.notes || 'None saved'}</p>
+              <p>Unrecorded sets and missing cardio device results remain unknown, not performed, skipped or zero.</p>
+              <button type="button" disabled={busy} onClick={() => void complete()}>
+                {completionPending.current ? 'Retry completion / verify' : 'Confirm Complete Workout'}
+              </button>{' '}
+              <button type="button" disabled={busy} onClick={() => {
+                setConfirming(false);
+                setCompletionError('');
+                // Keep the idempotency command after an ambiguous response.
+              }}>Cancel</button>
+            </div>
+          )}
+          {completionError && <p role="alert">{completionError}</p>}
+        </div>
+      ) : null}
     </section>
   );
 }

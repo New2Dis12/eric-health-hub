@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import { PlayerView } from "../../app/app/workout-player";
+import { PlayerView, WorkoutPlayer } from "../../app/app/workout-player";
 import shell from "../../app/app/stunna.module.css";
 import type { WorkoutSession } from "../../lib/training/session";
 import type { SessionResults } from "../../lib/training/logging-models";
@@ -40,11 +40,56 @@ const workouts = [runSession, session("Synthetic intervals row", row), session("
 const result = (workout: WorkoutSession): SessionResults =>
   ({ sessionId: workout.id, status: workout.status, sessionRevision: 1, notes: "", notesRevision: 0, entries: [], nextOffset: null });
 
+// Exercise the real completion panels, not only the inner PlayerView layout.
+const strengthSession: WorkoutSession = {
+  id: "Synthetic completion strength", revision: 1, status: "in_progress",
+  startedAt: "2026-01-01", prescriptionRevision: 1,
+  snapshot: {
+    title: "Synthetic completion strength", purpose: "Synthetic completion flow",
+    kind: "strength", overview: null,
+    occurrences: [{ id: "strength-occurrence", key: "synthetic-lift", exercise: 0, type: "exercise" }],
+    exercises: [{
+      key: "synthetic-lift", name: "Synthetic lift", sets: 2, reps: 5,
+      durationSeconds: 90, target: null, restSeconds: 60, notes: null,
+    }],
+  },
+};
+const server = new Map<string, SessionResults>([
+  ...workouts.map(workout => [workout.id, result(workout)] as const),
+  [strengthSession.id, { ...result(strengthSession), notes: "Synthetic saved overall notes" }],
+]);
+const probe = { attempts: 0, keys: [] as string[] };
+Object.assign(globalThis, { __issue34CompletionProbe: probe });
+globalThis.fetch = async (url, init) => {
+  if (init?.method === "POST") {
+    const command = JSON.parse(String(init.body)) as { sessionId: string; idempotencyKey: string };
+    if (command.sessionId !== strengthSession.id) return Response.json({}, { status: 403 });
+    probe.attempts++;
+    probe.keys.push(command.idempotencyKey);
+    if (probe.attempts === 1) return Response.json({ error: "Synthetic ambiguous reply" }, { status: 503 });
+    const saved = server.get(strengthSession.id)!;
+    server.set(strengthSession.id, { ...saved, status: "completed", sessionRevision: 2 });
+    return Response.json({ actualSessionId: strengthSession.id, sessionRevision: 2 });
+  }
+  const sessionId = new URL(String(url), location.origin).searchParams.get("session");
+  const saved = sessionId && server.get(sessionId);
+  return saved ? Response.json(saved) : Response.json({}, { status: 404 });
+};
+
 createRoot(document.querySelector("#root")!).render(
   <main className={shell.shell}><div className={shell.content}>
     {workouts.map(workout => <article className={shell.workout} key={workout.id}><div className={shell.startArea}>
-      <PlayerView workout={workout} data={result(workout)} busy={false}
-        save={async () => { throw Error("Layout fixture has no write service"); }} changed={() => {}} />
+      {workout.status === "completed" ? (
+        <WorkoutPlayer workout={workout} onBack={() => {}} />
+      ) : (
+        <PlayerView workout={workout} data={result(workout)} busy={false}
+          save={async () => { throw Error("Layout fixture has no write service"); }} changed={() => {}} />
+      )}
     </div></article>)}
+    <article className={shell.workout} data-completion-probe="strength">
+      <div className={shell.startArea}>
+        <WorkoutPlayer workout={strengthSession} onBack={() => {}} />
+      </div>
+    </article>
   </div></main>,
 );

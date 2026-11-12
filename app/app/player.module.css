@@ -202,3 +202,8 @@
 .completionHeading {
   font-size: 9px;
 }
+
+.finishPanel { margin-top: 1.25rem; padding: 1rem; border: 1px solid var(--border, #a0a0a0); border-radius: 12px; }
+.finishPanel button { min-height: 44px; max-width: 100%; margin-top: .5rem; }
+.finishPanel p { overflow-wrap: anywhere; }
+@media (max-width: 390px) { .finishPanel { padding: .75rem; } .finishPanel button { width: 100%; } }

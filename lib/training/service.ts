@@ -1,6 +1,6 @@
 import 'server-only'
 import { logResult, readResults } from './logging'
-import { readWorkoutSession, startWorkout, workoutId } from './session'
+import { readWorkoutSession, startWorkout, completeWorkout, workoutId } from './session'
 import { createHash, randomUUID } from 'node:crypto'
 import { commandSchema, type TrainingCommand, type WriteResult, type TrainingHistory, type TrainingBlock, type PlannedSession, type ActualSession, type BodyMeasurement } from './models'
 import { assertTrainingAccess, type TrainingPrincipal } from './auth'
@@ -100,6 +100,11 @@ async function execute(tx: Queryable, athleteId: string, command: TrainingComman
     if (result.created) await audit('actual_session', result.workout.id, null)
     return { workout: result.workout }
   }
+  if (command.operation === 'complete_workout') {
+    const result = await completeWorkout(tx, athleteId, command)
+    await audit('actual_session', result.actualSessionId, command.expectedSessionRevision, result.sessionRevision)
+    return result
+  }
   if (command.operation === 'create_block') {
     const b = command.block
     await tx.query(`INSERT INTO stunna.training_blocks(id,athlete_id,title,goal,starts_on,ends_on,source)
@@ -129,8 +134,10 @@ async function execute(tx: Queryable, athleteId: string, command: TrainingComman
     const s = command.session
     const { rows: plans } = await tx.query('SELECT id FROM stunna.planned_sessions WHERE id=$1 AND athlete_id=$2', [s.plannedSessionId, athleteId])
     if (!plans[0]) throw new ApiError(404, 'Planned session not found')
-    const { rows: actuals } = await tx.query<ActualSession>('SELECT * FROM stunna.actual_sessions WHERE planned_session_id=$1 AND athlete_id=$2', [s.plannedSessionId, athleteId])
+    const { rows: actuals } = await tx.query<ActualSession & { prescription_snapshot?: unknown }>('SELECT * FROM stunna.actual_sessions WHERE planned_session_id=$1 AND athlete_id=$2', [s.plannedSessionId, athleteId])
     const previous = actuals[0]
+    // Legacy observations must not rewrite the pinned player session or its completion.
+    if (previous?.prescription_snapshot) throw new ApiError(409, 'Pinned session requires dedicated workout commands')
     if (s.expectedRevision !== (previous?.revision ?? 0)) throw new ApiError(409, 'Session revision conflict; reload before retrying')
     if (previous?.status === 'completed' && (s.status !== 'completed' || Date.parse(s.completedAt!) !== new Date(previous.completed_at!).getTime() || Date.parse(s.startedAt) !== new Date(previous.started_at).getTime())) {
       throw new ApiError(409, 'A finalized session cannot be reopened or finalized again')

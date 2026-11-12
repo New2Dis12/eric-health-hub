@@ -119,8 +119,9 @@ try {
       }
       const player = table.closest("article");
       const notes = player.querySelectorAll("textarea");
-      if (notes.length !== 1 || notes[0].getBoundingClientRect().top <= table.getBoundingClientRect().bottom ||
-          !player.textContent.includes("Overall Workout Notes")) errors.push("notes misplaced");
+      if (notes.length !== 2 || notes[0].getBoundingClientRect().top <= table.getBoundingClientRect().bottom ||
+          notes[1].getBoundingClientRect().top <= notes[0].getBoundingClientRect().bottom ||
+          !player.textContent.includes("Exercise Notes") || !player.textContent.includes("Overall Workout Notes")) errors.push("notes misplaced");
       if (table.querySelector("button")) errors.push("cardio table exposes progress controls");
     }
     if (!["59:00–60:30", "5.4–5.6", "0.5–2.5%"].every(value => tables[0].textContent.includes(value)))
@@ -138,8 +139,50 @@ try {
     if (!["120–160 W", "75–90", "12–18 level"].every(value => tables[2].textContent.includes(value)) ||
         !tables[2].closest("article").textContent.includes("Finalized · read only"))
       errors.push("bike targets or finalized status missing");
+    if (!tables[2].closest("article").textContent.includes("Device results not yet attached"))
+      errors.push("completed cardio device-evidence panel missing");
+    if (!document.querySelector('[data-completion-probe="strength"] button'))
+      errors.push("strength completion player missing");
     if (document.documentElement.scrollWidth !== innerWidth) errors.push("horizontal overflow");
     return { width: innerWidth, nestedWidth: Math.round(tables[0].getBoundingClientRect().width), measured, errors };
+  }
+  async function inspectCompletionFlow() {
+    const errors = [];
+    const article = document.querySelector('[data-completion-probe="strength"]');
+    if (!article) return { errors: ["completion article missing"] };
+    const click = (label) => {
+      const button = [...article.querySelectorAll("button")].find(item => item.textContent.trim() === label);
+      if (!button || button.disabled) { errors.push(`button unavailable: ${label}`); return false; }
+      button.click();
+      return true;
+    };
+    const settle = () => new Promise(resolve => setTimeout(resolve, 80));
+    if (!click("Complete Workout")) return { errors };
+    await settle();
+    if (!article.textContent.includes("Recorded strength sets: 0 of 2") ||
+        !article.textContent.includes("Unrecorded: 2") ||
+        !article.textContent.includes("Synthetic saved overall notes"))
+      errors.push("confirmation missing strength counts or saved notes");
+    if (!click("Confirm Complete Workout")) return { errors };
+    await settle();
+    if (!article.textContent.includes("Completion unconfirmed") ||
+        !article.textContent.includes("Retry completion / verify"))
+      errors.push("ambiguous response lacks retry/verification");
+    if (!click("Retry completion / verify")) return { errors };
+    await settle();
+    if (!article.textContent.includes("Completed — workout saved") ||
+        article.textContent.includes("Device results not yet attached") ||
+        article.querySelector("button")?.textContent === "Complete Workout")
+      errors.push("completed strength status is not truthful");
+    const fields = [...article.querySelectorAll("fieldset")];
+    if (!fields.length || fields.some(field => !field.disabled))
+      errors.push("completed strength inputs are not read-only");
+    const probe = globalThis.__issue34CompletionProbe;
+    if (probe.attempts !== 2 || probe.keys.length !== 2 || probe.keys[0] !== probe.keys[1])
+      errors.push("ambiguous retry changed idempotency identity");
+    if (document.documentElement.scrollWidth !== innerWidth)
+      errors.push("completion panel causes horizontal overflow");
+    return { errors, attempts: probe.attempts, idempotent: probe.keys[0] === probe.keys[1] };
   }
   for (const width of [375, 390]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height: 1700, deviceScaleFactor: 1, mobile: true }, sessionId);
@@ -154,6 +197,14 @@ try {
     assert.equal(evidence.width, width);
     assert.equal(evidence.nestedWidth, width - 74);
     assert.deepEqual(evidence.errors, []);
+    const { result: completionResult } = await send("Runtime.evaluate", {
+      expression: `(${inspectCompletionFlow})()`, awaitPromise: true, returnByValue: true,
+    }, sessionId);
+    const completion = completionResult.value;
+    assert.ok(completion, "completion UI was not exercised");
+    assert.deepEqual(completion.errors, []);
+    assert.equal(completion.attempts, 2);
+    assert.equal(completion.idempotent, true);
     if (process.env.SCREENSHOT_DIR) {
       await mkdir(process.env.SCREENSHOT_DIR, { recursive: true });
       const { cssContentSize } = await send("Page.getLayoutMetrics", {}, sessionId);
