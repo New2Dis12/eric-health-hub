@@ -164,7 +164,7 @@ async function execute(tx: Queryable, athleteId: string, command: TrainingComman
         [plannedSessionId, athleteId, blockId, plan.date, plan.timeZone, plan.kind, plan.purpose])
       await audit('planned_session', plannedSessionId, null)
     }
-    const { rows: plans } = await tx.query<{kind:string; planned_on: string | Date | null; scheduled_at: Date | string | null; time_zone: string}>(`SELECT kind, planned_on, scheduled_at, time_zone FROM stunna.planned_sessions
+    const { rows: plans } = await tx.query<{kind:string; planned_on: string | null; scheduled_at: Date | string | null; time_zone: string}>(`SELECT kind, planned_on::text AS planned_on, scheduled_at, time_zone FROM stunna.planned_sessions
       WHERE id=$1 AND athlete_id=$2`, [plannedSessionId, athleteId])
     if (!plans[0]) throw new ApiError(404, 'Planned workout not found')
     // An initial executable prescription may only be published the night before
@@ -172,7 +172,7 @@ async function execute(tx: Queryable, athleteId: string, command: TrainingComman
     if (command.expectedPrescriptionRevision === 0) {
       const plan = plans[0]
       const planDate = plan.planned_on
-        ? (plan.planned_on instanceof Date ? plan.planned_on.toISOString().slice(0, 10) : String(plan.planned_on).slice(0, 10))
+        ? plan.planned_on
         : localTrainingDate(new Date(plan.scheduled_at!), plan.time_zone)
       const today = localTrainingDate(now(), plan.time_zone)
       if (planDate !== today && planDate !== moveTrainingDate(today, 1))

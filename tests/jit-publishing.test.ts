@@ -227,3 +227,50 @@ test('initial publication is restricted to athlete-local day before/day of, with
     tx.query<{overview: unknown}>('SELECT overview FROM stunna.prescription_revisions WHERE planned_session_id=$1', [valid.plannedSessionId]))
   assert.equal(stored.rows[0].overview, null)
 })
+
+test('date-only PostgreSQL values remain calendar dates on positive-offset Node hosts', async () => {
+  // pg DATE (OID 1082) normally becomes host-local midnight. Auckland therefore
+  // exposes the old one-day-shift bug when callers use toISOString().slice(0, 10).
+  const { execFileSync } = await import('node:child_process')
+  const parsedAsUtcDay = execFileSync(process.execPath, ['-e',
+    "const pg = require('pg'); const d = pg.types.getTypeParser(1082, 'text')('2026-11-12'); process.stdout.write(d.toISOString().slice(0, 10))",
+  ], { encoding: 'utf8', env: { ...process.env, TZ: 'Pacific/Auckland' } })
+  assert.equal(parsedAsUtcDay, '2026-11-11', 'regression fixture must exercise the real pg DATE parser')
+
+  const observedQueries: string[] = []
+  const tracedDatabase: TrainingDatabase = {
+    transaction: (identity, work) => database.transaction(identity, tx => work({
+      query: (sql, params) => {
+        observedQueries.push(sql)
+        return tx.query(sql, params)
+      },
+    } as Queryable)),
+  }
+  const originalTimeZone = process.env.TZ
+  process.env.TZ = 'Pacific/Auckland'
+  try {
+    const serviceInAuckland = createTrainingService(tracedDatabase, () => new Date('2026-11-12T15:00:00Z'))
+    const contextInAuckland = createTrainingContextReader(() => tracedDatabase, () => new Date('2026-11-12T15:00:00Z'))
+    const result = await serviceInAuckland.write(owner, request({
+      operation: 'publish_approved_workout',
+      newPlan: { date: '2026-11-12', timeZone: 'America/Chicago', kind: 'run', purpose: 'Synthetic timezone regression' },
+      expectedPrescriptionRevision: 0,
+      title: 'Synthetic same-day date-only run',
+      overview: null,
+      exercises: run,
+      approvalNote: 'Owner explicitly approved the exact synthetic timezone regression workout',
+    }))
+    assert.equal(result.prescriptionRevision, 1, 'same-day publishing must not shift to the previous day')
+    const day = await contextInAuckland(owner, { date: '2026-11-12' })
+    const workout = day.dateOnlyWorkouts.find(item => item.id === result.plannedSessionId)
+    assert.equal(workout?.trainingDate, '2026-11-12')
+    assert.equal(workout?.scheduledAt, null)
+    assert.ok(observedQueries.some(sql => sql.includes('SELECT kind, planned_on::text AS planned_on')),
+      'publishing must project PostgreSQL DATE as text before pg parsing')
+    assert.ok(observedQueries.some(sql => sql.includes('p.planned_on::text AS planned_on')),
+      'context must project PostgreSQL DATE as text before pg parsing')
+  } finally {
+    if (originalTimeZone === undefined) delete process.env.TZ
+    else process.env.TZ = originalTimeZone
+  }
+})

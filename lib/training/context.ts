@@ -11,7 +11,7 @@ type ScheduleRow = {
   kind: string
   purpose: string
   scheduled_at: Date | string | null
-  planned_on: string | Date | null
+  planned_on: string | null
   block_title: string
   block_goal: string
   revision: number | null
@@ -60,7 +60,7 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
         GROUP BY 1`, weekParams) : { rows: [] }
       const calendar = dates.map(day => ({ date: day, workoutCount: days.find(row => row.day === day)?.count ?? 0 }))
       const { rows } = athlete ? await tx.query<ScheduleRow>(`
-        SELECT p.id, p.kind, p.purpose, p.scheduled_at, p.planned_on, b.title AS block_title, b.goal AS block_goal,
+        SELECT p.id, p.kind, p.purpose, p.scheduled_at, p.planned_on::text AS planned_on, b.title AS block_title, b.goal AS block_goal,
           r.revision, r.title, r.overview, r.exercises, r.change_reason, r.approved_at, r.source, r.approval_note, m.context AS methodology, m.revision AS methodology_revision
         FROM stunna.planned_sessions p
         JOIN stunna.training_blocks b ON b.athlete_id=p.athlete_id AND b.id=p.block_id
@@ -106,7 +106,7 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
           kind: row.kind,
           purpose: row.purpose,
           scheduledAt: row.scheduled_at ? new Date(row.scheduled_at).toISOString() : null,
-          trainingDate: row.planned_on ? (row.planned_on instanceof Date ? row.planned_on.toISOString().slice(0, 10) : row.planned_on) : localTrainingDate(new Date(row.scheduled_at!), timeZone),
+          trainingDate: row.planned_on ? row.planned_on : localTrainingDate(new Date(row.scheduled_at!), timeZone),
           block: { title: row.block_title, goal: row.block_goal, methodology: row.methodology ? { ...blockMethodology.parse(row.methodology), revision: row.methodology_revision! } : null },
           prescription: row.revision === null ? null : {
             revision: row.revision,
