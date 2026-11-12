@@ -104,7 +104,7 @@ function WorkoutOverview({ workout, showPrevious }: { workout: Workout; showPrev
     <article className={styles.workout}>
       <div className={styles.workoutHeader}>
         <p className={styles.eyebrow}>{workout.kind} · Workout overview</p>
-        <h2>{prescription?.title ?? 'Scheduled workout'}</h2>
+        <h2>{prescription?.title ?? 'Workout intent · details not yet approved'}</h2>
         <p className={styles.block}>{workout.block.title}</p>
       </div>
       <div className={styles.overviewBody}>
@@ -129,7 +129,7 @@ function WorkoutOverview({ workout, showPrevious }: { workout: Workout; showPrev
               {rule.substitution && <p>Alternative · {rule.substitution.name} · {rule.substitution.equipment}</p>}
             </li>)}</ul> : <p>No additional adjustment rules specified.</p>}
           </section>
-        </> : <p className={styles.empty}>No approved exercise prescription is available for this workout.</p>}
+        </> : <p className={styles.empty}>High-level intent only. Detailed exercises will appear after your approval; Start is unavailable until then.</p>}
       </div>
       <PrescriptionDetails workout={workout} showPrevious={showPrevious} />
       <SessionStart workoutId={workout.id} prescriptionRevision={prescription?.revision ?? null} isSyntheticDemo={prescription?.source === "synthetic"} />

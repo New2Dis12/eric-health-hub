@@ -31,6 +31,7 @@ before(async () => {
   await db.exec(await file('../db/migrations/002_prescriptions.up.sql'))
   await db.exec(await file('../db/migrations/003_methodology.up.sql'))
   await db.exec(await file('../db/migrations/004_workout_overviews.up.sql'))
+  await db.exec(await file('../db/migrations/008_jit_publishing.up.sql'))
   await db.exec('CREATE ROLE stunna_runtime')
   await db.exec(await file('../db/runtime-grants.sql'))
   const fixture = await file('../db/fixtures/sprint-2-synthetic.sql')

@@ -10,7 +10,8 @@ type ScheduleRow = {
   id: string
   kind: string
   purpose: string
-  scheduled_at: Date | string
+  scheduled_at: Date | string | null
+  planned_on: string | Date | null
   block_title: string
   block_goal: string
   revision: number | null
@@ -20,6 +21,7 @@ type ScheduleRow = {
   change_reason: string | null
   approved_at: Date | string | null
   source: string | null
+  approval_note: string | null
   methodology_revision: number | null
   methodology: unknown
 }
@@ -49,19 +51,21 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
       }
       const weekParams = [athlete?.id, dates[0], moveTrainingDate(dates[6], 1), timeZone]
       const { rows: days } = athlete ? await tx.query<{ day: string; count: number }>(`
-        SELECT to_char(timezone($4, scheduled_at), 'YYYY-MM-DD') AS day, count(*)::int AS count
+        SELECT COALESCE(to_char(planned_on, 'YYYY-MM-DD'),
+          to_char(timezone($4, scheduled_at), 'YYYY-MM-DD')) AS day, count(*)::int AS count
         FROM stunna.planned_sessions WHERE athlete_id=$1
-          AND scheduled_at >= ($2::date::timestamp AT TIME ZONE $4)
-          AND scheduled_at < ($3::date::timestamp AT TIME ZONE $4)
+          AND ((planned_on >= $2::date AND planned_on < $3::date)
+            OR (planned_on IS NULL AND scheduled_at >= ($2::date::timestamp AT TIME ZONE $4)
+              AND scheduled_at < ($3::date::timestamp AT TIME ZONE $4)))
         GROUP BY 1`, weekParams) : { rows: [] }
       const calendar = dates.map(day => ({ date: day, workoutCount: days.find(row => row.day === day)?.count ?? 0 }))
       const { rows } = athlete ? await tx.query<ScheduleRow>(`
-        SELECT p.id, p.kind, p.purpose, p.scheduled_at, b.title AS block_title, b.goal AS block_goal,
-          r.revision, r.title, r.overview, r.exercises, r.change_reason, r.approved_at, r.source, m.context AS methodology, m.revision AS methodology_revision
+        SELECT p.id, p.kind, p.purpose, p.scheduled_at, p.planned_on, b.title AS block_title, b.goal AS block_goal,
+          r.revision, r.title, r.overview, r.exercises, r.change_reason, r.approved_at, r.source, r.approval_note, m.context AS methodology, m.revision AS methodology_revision
         FROM stunna.planned_sessions p
         JOIN stunna.training_blocks b ON b.athlete_id=p.athlete_id AND b.id=p.block_id
         LEFT JOIN LATERAL (
-          SELECT revision, title, overview, exercises, change_reason, approved_at, source
+          SELECT revision, title, overview, exercises, change_reason, approved_at, source, approval_note
           FROM stunna.prescription_revisions
           WHERE athlete_id=p.athlete_id AND planned_session_id=p.id AND approved_at <= transaction_timestamp()
           ORDER BY revision DESC LIMIT 1
@@ -72,9 +76,10 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
           ORDER BY revision DESC LIMIT 1
         ) m ON true
         WHERE p.athlete_id=$1
-          AND p.scheduled_at >= ($2::date::timestamp AT TIME ZONE $3)
-          AND p.scheduled_at < (($2::date + 1)::timestamp AT TIME ZONE $3)
-        ORDER BY p.scheduled_at, p.id LIMIT $4`, [athlete.id, date, timeZone, maxWorkoutsPerDay]) : { rows: [] }
+          AND (p.planned_on=$2::date OR (p.planned_on IS NULL
+            AND p.scheduled_at >= ($2::date::timestamp AT TIME ZONE $3)
+            AND p.scheduled_at < (($2::date + 1)::timestamp AT TIME ZONE $3)))
+        ORDER BY p.scheduled_at NULLS LAST, p.id LIMIT $4`, [athlete.id, date, timeZone, maxWorkoutsPerDay]) : { rows: [] }
       const exerciseLists = rows.map(row => row.revision === null ? [] : prescriptionExercisesFor(row.kind).parse(row.exercises))
       const keys = [...new Set(exerciseLists.flatMap(list => list.map(item => item.key)))]
       const { rows: history } = athlete && preferences.showPrevious && keys.length > 0
@@ -103,7 +108,8 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
           id: row.id,
           kind: row.kind,
           purpose: row.purpose,
-          scheduledAt: new Date(row.scheduled_at).toISOString(),
+          scheduledAt: row.scheduled_at ? new Date(row.scheduled_at).toISOString() : null,
+          trainingDate: row.planned_on ? (row.planned_on instanceof Date ? row.planned_on.toISOString().slice(0, 10) : row.planned_on) : localTrainingDate(new Date(row.scheduled_at!), timeZone),
           block: { title: row.block_title, goal: row.block_goal, methodology: row.methodology ? { ...blockMethodology.parse(row.methodology), revision: row.methodology_revision! } : null },
           prescription: row.revision === null ? null : {
             revision: row.revision,
@@ -112,6 +118,7 @@ export function createTrainingContextReader(database: () => TrainingDatabase, no
             reason: row.change_reason!,
             approvedAt: new Date(row.approved_at!).toISOString(),
             source: row.source!,
+            approvalNote: row.approval_note,
             exercises: exerciseLists[index].map((exercise, position) => ({
               ...exercise, position: position + 1, previous: previous.get(JSON.stringify([exercise.key, exercise.comparisonContext ?? ''])) ?? null,
             })),

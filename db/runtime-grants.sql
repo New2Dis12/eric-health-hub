@@ -20,6 +20,10 @@ BEGIN
     IF to_regclass(format('stunna.%I', tab)) IS NOT NULL THEN
       EXECUTE format('REVOKE INSERT, UPDATE, DELETE ON stunna.%I FROM stunna_runtime', tab);
       EXECUTE format('GRANT SELECT ON stunna.%I TO stunna_runtime', tab);
+      IF tab IN ('prescription_revisions','block_context_revisions') THEN
+        -- Append-only owner-approved JIT publications; no UPDATE/DELETE.
+        EXECUTE format('GRANT INSERT ON stunna.%I TO stunna_runtime', tab);
+      END IF;
     END IF;
   END LOOP;
 END $$;
