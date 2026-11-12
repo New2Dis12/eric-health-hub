@@ -119,8 +119,9 @@ try {
       }
       const player = table.closest("article");
       const notes = player.querySelectorAll("textarea");
-      if (notes.length !== 1 || notes[0].getBoundingClientRect().top <= table.getBoundingClientRect().bottom ||
-          !player.textContent.includes("Overall Workout Notes")) errors.push("notes misplaced");
+      if (notes.length !== 2 || notes[0].getBoundingClientRect().top <= table.getBoundingClientRect().bottom ||
+          notes[1].getBoundingClientRect().top <= notes[0].getBoundingClientRect().bottom ||
+          !player.textContent.includes("Exercise Notes") || !player.textContent.includes("Overall Workout Notes")) errors.push("notes misplaced");
       if (table.querySelector("button")) errors.push("cardio table exposes progress controls");
     }
     if (!["59:00–60:30", "5.4–5.6", "0.5–2.5%"].every(value => tables[0].textContent.includes(value)))

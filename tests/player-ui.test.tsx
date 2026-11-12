@@ -12,6 +12,8 @@ import {
   PlayerError,
   rpeOptions,
   validateStrengthDraft,
+  completionSummary,
+  completePlayerWorkout,
 } from "../lib/training/player-client";
 import type { WorkoutSession } from "../lib/training/session";
 import type { SessionResults } from "../lib/training/logging-models";
@@ -566,7 +568,7 @@ test("steady cycling keeps its bike columns and cross-modality running warmup ta
     [["Time", "Segment", "Speed (mph)", "Incline"], ["2:00", "Run warm-up", "4–5", ""]],
     [["Time", "Segment", "Output", "RPM", "Resistance"], ["10:00", "Steady bike", "120–160 W", "75–90", ""]],
   ]);
-  assert.equal(tree.root.findAllByType("textarea").length, 1);
+  assert.equal(tree.root.findAllByType("textarea").length, 2);
   await act(async () => tree.unmount());
 });
 
@@ -697,7 +699,7 @@ test("steady and interval sections share Time-first headings and accumulate plan
   await act(async () => tree.unmount());
 });
 
-test("rowing has separate targets, no historical check control, and exactly one overall note", async () => {
+test("rowing has separate targets, exercise notes and exactly one overall note", async () => {
   const planned = structuredClone(workout);
   const snapshot = planned.snapshot!;
   snapshot.kind = "other"; // Historical rowing workouts use this plan kind.
@@ -737,9 +739,9 @@ test("rowing has separate targets, no historical check control, and exactly one 
   ]);
   assert.equal(table.findAllByType("button").length, 0);
   assert.match(text(tree), /Overall Workout Notes/);
-  assert.doesNotMatch(text(tree), /Exercise Notes|Historical exercise note/);
-  assert.equal(tree.root.findAllByType("textarea").length, 1);
-  assert.equal(tree.root.findByType("textarea").props.value, "Saved overall note");
+  assert.match(text(tree), /Exercise Notes|Historical exercise note/);
+  assert.equal(tree.root.findAllByType("textarea").length, 2);
+  assert.equal(tree.root.findAllByType("textarea").at(-1)!.props.value, "Saved overall note");
   await act(async () => tree.update(view("completed")));
   assert.equal(tree.root.findAllByType("fieldset").at(-1)?.props.disabled, true);
   assert.equal(tree.root.findByProps({ role: "table" }).findAllByType("button").length, 0);
@@ -901,3 +903,83 @@ test("strength draft validation uses the server's numeric boundaries", () => {
   assert.match(validateStrengthDraft("1", "-1") ?? "", /Load/);
   assert.match(validateStrengthDraft("1", "Infinity") ?? "", /Load/);
 });
+
+test('completion summary counts saved strength sets but never assumes absent cardio or missing sets', () => {
+  const logged: SessionResults = { ...data, notes:'Synthetic saved', entries: [{
+    id:'one',item_key:'strength_set:exercise-a:1',kind:'strength_set',occurrence_id:'exercise-a',
+    set_ordinal:1,revision:1,session_revision:2,value:{reps:0,load:null,rpe:null,source:'user_reported'},
+    before_value:null,actor_sub:'synthetic',source:'browser',reason:'Fixture',recorded_at:'2026-01-01',
+  }] }
+  assert.deepEqual(completionSummary(workout,logged),{prescribed:2,recorded:1,unrecorded:1,notes:'Synthetic saved'})
+  const cardio = structuredClone(workout)
+  cardio.snapshot!.kind = 'run'
+  cardio.snapshot!.exercises = [cardio.snapshot!.exercises[1]]
+  cardio.snapshot!.occurrences = [{id:'exercise-b',exercise:0,key:'synthetic-run',type:'exercise'}]
+  assert.deepEqual(completionSummary(cardio,{...data,entries:[]}),{prescribed:0,recorded:0,unrecorded:0,notes:''})
+})
+test('ambiguous completion requires exact idempotency retry and verified completed read',async()=>{
+  const commands:string[]=[]
+  let lost=true, readStatus='in_progress'
+  const fetcher=async(_url:string,init?:RequestInit)=>{
+    if(init?.method==='POST'){
+      commands.push(String(init.body))
+      if(lost){lost=false;throw Error('synthetic lost response')}
+      readStatus='completed'
+      return Response.json({actualSessionId:workout.id,sessionRevision:2})
+    }
+    return Response.json({...data,status:readStatus,sessionRevision:2})
+  }
+  const command={operation:'complete_workout',idempotencyKey:'synthetic-key'}
+  await assert.rejects(completePlayerWorkout(fetcher,workout.id,command),e=>e instanceof PlayerError&&e.kind==='failed')
+  assert.equal(readStatus,'in_progress')
+  assert.equal((await completePlayerWorkout(fetcher,workout.id,command)).status,'completed')
+  assert.deepEqual(commands,[JSON.stringify(command),JSON.stringify(command)])
+  await assert.rejects(completePlayerWorkout(async()=>Response.json({actualSessionId:workout.id,sessionRevision:2}),
+    workout.id,command),e=>e instanceof PlayerError)
+})
+test('player completion confirms partial strength and notes, then becomes read-only; unsaved drafts warn',async()=>{
+  const previousFetch=globalThis.fetch,previousWindow=globalThis.window
+  Object.assign(globalThis,{window:{addEventListener(){},removeEventListener(){},confirm(){return true}}})
+  let server:SessionResults={...data,notes:'Saved synthetic notes'},postBody:unknown=null,tree!:ReactTestRenderer
+  globalThis.fetch=(async(_url:unknown,init?:RequestInit)=>{
+    if(init?.method==='POST'){
+      postBody=JSON.parse(String(init.body))
+      server={...server,status:'completed',sessionRevision:2}
+      return Response.json({actualSessionId:workout.id,sessionRevision:2})
+    }
+    return Response.json(server)
+  }) as typeof fetch
+  try{
+    await act(async()=>{tree=create(<WorkoutPlayer workout={workout} onBack={()=>{}}/>)})
+    const click=(label:string)=>tree.root.findAllByType('button').find(b=>b.props.children===label)!.props.onClick()
+    await act(async()=>click('Complete Workout'))
+    assert.match(text(tree),/Unrecorded: /)
+    assert.match(text(tree),/Saved synthetic notes/)
+    await act(async()=>click('Confirm Complete Workout'))
+    assert.equal((postBody as {operation:string}).operation,'complete_workout')
+    assert.match(text(tree),/Completed — workout saved/)
+    assert.match(text(tree),/Device results not yet attached/)
+    assert.equal(tree.root.findAllByType('button').some(b=>b.props.children==='Complete Workout'),false)
+    assert.equal(tree.root.findAllByType('fieldset').every(f=>f.props.disabled),true)
+    await act(async()=>tree.unmount())
+  } finally {globalThis.fetch=previousFetch;Object.assign(globalThis,{window:previousWindow})}
+})
+test('unsaved notes draft prevents completion and warns before any write',async()=>{
+  const previousFetch=globalThis.fetch,previousWindow=globalThis.window
+  Object.assign(globalThis,{window:{addEventListener(){},removeEventListener(){},confirm(){return true}}})
+  let posts=0,tree!:ReactTestRenderer
+  globalThis.fetch=(async(_url:unknown,init?:RequestInit)=>{
+    if(init?.method==='POST'){posts++;return Response.json({})}
+    return Response.json(data)
+  }) as typeof fetch
+  try{
+    await act(async()=>{tree=create(<WorkoutPlayer workout={workout} onBack={()=>{}}/>)})
+    await act(async()=>tree.root.findAllByType('textarea').at(-1)!.props.onChange({target:{value:'Unsaved synthetic note'}}))
+    const click=(label:string)=>tree.root.findAllByType('button').find(b=>b.props.children===label)!.props.onClick()
+    await act(async()=>click('Complete Workout'))
+    await act(async()=>click('Confirm Complete Workout'))
+    assert.match(text(tree),/Unsaved drafts are not included/)
+    assert.equal(posts,0)
+    await act(async()=>tree.unmount())
+  }finally{globalThis.fetch=previousFetch;Object.assign(globalThis,{window:previousWindow})}
+})

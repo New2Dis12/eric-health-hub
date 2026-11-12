@@ -7,6 +7,7 @@ import { getWebAuth, getWebSubject } from '../lib/web-auth'
 import { requireTrainingPrincipal, verifyTrainingBearer, assertTrainingAccess } from '../lib/training/auth'
 import { ApiError, requireSameOrigin } from '../lib/private-api'
 import { readCommand, createTrainingHandlers } from '../lib/training/http'
+import { createSessionHandlers } from '../lib/training/session-http'
 import { connectionOptions } from '../lib/training/database'
 import { GET as ouraTest } from '../app/api/oura/test/route'
 import { GET as ouraAuthorize } from '../app/api/oura/authorize/route'
@@ -308,4 +309,20 @@ test('enabled MCP fails closed without valid trusted resource; disabled legacy i
   }
   process.env.STUNNA_ENABLED = 'false'
   assert.equal((await oauthProtectedResource().json()).resource, 'https://eric-health-hub.vercel.app/mcp')
+})
+
+test('completion endpoint enforces browser CSRF and rejects invalid bearer before service writes',async()=>{
+  process.env.APP_BASE_URL = origin
+  let writes=0
+  const handlers=createSessionHandlers({enabled:()=>true,principal:requireTrainingPrincipal,service:()=>({
+    write:async()=>{writes++;return {actualSessionId:'synthetic',sessionRevision:2}},
+  }) as never})
+  const body=JSON.stringify({operation:'complete_workout',sessionId:'00000000-0000-4000-8000-000000000001',expectedSessionRevision:1,
+    idempotencyKey:'00000000-0000-4000-8000-000000000002',reason:'Synthetic confirmation'})
+  const send=(headers:Record<string,string>)=>handlers.POST(new Request(origin+'/api/training/session',{method:'POST',
+    headers:{'content-type':'application/json',...headers},body}))
+  assert.equal((await send({authorization:'Bearer invalid'})).status,401)
+  assert.equal((await send({cookie:await cookie(),origin:'https://wrong.invalid'})).status,403)
+  assert.equal((await send({cookie:await cookie(),origin})).status,200)
+  assert.equal(writes,1)
 })

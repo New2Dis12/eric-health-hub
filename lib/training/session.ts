@@ -11,20 +11,25 @@ export type SessionSnapshot = {
   occurrences: { id: string; exercise: number; key: string; type: string; block?: number; repeat?: number; segment?: number }[]
 }
 export type WorkoutSession = {
-  id: string; revision: number; status: 'in_progress' | 'completed'; startedAt: string
+  id: string; revision: number; status: 'in_progress' | 'completed'; startedAt: string; completedAt?: string | null
   prescriptionRevision: number | null; snapshot: SessionSnapshot | null
 }
 export const workoutId = z.uuid()
+export const completeWorkoutFields = {
+  sessionId: workoutId,
+  expectedSessionRevision: z.number().int().min(1).max(2147483646),
+}
 export const startWorkoutFields = {
   plannedSessionId: workoutId,
   expectedPrescriptionRevision: z.number().int().min(1).max(2147483646),
   expectedSessionRevision: z.number().int().min(0).max(2147483646),
 }
 export async function readWorkoutSession(tx: Queryable, athleteId: string, planId: string): Promise<WorkoutSession | null> {
-  const { rows } = await tx.query(`SELECT id,revision,status,started_at,prescription_revision,prescription_snapshot
+  const { rows } = await tx.query(`SELECT id,revision,status,started_at,completed_at,prescription_revision,prescription_snapshot
     FROM stunna.actual_sessions WHERE athlete_id=$1 AND planned_session_id=$2`, [athleteId, planId])
   const row = rows[0]
   return row ? { id: row.id, revision: row.revision, status: row.status, startedAt: new Date(row.started_at).toISOString(),
+    completedAt: row.completed_at ? new Date(row.completed_at).toISOString() : null,
     prescriptionRevision: row.prescription_revision, snapshot: row.prescription_snapshot } : null
 }
 export async function startWorkout(tx: Queryable, athleteId: string, input: z.infer<ReturnType<typeof startSchema>>, source: string) {
@@ -65,3 +70,26 @@ export async function startWorkout(tx: Queryable, athleteId: string, input: z.in
   return { workout: (await readWorkoutSession(tx, athleteId, input.plannedSessionId))!, created: true }
 }
 const startSchema = () => z.object(startWorkoutFields)
+
+// This command deliberately changes only completion state. The pinned plan, original
+// start, all entries and notes remain authoritative and untouched.
+export async function completeWorkout(tx: Queryable, athleteId: string,
+  input: { sessionId: string; expectedSessionRevision: number }) {
+  const { rows } = await tx.query<{ id: string; revision: number; status: string; prescription_snapshot: SessionSnapshot | null }>(
+    'SELECT id,revision,status,prescription_snapshot FROM stunna.actual_sessions WHERE athlete_id=$1 AND id=$2 FOR UPDATE',
+    [athleteId, input.sessionId])
+  const session = rows[0]
+  if (!session) throw new ApiError(404, 'Session not found')
+  if (!session.prescription_snapshot) throw new ApiError(409, 'Unpinned session cannot be completed in the player')
+  if (session.status !== 'in_progress') throw new ApiError(409, 'Session already finalized; reload saved results')
+  if (session.revision !== input.expectedSessionRevision) throw new ApiError(409, 'Session revision conflict; reload before completion')
+  const completed = await tx.query<{ revision: number; completed_at: Date }>(
+    `UPDATE stunna.actual_sessions
+      SET status='completed', completed_at=GREATEST(transaction_timestamp(),started_at),
+          revision=revision+1, updated_at=transaction_timestamp()
+      WHERE athlete_id=$1 AND id=$2 AND revision=$3 AND status='in_progress'
+      RETURNING revision,completed_at`, [athleteId, input.sessionId, input.expectedSessionRevision])
+  if (!completed.rows[0]) throw new ApiError(409, 'Session changed; reload before completion')
+  return { actualSessionId: input.sessionId, sessionRevision: completed.rows[0].revision,
+    completedAt: new Date(completed.rows[0].completed_at).toISOString() }
+}

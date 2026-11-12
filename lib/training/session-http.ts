@@ -23,7 +23,7 @@ export function createSessionHandlers(deps: Dependencies) {
         if (!deps.enabled()) throw new ApiError(404, 'Not found')
         const principal = await deps.principal(request, 'training.write')
         const input = await readCommand(request)
-        if (!input || typeof input !== 'object' || !('operation' in input) || input.operation !== 'start_workout') throw new ApiError(400, 'Expected start workout')
+        if (!input || typeof input !== 'object' || !('operation' in input) || !['start_workout', 'complete_workout'].includes(String(input.operation))) throw new ApiError(400, 'Expected workout start or completion')
         return privateJson(await deps.service().write(principal, input))
       } catch (e) { return apiError(e) }
     },

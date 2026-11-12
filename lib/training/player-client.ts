@@ -1,3 +1,4 @@
+import type { WorkoutSession } from './session'
 import type { SessionResults } from "./logging-models";
 export type PlayerFetch = (
   url: string,
@@ -95,3 +96,44 @@ export function validateStrengthDraft(reps: string, load: string): string | null
   return null;
 }
 export const rpeOptions = Array.from({ length: 21 }, (_, i) => String(i / 2));
+
+// Count only persisted strength entries. A prescribed but unlogged set is
+// unknown, never performed/skipped/zero by inference.
+export function completionSummary(workout: WorkoutSession, data: SessionResults) {
+  const snapshot = workout.snapshot
+  let prescribed = 0, recorded = 0
+  for (const [index, exercise] of (snapshot?.exercises ?? []).entries()) {
+    const isStrength = exercise.sets !== null &&
+      (exercise.reps !== null || !!exercise.repsRange ||
+        (snapshot?.kind === 'strength' && !exercise.intervalBlocks?.length))
+    if (!isStrength || !exercise.sets) continue
+    const occurrence = snapshot?.occurrences.find(o => o.exercise === index && o.type === 'exercise')
+    prescribed += exercise.sets
+    if (occurrence) recorded += new Set(data.entries.filter(e =>
+      e.kind === 'strength_set' && e.occurrence_id === occurrence.id &&
+      e.set_ordinal >= 1 && e.set_ordinal <= exercise.sets!).map(e => e.set_ordinal)).size
+  }
+  return { prescribed, recorded, unrecorded: prescribed - recorded, notes: data.notes }
+}
+
+// A lost POST response is ambiguous. Retry the exact same idempotency key;
+// never infer that our write succeeded merely from another writer's completion.
+export async function completePlayerWorkout(fetcher: PlayerFetch, sessionId: string, command: unknown) {
+  let response: Response
+  try {
+    response = await fetcher('/api/training/session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(command),
+    })
+  } catch { throw new PlayerError('failed') }
+  if (response.status === 409) throw new PlayerError('conflict')
+  if ([401, 403, 404].includes(response.status)) throw new PlayerError('access')
+  if (!response.ok) throw new PlayerError('failed')
+  let receipt: { actualSessionId?: string; sessionRevision?: number }
+  try { receipt = await response.json() } catch { throw new PlayerError('failed') }
+  if (receipt.actualSessionId !== sessionId || !Number.isInteger(receipt.sessionRevision))
+    throw new PlayerError('failed')
+  const current = await loadPlayerResults(fetcher, sessionId)
+  if (current.status !== 'completed' || current.sessionRevision < receipt.sessionRevision!)
+    throw new PlayerError('failed')
+  return current
+}

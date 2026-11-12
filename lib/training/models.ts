@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { logFields } from './logging-models'
-import { startWorkoutFields, type WorkoutSession } from './session'
+import { startWorkoutFields, completeWorkoutFields, type WorkoutSession } from './session'
 
 const id = z.uuid()
 const instant = z.iso.datetime({ offset: true })
@@ -29,6 +29,7 @@ const envelope = { idempotencyKey: id, reason: z.string().trim().min(1).max(500)
 export const commandSchema = z.discriminatedUnion('operation', [
   z.strictObject({ ...envelope, operation: z.literal('log_workout'), ...logFields }),
   z.strictObject({ ...envelope, operation: z.literal('start_workout'), ...startWorkoutFields }),
+  z.strictObject({ ...envelope, operation: z.literal('complete_workout'), ...completeWorkoutFields }),
   z.strictObject({ ...envelope, operation: z.literal('create_block'), block: z.strictObject({
     title: z.string().trim().min(1).max(200), goal: z.string().trim().min(1).max(2000),
     startsOn: date, endsOn: date, source: provenance,
@@ -49,5 +50,5 @@ export type PlannedSession = { id: string; athlete_id: string; block_id: string;
 export type ActualSession = { id: string; athlete_id: string; planned_session_id: string; started_at: Date; completed_at: Date | null; status: 'in_progress' | 'completed'; notes: string; rpe: number | null; revision: number; source: 'manual' | 'api' }
 export type BodyMeasurement = { id: string; athlete_id: string; kind: 'weight' | 'waist'; value: number; unit: 'kg' | 'lb' | 'cm' | 'in'; measured_at: Date; time_zone: string; source: 'manual' | 'api'; revision: number }
 export type AuditEvent = { id: string; athlete_id: string; actor_sub: string; operation: string; entity_type: string; entity_id: string; before_revision: number | null; after_revision: number; reason: string; source: 'browser' | 'api'; occurred_at: Date }
-export type WriteResult = { entryId?: string; itemRevision?: number; blockId?: string; plannedSessionId?: string; actualSessionId?: string; sessionRevision?: number; measurementId?: string; workout?: WorkoutSession }
+export type WriteResult = { entryId?: string; itemRevision?: number; blockId?: string; plannedSessionId?: string; actualSessionId?: string; sessionRevision?: number; completedAt?: string; measurementId?: string; workout?: WorkoutSession }
 export type TrainingHistory = { blocks: TrainingBlock[]; plans: PlannedSession[]; sessions: ActualSession[]; measurements: BodyMeasurement[] }

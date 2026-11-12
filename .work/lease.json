@@ -1,22 +1,14 @@
 {
-  "owner": "issue26-mcp-worker",
-  "epoch": 5,
+  "owner": "issue34-completion-worker",
+  "epoch": 1,
   "state": "review",
-  "spec": "ed6fba56e707ff87b81c34281f8661c8c6787168066a813be5456b75b55f77b3",
-  "attempts": 4,
+  "spec": "3b063298a07a8a0d13c07b14f353111bc27d7289f78db948f649f0376b4fe454",
+  "attempts": 0,
   "correction": {
-    "attempts": 4,
-    "findings": [
-      "mcp-actual-session-discovery",
-      "mcp-explicit-write-conflict",
-      "mcp-http-actuals-parity-contract",
-      "mcp-training-oauth-metadata-discovery",
-      "mcp-preview-resource-identity-mismatch",
-      "mcp-oauth-challenge-overrequests-write",
-      "issue26-ci-auth0-mixed-line-endings"
-    ]
+    "attempts": 0,
+    "findings": []
   },
-  "heartbeat": "2026-11-09T17:05:00.000Z",
-  "expires": "2026-11-09T19:05:00.000Z",
-  "checkpoint": "Owner-specific one-time fourth correction: lib/auth0.ts newline-only LF normalization, no code semantics changed. Await exact-head CI and independent review; no further correction authorized."
+  "heartbeat": "2026-11-12T00:07:11Z",
+  "expires": "2026-11-12T02:07:11Z",
+  "checkpoint": "Issue34 synthetic implementation validated in isolated development sandbox. Await exact-head GitHub CI and independent read-only PR review; no hosted deployment or release."
 }
