@@ -33,32 +33,28 @@ try {
     <style>*{box-sizing:border-box}body{margin:0;font:16px Arial,sans-serif}
     h3,h4,p{margin:0}button,input,select,textarea{font:inherit}fieldset{min-width:0;margin-inline:0}</style>
     <div id="root"></div><script src="player.js"></script></html>`);
-  const windows = process.platform === "win32";
   browser = spawn(binary, [
-    "--headless", "--no-sandbox", "--no-zygote", "--single-process", "--disable-dev-shm-usage",
-    "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--no-proxy-server",
-    "--disable-background-networking",
-    ...(windows ? ["--remote-debugging-port=0", `--user-data-dir=${join(work, "profile")}`] : ["--remote-debugging-pipe"]),
-  ], { stdio: windows ? ["ignore", "ignore", "pipe"] : ["ignore", "ignore", "ignore", "pipe", "pipe"] });
-  let socket;
-  if (windows) {
-    // Windows Chrome cannot use Node's POSIX-style inherited pipe descriptors.
-    const endpoint = await new Promise((resolve, reject) => {
-      let output = "";
-      browser.stderr.setEncoding("utf8").on("data", data => {
-        output += data;
-        const match = output.match(/DevTools listening on (ws:\/\/[^\s]+)/);
-        if (match) resolve(match[1]);
-      });
-      browser.once("error", reject);
-      browser.once("exit", code => reject(Error(`Chromium exited before CDP startup (${code})`)));
+    "--headless", "--no-sandbox", "--disable-dev-shm-usage", "--no-proxy-server",
+    "--disable-background-networking", "--remote-debugging-address=127.0.0.1",
+    "--remote-debugging-port=0", `--user-data-dir=${join(work, "profile")}`,
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  // Use the same isolated profile and loopback CDP transport on Windows and Linux.
+  // Current Chrome requires a non-default profile for remote debugging.
+  const endpoint = await new Promise((resolve, reject) => {
+    let output = "";
+    browser.stderr.setEncoding("utf8").on("data", data => {
+      output += data;
+      const match = output.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+      if (match) resolve(match[1]);
     });
-    socket = new WebSocket(endpoint);
-    await new Promise((resolve, reject) => {
-      socket.addEventListener("open", resolve, { once: true });
-      socket.addEventListener("error", reject, { once: true });
-    });
-  }
+    browser.once("error", reject);
+    browser.once("exit", code => reject(Error(`Chromium exited before CDP startup (${code})`)));
+  });
+  const socket = new WebSocket(endpoint);
+  await new Promise((resolve, reject) => {
+    socket.addEventListener("open", resolve, { once: true });
+    socket.addEventListener("error", reject, { once: true });
+  });
   let seq = 0;
   let buffer = "";
   const pending = new Map();
@@ -82,20 +78,24 @@ try {
       else request.resolve(message.result);
     }
   };
-  if (socket) socket.addEventListener("message", event => receive(event.data + "\0"));
-  else browser.stdio[4].setEncoding("utf8").on("data", receive);
+  socket.addEventListener("message", event => receive(event.data + "\0"));
+  const disconnected = () => {
+    for (const { reject } of pending.values()) reject(Error("Chromium DevTools connection closed"));
+    pending.clear();
+  };
+  socket.addEventListener("error", disconnected);
+  socket.addEventListener("close", disconnected);
   function send(method, params = {}, sessionId) {
     const id = ++seq;
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
       const message = JSON.stringify({ id, method, params, sessionId });
-      if (socket) socket.send(message);
-      else browser.stdio[3].write(message + "\0");
+      socket.send(message);
     });
   }
   closeBrowser = async () => {
     await send("Browser.close").catch(() => {});
-    socket?.close();
+    socket.close();
   };
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
