@@ -1,63 +1,16 @@
 {
-  "owner": "issue36-jit-worker",
-  "epoch": 3,
-  "state": "review",
-  "spec": "6b3c4f487b10e7029bcdeae65b478b49145c384b1c480f7391ebf38f2b5c2ea6",
-  "attempts": 3,
-  "correction": {
-    "attempts": 2,
-    "findings": [
-      {
-        "key": "jit-shared-command-refinements-dropped",
-        "severity": "P2",
-        "reviewedHead": "08797d57ba2cdc3a444a52c662afff488c6822fd",
-        "reviewComment": 6813426865,
-        "attempt": 1,
-        "status": "corrected-pending-independent-rereview"
-      },
-      {
-        "key": "jit-null-overview-rejected-by-storage",
-        "severity": "P2",
-        "reviewedHead": "08797d57ba2cdc3a444a52c662afff488c6822fd",
-        "reviewComment": 6813426865,
-        "attempt": 1,
-        "status": "corrected-pending-independent-rereview"
-      },
-      {
-        "key": "jit-publish-window-unenforced",
-        "severity": "P2",
-        "reviewedHead": "08797d57ba2cdc3a444a52c662afff488c6822fd",
-        "reviewComment": 6813426865,
-        "attempt": 1,
-        "status": "corrected-pending-independent-rereview"
-      },
-      {
-        "key": "jit-context-null-scheduled-at-breaking-contract",
-        "severity": "P2",
-        "reviewedHead": "08797d57ba2cdc3a444a52c662afff488c6822fd",
-        "reviewComment": 6813426865,
-        "attempt": 1,
-        "status": "corrected-pending-independent-rereview"
-      },
-      {
-        "key": "jit-runtime-insert-grants-survive-rollback-reapply",
-        "severity": "P2",
-        "reviewedHead": "08797d57ba2cdc3a444a52c662afff488c6822fd",
-        "reviewComment": 6813426865,
-        "attempt": 1,
-        "status": "corrected-pending-independent-rereview"
-      },
-      {
-        "key": "jit-date-only-postgres-driver-timezone-shift",
-        "severity": "P2",
-        "reviewedHead": "591c71766bacbb81424201b2278bc8a8875f9c06",
-        "reviewComment": 6813426865,
-        "attempt": 2,
-        "status": "corrected-pending-independent-rereview"
-      }
-    ]
-  },
-  "heartbeat": "2026-11-12T05:03:17.643Z",
-  "expires": "2026-11-12T05:53:17.643Z",
-  "checkpoint": "Issue36 correction 2/3: preserve planned_on as PostgreSQL DATE text at publish/context query boundaries; positive-offset pg-parser regression added. Exact-head CI and independent review pending. No hosted changes, merge or real data."
+    "owner":  "codex-issue38-local",
+    "epoch":  4,
+    "state":  "in-progress",
+    "spec":  "0c07cc0a0d117df6a26570c10859455219a78f80e0c0306b419c44c6915a400d",
+    "attempts":  1,
+    "correction":  {
+                       "attempts":  0,
+                       "findings":  [
+
+                                    ]
+                   },
+    "heartbeat":  "2026-11-13T05:16:26.9021703Z",
+    "expires":  "2026-11-13T06:11:26.9197716Z",
+    "checkpoint":  "Owner-directed sole local writer for Issue38; Issue36 lease and correction history preserved verbatim in .work/history/issue36-handoff-lease.json. First commit disables branch Git deployments; implementation and validation in progress."
 }
