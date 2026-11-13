@@ -2,10 +2,10 @@
   "issue": 40,
   "owner": "codex-issue40-correction2-eb6ce4db-9327-4c88-a34d-38e389df0472",
   "epoch": 3,
-  "state": "in-progress",
+  "state": "review",
   "spec": "dbd85d17834b4affc99aca4b62644018a54008e97c9b16a47835e76eea4467b4",
-  "heartbeat": "2026-11-13T18:27:23.960Z",
-  "expires": "2026-11-13T19:22:23.960Z",
+  "heartbeat": "2026-11-13T18:32:35.447Z",
+  "expires": "2026-11-13T19:27:35.447Z",
   "correction": {
     "attempts": 2,
     "attemptId": "eb6ce4db-9327-4c88-a34d-38e389df0472",
@@ -32,10 +32,10 @@
         "reviewedHead": "ab08a3444f24cbacfed1b90a9d55d0a9011c0628",
         "reviewComment": 6846166501,
         "attempt": 2,
-        "status": "reserved"
+        "status": "corrected-pending-independent-rereview"
       }
     ]
   },
-  "checkpoint": "Correction attempt 2/3 reserved for independent exact-head P2 #6846166501. Add allowlisted server-side diagnostic stages and coarse HTTP statuses for Garmin candidate lookup, with synthetic coverage. Same PR and unchanged client/auth/data contract.",
+  "checkpoint": "Correction 2/3 for independent P2 #6846166501. Emit safe Garmin candidate failure stages and HTTP statuses without changing responses, permissions, candidate criteria or writes. 118 app/service + 35 UI + 20 workflow tests, TypeScript, optimized build, whitespace, and deployment exclusion passed locally. Local Chromium exited before CDP; exact-head CI browser suites and independent review pending.",
   "attempts": 2
 }

@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises'
 import { PGlite } from '@electric-sql/pglite'
 import { Encoder, Profile, type SessionMesg, type RecordMesg, type FileIdMesg, type LapMesg } from '@garmin/fitsdk'
 import { createTrainingService } from '../lib/training/service'
+import { GarminRequestError } from '../lib/garmin'
 import { decodeGarminFitArchive } from '../lib/fit-activity'
 import { normalizeGarminFit, candidatesFrom } from '../lib/training/garmin-evidence'
 import type { GarminClient } from '../lib/training/garmin-evidence'
@@ -135,6 +136,33 @@ test('Garmin outage, malformed FIT and activity outside bounded candidates leave
   malformed=true;await assert.rejects(service.sources.link(principal,command(second,101)),reject(422));malformed=false
   await assert.rejects(service.sources.link(principal,command(second,999)),reject(422))
   assert.equal((await service.results(principal,second)).sourceResult?.evidence.length,0)
+})
+
+test('candidate lookup logs only safe phase and status while keeping the client response', async t => {
+  const warning = t.mock.method(console, 'warn', () => {})
+  const failingQuery: TrainingDatabase = {
+    transaction: (s, work) => database.transaction(s, tx => work({
+      query: (sql, params) => {
+        if (sql.includes('source_id=ANY')) throw new Error('synthetic sensitive SQL detail')
+        return tx.query(sql, params)
+      },
+    })),
+  }
+  const scenarios = [
+    { db: database, list: async () => { throw new GarminRequestError('token_exchange', 'synthetic sensitive token detail', 403) }, stage: 'token_exchange', status: 403 },
+    { db: database, list: async () => ({ invalid: 'synthetic sensitive payload' }), stage: 'candidate_normalization', status: undefined },
+    { db: failingQuery, list: async () => [metadata(101)], stage: 'linked_lookup', status: undefined },
+  ]
+  for (const { db, list, stage, status } of scenarios) {
+    const candidateService = createTrainingService(db, undefined, { ...client, list })
+    const result = await candidateService.sources.candidates(principal, second)
+    assert.equal(result.reason, 'Garmin unavailable or activity list invalid; saved evidence is unchanged.')
+    assert.deepEqual(result.candidates, [])
+    assert.deepEqual(warning.mock.calls.at(-1)?.arguments, [
+      'Garmin candidate lookup failed', { stage, status },
+    ])
+  }
+  assert.equal(warning.mock.callCount(), scenarios.length)
 })
 test('audit failure rolls back identity, evidence and idempotency receipt',async()=>{
   raw=[metadata(104)]

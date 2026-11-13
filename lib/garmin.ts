@@ -14,6 +14,14 @@ type CachedToken = {
   expiresAt: number
 }
 
+type GarminFailureStage = 'key_configuration' | 'token_cache' | 'token_exchange' | 'token_response' | 'activity_request' | 'activity_response'
+
+export class GarminRequestError extends Error {
+  constructor(readonly stage: GarminFailureStage, message: string, readonly status?: number) {
+    super(message)
+  }
+}
+
 function getRedis() {
   const url = process.env.UPSTASH_REDIS_KV_REST_API_URL
   const token = process.env.UPSTASH_REDIS_KV_REST_API_TOKEN
@@ -37,7 +45,7 @@ function tokenExpiration(token: string): number {
 
 async function obtainToken(): Promise<CachedToken> {
   const key = process.env.GARMIN_API_KEY
-  if (!key) throw new Error('GARMIN_API_KEY is missing')
+  if (!key) throw new GarminRequestError('key_configuration', 'GARMIN_API_KEY is missing')
 
   const response = await fetch(TOKEN_URL, {
     method: 'POST',
@@ -45,13 +53,17 @@ async function obtainToken(): Promise<CachedToken> {
     cache: 'no-store',
     redirect: 'error',
     signal: AbortSignal.timeout(15_000),
+  }).catch(() => {
+    throw new GarminRequestError('token_exchange', 'Garmin token exchange failed')
   })
 
   if (!response.ok) {
-    throw new Error(`Garmin authentication failed: HTTP ${response.status}`)
+    throw new GarminRequestError('token_exchange', `Garmin authentication failed: HTTP ${response.status}`, response.status)
   }
 
-  const raw = (await readLimitedResponse(response, 16 * 1024)).toString('utf8').trim()
+  const raw = (await readLimitedResponse(response, 16 * 1024).catch(() => {
+    throw new GarminRequestError('token_response', 'Garmin token response is unreadable', response.status)
+  })).toString('utf8').trim()
 
   let token = raw
   try {
@@ -69,9 +81,10 @@ async function obtainToken(): Promise<CachedToken> {
     // Garmin may return a raw JWT.
   }
 
-  return {
-    accessToken: token,
-    expiresAt: tokenExpiration(token),
+  try {
+    return { accessToken: token, expiresAt: tokenExpiration(token) }
+  } catch {
+    throw new GarminRequestError('token_response', 'Garmin token response is invalid', response.status)
   }
 }
 
@@ -99,10 +112,14 @@ async function getToken(forceRefresh = false): Promise<string> {
     throw new Error('Garmin token refresh is busy')
   }
 
+  let succeeded = false
   try {
     if (!forceRefresh) {
       const cached = await redis.get<CachedToken>(TOKEN_KEY)
-      if (isValid(cached)) return cached!.accessToken
+      if (isValid(cached)) {
+        succeeded = true
+        return cached!.accessToken
+      }
     }
 
     const token = await obtainToken()
@@ -111,20 +128,31 @@ async function getToken(forceRefresh = false): Promise<string> {
       Math.floor((token.expiresAt - Date.now()) / 1000)
     )
     await redis.set(TOKEN_KEY, token, { ex: ttl })
+    succeeded = true
     return token.accessToken
   } finally {
-    await redis.del(TOKEN_LOCK_KEY)
+    try {
+      await redis.del(TOKEN_LOCK_KEY)
+    } catch (error) {
+      // The lock expires automatically. Preserve any earlier failure for diagnosis.
+      if (succeeded) throw error
+    }
   }
 }
 
 async function garminGet(path: string, binary = false): Promise<unknown> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const token = await getToken(attempt === 1)
+    const token = await getToken(attempt === 1).catch(error => {
+      if (error instanceof GarminRequestError) throw error
+      throw new GarminRequestError('token_cache', 'Garmin token cache failed')
+    })
     const response = await fetch(`${BASE}${path}`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(30_000),
+    }).catch(() => {
+      throw new GarminRequestError('activity_request', 'Garmin activity request failed')
     })
 
     if (response.status === 401 && attempt === 0) {
@@ -134,11 +162,16 @@ async function garminGet(path: string, binary = false): Promise<unknown> {
 
     if (!response.ok) {
       await response.body?.cancel()
-      throw new Error(`Garmin request failed: HTTP ${response.status}`)
+      throw new GarminRequestError('activity_request', `Garmin request failed: HTTP ${response.status}`, response.status)
     }
 
-    const bytes = await readLimitedResponse(response, binary ? 16 * 1024 * 1024 : 512 * 1024)
-    return binary ? bytes : JSON.parse(bytes.toString('utf8'))
+    if (binary) return readLimitedResponse(response, 16 * 1024 * 1024)
+    try {
+      const bytes = await readLimitedResponse(response, 512 * 1024)
+      return JSON.parse(bytes.toString('utf8'))
+    } catch {
+      throw new GarminRequestError('activity_response', 'Garmin activity response is invalid', response.status)
+    }
   }
 
   throw new Error('Garmin authorization failed')

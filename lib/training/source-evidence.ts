@@ -1,5 +1,6 @@
 import 'server-only'
 import { randomUUID, createHash } from 'node:crypto'
+import { GarminRequestError } from '../garmin'
 import { ApiError } from '../private-api'
 import { assertTrainingAccess, type TrainingPrincipal } from './auth'
 import type { TrainingDatabase, Queryable } from './database'
@@ -50,13 +51,18 @@ export function createSourceEvidenceService(database: TrainingDatabase, garmin: 
       if(!await database.transaction(principal.subject,sourceStorageAvailable)) return {status:'unavailable',candidates:[],reason:'Source storage is not available; saved workout results are unchanged.',sessionRevision:c.session.revision,evidenceRevision:0}
       const saved=await database.transaction(principal.subject,tx=>readSourceResult(tx,c.athlete,c.session.id))
       const revision=saved.evidence.find(e=>e.evidence.provider==='garmin')?.revision??0
+      let stage: 'activity_list' | 'candidate_normalization' | 'linked_lookup' = 'activity_list'
       try {
         const raw=await garmin.list(20)
+        stage = 'candidate_normalization'
         const candidates=candidatesFrom(raw,modalities(c.session.prescription_snapshot),new Date(c.session.started_at),new Date(c.session.completed_at),new Set())
+        stage = 'linked_lookup'
         const linked=new Set((await database.transaction(principal.subject,tx=>tx.query<{source_id:string}>("SELECT source_id FROM stunna.source_links WHERE athlete_id=$1 AND provider='garmin' AND source_id=ANY($2::text[])",[c.athlete,candidates.map(a=>String(a.activityId))]))).rows.map(r=>r.source_id))
         for (const candidate of candidates) candidate.linked=linked.has(String(candidate.activityId))
         return {status:revision?'matched':candidates.length?'needs_confirmation':'unavailable',candidates,reason:'Select and explicitly confirm the Garmin activity. Time and modality are hints; no automatic association.',sessionRevision:c.session.revision,evidenceRevision:revision}
-      } catch {
+      } catch (error) {
+        const failure = stage === 'activity_list' && error instanceof GarminRequestError ? error : null
+        console.warn('Garmin candidate lookup failed', { stage: failure?.stage ?? stage, status: failure?.status })
         return {status:revision?'matched':'unavailable',candidates:[],reason:'Garmin unavailable or activity list invalid; saved evidence is unchanged.',sessionRevision:c.session.revision,evidenceRevision:revision}
       }
     },
