@@ -1,15 +1,33 @@
 {
   "issue": 40,
-  "owner": "codex-issue40-137c9426-e0f7-4311-bd6c-77d1b2bcfb97",
-  "epoch": 1,
-  "state": "review",
+  "owner": "codex-issue40-correction1-899561bb-08e0-4b73-b493-a4a38d326a91",
+  "epoch": 2,
+  "state": "in-progress",
   "spec": "dbd85d17834b4affc99aca4b62644018a54008e97c9b16a47835e76eea4467b4",
-  "heartbeat": "2026-11-13T06:36:38.165258+00:00",
-  "expires": "2026-11-13T07:31:38.165258+00:00",
+  "heartbeat": "2026-11-13T06:42:50.035588+00:00",
+  "expires": "2026-11-13T07:37:50.035588+00:00",
   "correction": {
-    "attempts": 0,
-    "findings": []
+    "attempts": 1,
+    "attemptId": "18f0a5a1-b94c-413a-b796-c0e3af23663d",
+    "findings": [
+      {
+        "key": "source-evidence-legacy-read-requires-migration",
+        "severity": "P2",
+        "reviewedHead": "5a78c632fec95b1da90e57cebc4cbe3e40c02cf3",
+        "reviewComment": 6846166501,
+        "attempt": 1,
+        "status": "reserved"
+      },
+      {
+        "key": "source-evidence-unverified-receipt-readback",
+        "severity": "P2",
+        "reviewedHead": "5a78c632fec95b1da90e57cebc4cbe3e40c02cf3",
+        "reviewComment": 6846166501,
+        "attempt": 1,
+        "status": "reserved"
+      }
+    ]
   },
-  "checkpoint": "Garmin-only implementation complete. 114 app/service + 29 component + 20 workflow tests PASS; tsc and optimized Next build PASS. Synthetic browser \u2192 HTTP \u2192 restricted PGlite \u2192 durable fresh readback PASS 375/390; unchanged mobile layout assertions PASS with loopback HTTP adapter (file:// environment restriction). No live vendor/Auth0/hosted Neon/Production access. Source migration 009 unapplied. Await independent exact-head PR review; correction ledger 0/3. Prior in_progress spelling in initialization commits is retained in history; current canonical terminal review state follows workflow policy.",
-  "attempts": 1
+  "checkpoint": "Correction attempt 1/3 reserved before edits for exact-head independent report 6846166501 on 5a78c632fec95b1da90e57cebc4cbe3e40c02cf3. Fix migration-008/rollback result-read compatibility and validate receipt against fresh source readback. Same PR41; no release authorization.",
+  "attempts": 2
 }
