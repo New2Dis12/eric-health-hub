@@ -1,14 +1,23 @@
 {
   "owner": "codex-issue38-local",
-  "epoch": 4,
-  "state": "review",
+  "epoch": 5,
+  "state": "in-progress",
   "spec": "0c07cc0a0d117df6a26570c10859455219a78f80e0c0306b419c44c6915a400d",
-  "attempts": 1,
+  "attempts": 2,
   "correction": {
-    "attempts": 0,
-    "findings": []
+    "attempts": 1,
+    "findings": [
+      {
+        "key": "warmup-mobile-ci-chromium-pipe-failure",
+        "severity": "P2",
+        "reviewedHead": "ed3b7c74097602c57913ea871dcd988878a2350d",
+        "reviewComment": 6845049491,
+        "attempt": 1,
+        "status": "in-progress"
+      }
+    ]
   },
-  "heartbeat": "2026-11-13T05:26:15.0179526Z",
-  "expires": "2026-11-13T06:21:15.0359008Z",
-  "checkpoint": "Issue38 implementation attempt 1: full-width read-only strength warm-ups outside set grid. Local PASS: 102 app/service tests, 26 player tests, 20 workflow tests, tsc --noEmit, Next optimized build, Chromium 375/390 (122 text rectangles each; zero errors), git diff --check. Prior Issue36 ledger preserved. Exact-head GitHub Actions and independent technical review pending; no merge/deploy/auth/DB changes."
+  "heartbeat": "2026-11-13T05:30:59.000Z",
+  "expires": "2026-11-13T06:25:59.000Z",
+  "checkpoint": "Issue38 correction 1/3 reserved for current-head independent P2 #6845049491: replace failing Linux Chromium pipe with isolated cross-platform loopback WebSocket CDP. No app source change; exact-head CI and re-review required."
 }
