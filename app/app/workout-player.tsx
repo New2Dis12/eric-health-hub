@@ -633,6 +633,26 @@ export function PlayerView({
                 </p>
               ))}
             </div>
+            {strength && !blocks.length && warmups.length > 0 && (
+              <div className={styles.warmups} role="group" aria-label="Prescribed warm-ups">
+                <h5>Warm-up</h5>
+                <ol>
+                  {warmups.map((segment, i) => (
+                    <li key={i}>
+                      <p>{segment.label}</p>
+                      {segment.durationSeconds !== null && <p>{elapsed(segment.durationSeconds)}</p>}
+                      {segment.strength && <p>
+                        {[
+                          segment.strength.sets !== null ? `${segment.strength.sets} sets` : null,
+                          segment.strength.reps !== null ? `${segment.strength.reps} reps` : null,
+                          segment.strength.target ? `${segment.strength.target.value} ${segment.strength.target.unit}` : null,
+                        ].filter(Boolean).join(" · ")}
+                      </p>}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
             {cardioRows.length > 0 && <>
               {separateWarmups && <CardioRows rows={warmupRows} clockStart={start} intervals={false} layout={warmupLayout} />}
               <CardioRows rows={separateWarmups ? [steadyRow] : cardioRows} clockStart={start}
@@ -643,17 +663,6 @@ export function PlayerView({
                 <div className={styles.strengthRow}>
                   <span className={styles.completionHeading}>Completion</span><span>Set</span><span>Load (lb)</span><span>Reps</span><span>Edit</span>
                 </div>
-                {!blocks.length && warmups.map((segment, i) => (
-                  <div className={styles.strengthRow} key={i}>
-                    <span aria-label="Warm-up, prescription only">—</span>
-                    <span>Warm-up · {segment.label}
-                      {segment.durationSeconds !== null && <small>{elapsed(segment.durationSeconds)}</small>}
-                      {segment.strength?.sets != null && <small>{segment.strength.sets} sets</small>}
-                    </span>
-                    <span>{segment.strength?.target ? showLoad(segment.strength.target) : "—"}</span>
-                    <span>{segment.strength?.reps ?? "—"}</span><span>—</span>
-                  </div>
-                ))}
                 {Array.from({ length: exercise.sets! }, (_, i) => (
                   <SetRow
                     key={i}

@@ -97,6 +97,68 @@ const data: SessionResults = {
 function text(tree: ReactTestRenderer) {
   return JSON.stringify(tree.toJSON());
 }
+
+test("strength warm-ups are ordered full-width instructions before intact work sets, with no logging actions", async () => {
+  const fixture = structuredClone(workout);
+  const label = "Three minutes of gentle movement with controlled repetitions and comfortable motion";
+  fixture.snapshot!.exercises[0].warmups = [
+    { phase: "warmup", modality: "other", label, durationSeconds: 180, targets: [], rpe: null },
+    { phase: "warmup", modality: "strength", label: "Practice the movement", durationSeconds: null,
+      targets: [], rpe: null, strength: { sets: 1, reps: 8, durationSeconds: null,
+        target: { value: 5, unit: "lb" }, loadBasis: "total" } },
+  ];
+  const original = structuredClone(fixture);
+  let tree!: ReactTestRenderer, writes = 0;
+  await act(async () => {
+    tree = create(<PlayerView workout={fixture} data={data} busy={false}
+      save={async () => { writes++; }} changed={() => {}} />);
+  });
+  const groups = tree.root.findAll(node => node.props["aria-label"] === "Prescribed warm-ups");
+  assert.equal(groups.length, 1);
+  const group = groups[0];
+  assert.equal(group.props.className, "warmups");
+  const items = group.findAllByType("li");
+  assert.equal(items.length, 2);
+  assert.deepEqual(items[0].findAllByType("p").map(p => p.children.join("")), [label, "3:00"]);
+  assert(items[1].findAllByType("p").some(p => p.children.join("").includes("1 sets · 8 reps · 5 lb")));
+  assert.equal(group.findAllByType("button").length, 0);
+  assert.equal(group.findAllByType("input").length, 0);
+  assert.equal(group.findAll(node => node.props.className === "strengthRow").length, 0);
+  const section = group.parent!;
+  const children = section.children.filter(child => typeof child !== "string");
+  const sets = section.find(node => node.props["aria-label"] === "Strength sets");
+  assert(children.indexOf(group) > 0 && children.indexOf(group) < children.indexOf(sets));
+  const rows = sets.findAll(node => node.props.className === "strengthRow");
+  assert.equal(rows.length, 3); // header plus the two real work sets only
+  assert.deepEqual(rows[0].findAllByType("span").map(span => span.children.join("")),
+    ["Completion", "Set", "Load (lb)", "Reps", "Edit"]);
+  assert.equal(sets.findAllByType("button").length, 4); // two Log bubbles, two Edit buttons
+  assert.equal(writes, 0);
+  assert.deepEqual(fixture, original);
+  await act(async () => tree.unmount());
+});
+
+test("no warm-ups means no instruction block; interval warm-ups remain in cardio rendering once", async () => {
+  const fixture = structuredClone(workout);
+  let tree!: ReactTestRenderer;
+  const render = async () => act(async () => {
+    tree = create(<PlayerView workout={fixture} data={data} busy={false}
+      save={async () => { throw Error("No writes expected"); }} changed={() => {}} />);
+  });
+  await render();
+  assert.equal(tree.root.findAll(node => node.props["aria-label"] === "Prescribed warm-ups").length, 0);
+  await act(async () => tree.unmount());
+  fixture.snapshot!.exercises[0].warmups = [{ phase: "warmup", modality: "run", label: "Interval warm-up",
+    durationSeconds: 180, targets: [], rpe: null }];
+  fixture.snapshot!.exercises[0].intervalBlocks = [{ repeat: 1, segments: [{ phase: "work", modality: "run",
+    label: "Run", durationSeconds: 60, targets: [], rpe: null }] }];
+  await render();
+  assert.equal(tree.root.findAll(node => node.props["aria-label"] === "Prescribed warm-ups").length, 0);
+  const first = tree.root.findAll(node => node.props["aria-label"] === "Prescribed cardio")[0];
+  assert.equal(first.findAll(node => node.props.role === "cell" && node.children.join("") === "Warm-up").length, 1);
+  assert.equal(tree.root.findAll(node => node.props["aria-label"] === "Strength sets").length, 1);
+  await act(async () => tree.unmount());
+});
 test("mobile component hierarchy has unsaved upper-bound proposed reps, native half-step RPE, end-of-exercise and overall notes", async () => {
   let tree!: ReactTestRenderer,
     writes = 0;
@@ -590,7 +652,8 @@ test("warmup is read-only, empty proposals require Edit, and Cancel preserves ot
   });
   const buttons = () => tree.root.findAllByType("button");
   const rows = tree.root.findAll((node) => node.type === "div" && node.props.className === "strengthRow");
-  assert.equal(rows[1].findAllByType("button").length, 0);
+  assert.equal(tree.root.findByProps({ "aria-label": "Prescribed warm-ups" }).findAllByType("button").length, 0);
+  assert.equal(rows.length, 3);
   assert.match(text(tree), /10 kg target only/);
   await act(async () => buttons().find((node) => node.props["aria-label"] === "Log Set 1")!.props.onClick());
   assert.match(text(tree), /Use Edit to enter a value/);

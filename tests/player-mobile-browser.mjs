@@ -15,6 +15,7 @@ const binary = process.env.CHROMIUM_BIN;
 assert.ok(binary, "CHROMIUM_BIN must point to a local Chromium headless-shell binary");
 const work = await mkdtemp(join(tmpdir(), "stunna-layout-"));
 let browser;
+let closeBrowser;
 const deadline = setTimeout(() => {
   browser?.kill();
   console.error("Chromium layout test timed out");
@@ -33,10 +34,27 @@ try {
     h3,h4,p{margin:0}button,input,select,textarea{font:inherit}fieldset{min-width:0;margin-inline:0}</style>
     <div id="root"></div><script src="player.js"></script></html>`);
   browser = spawn(binary, [
-    "--headless", "--no-sandbox", "--no-zygote", "--single-process", "--disable-dev-shm-usage",
-    "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--no-proxy-server",
-    "--disable-background-networking", "--remote-debugging-pipe",
-  ], { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
+    "--headless", "--no-sandbox", "--disable-dev-shm-usage", "--no-proxy-server",
+    "--disable-background-networking", "--remote-debugging-address=127.0.0.1",
+    "--remote-debugging-port=0", `--user-data-dir=${join(work, "profile")}`,
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  // Use the same isolated profile and loopback CDP transport on Windows and Linux.
+  // Current Chrome requires a non-default profile for remote debugging.
+  const endpoint = await new Promise((resolve, reject) => {
+    let output = "";
+    browser.stderr.setEncoding("utf8").on("data", data => {
+      output += data;
+      const match = output.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+      if (match) resolve(match[1]);
+    });
+    browser.once("error", reject);
+    browser.once("exit", code => reject(Error(`Chromium exited before CDP startup (${code})`)));
+  });
+  const socket = new WebSocket(endpoint);
+  await new Promise((resolve, reject) => {
+    socket.addEventListener("open", resolve, { once: true });
+    socket.addEventListener("error", reject, { once: true });
+  });
   let seq = 0;
   let buffer = "";
   const pending = new Map();
@@ -48,7 +66,7 @@ try {
     for (const { reject } of pending.values()) reject(error);
     pending.clear();
   });
-  browser.stdio[4].setEncoding("utf8").on("data", (data) => {
+  const receive = (data) => {
     buffer += data;
     for (let end; (end = buffer.indexOf("\0")) >= 0;) {
       const message = JSON.parse(buffer.slice(0, end));
@@ -59,14 +77,26 @@ try {
       if (message.error) request.reject(Error(message.error.message));
       else request.resolve(message.result);
     }
-  });
+  };
+  socket.addEventListener("message", event => receive(event.data + "\0"));
+  const disconnected = () => {
+    for (const { reject } of pending.values()) reject(Error("Chromium DevTools connection closed"));
+    pending.clear();
+  };
+  socket.addEventListener("error", disconnected);
+  socket.addEventListener("close", disconnected);
   function send(method, params = {}, sessionId) {
     const id = ++seq;
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
-      browser.stdio[3].write(JSON.stringify({ id, method, params, sessionId }) + "\0");
+      const message = JSON.stringify({ id, method, params, sessionId });
+      socket.send(message);
     });
   }
+  closeBrowser = async () => {
+    await send("Browser.close").catch(() => {});
+    socket.close();
+  };
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
 
@@ -143,8 +173,36 @@ try {
       errors.push("completed cardio device-evidence panel missing");
     if (!document.querySelector('[data-completion-probe="strength"] button'))
       errors.push("strength completion player missing");
+    const strength = document.querySelector('[data-completion-probe="strength"]');
+    const warmups = strength.querySelector('[aria-label="Prescribed warm-ups"]');
+    const sets = strength.querySelector('[aria-label="Strength sets"]');
+    if (!warmups || !sets) return { width: innerWidth, measured, errors: [...errors, "strength warm-ups missing"] };
+    const warmBox = warmups.getBoundingClientRect(), setBox = sets.getBoundingClientRect();
+    if (Math.abs(warmBox.width - setBox.width) > 1 || warmBox.bottom > setBox.top)
+      errors.push("warm-ups are not full-width above sets");
+    if (warmups.querySelector('button,input,[role="row"]') || warmups.closest('[aria-label="Strength sets"]'))
+      errors.push("warm-ups contain set controls or rows");
+    if (warmups.querySelectorAll("li").length !== 2 || !warmups.textContent.includes("3:00") ||
+        !warmups.textContent.includes("1 sets · 8 reps · 5 lb")) errors.push("warm-up order, duration or strength dose lost");
+    if (sets.querySelectorAll('button[aria-label^="Log Set"]').length !== 2 ||
+        [...sets.querySelectorAll("button")].filter(button => button.textContent === "Edit").length !== 2)
+      errors.push("working set actions changed");
+    for (const paragraph of warmups.querySelectorAll("p")) {
+      const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+      for (let node; (node = walker.nextNode());) {
+        for (const word of node.textContent.matchAll(/\S+/g)) {
+          const range = document.createRange();
+          range.setStart(node, word.index); range.setEnd(node, word.index + word[0].length);
+          const rects = [...range.getClientRects()];
+          measured += rects.length;
+          if (rects.length !== 1) errors.push(`warm-up word broken: ${word[0]}`);
+          if (rects.some(rect => rect.left < warmBox.left || rect.right > warmBox.right)) errors.push("warm-up text overflow");
+        }
+      }
+    }
     if (document.documentElement.scrollWidth !== innerWidth) errors.push("horizontal overflow");
-    return { width: innerWidth, nestedWidth: Math.round(tables[0].getBoundingClientRect().width), measured, errors };
+    return { width: innerWidth, nestedWidth: Math.round(tables[0].getBoundingClientRect().width),
+      warmupWidth: Math.round(warmBox.width), measured, errors };
   }
   async function inspectCompletionFlow() {
     const errors = [];
@@ -218,6 +276,7 @@ try {
   }
 } finally {
   clearTimeout(deadline);
+  await closeBrowser?.();
   browser?.kill();
-  await rm(work, { recursive: true, force: true });
+  await rm(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }
