@@ -51,6 +51,13 @@ const strengthSession: WorkoutSession = {
     exercises: [{
       key: "synthetic-lift", name: "Synthetic lift", sets: 2, reps: 5,
       durationSeconds: 90, target: null, restSeconds: 60, notes: null,
+      warmups: [
+        { phase: "warmup", modality: "other", label: "Three minutes of gentle movement with controlled repetitions and comfortable motion",
+          durationSeconds: 180, targets: [], rpe: null },
+        { phase: "warmup", modality: "strength", label: "Practice the movement slowly before the working sets",
+          durationSeconds: null, targets: [], rpe: null,
+          strength: { sets: 1, reps: 8, durationSeconds: null, target: { value: 5, unit: "lb" }, loadBasis: "total" } },
+      ],
     }],
   },
 };

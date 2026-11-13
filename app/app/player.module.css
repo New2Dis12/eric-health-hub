@@ -41,6 +41,21 @@
   margin-top: 14px;
   min-width: 0;
 }
+.warmups {
+  margin-block: 12px;
+  padding: 12px;
+  border: 1px solid #405749;
+  border-radius: 12px;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.warmups ol {
+  margin: 0;
+  padding-left: 20px;
+}
+.warmups li + li {
+  margin-top: 12px;
+}
 .fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

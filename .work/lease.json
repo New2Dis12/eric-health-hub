@@ -1,16 +1,14 @@
 {
-    "owner":  "codex-issue38-local",
-    "epoch":  4,
-    "state":  "in-progress",
-    "spec":  "0c07cc0a0d117df6a26570c10859455219a78f80e0c0306b419c44c6915a400d",
-    "attempts":  1,
-    "correction":  {
-                       "attempts":  0,
-                       "findings":  [
-
-                                    ]
-                   },
-    "heartbeat":  "2026-11-13T05:16:26.9021703Z",
-    "expires":  "2026-11-13T06:11:26.9197716Z",
-    "checkpoint":  "Owner-directed sole local writer for Issue38; Issue36 lease and correction history preserved verbatim in .work/history/issue36-handoff-lease.json. First commit disables branch Git deployments; implementation and validation in progress."
+  "owner": "codex-issue38-local",
+  "epoch": 4,
+  "state": "review",
+  "spec": "0c07cc0a0d117df6a26570c10859455219a78f80e0c0306b419c44c6915a400d",
+  "attempts": 1,
+  "correction": {
+    "attempts": 0,
+    "findings": []
+  },
+  "heartbeat": "2026-11-13T05:26:15.0179526Z",
+  "expires": "2026-11-13T06:21:15.0359008Z",
+  "checkpoint": "Issue38 implementation attempt 1: full-width read-only strength warm-ups outside set grid. Local PASS: 102 app/service tests, 26 player tests, 20 workflow tests, tsc --noEmit, Next optimized build, Chromium 375/390 (122 text rectangles each; zero errors), git diff --check. Prior Issue36 ledger preserved. Exact-head GitHub Actions and independent technical review pending; no merge/deploy/auth/DB changes."
 }
