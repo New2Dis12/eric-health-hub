@@ -1,0 +1,51 @@
+name: Stunna Issue 40 synthetic validation
+
+on:
+  push:
+    branches:
+      - work/issue-40
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stunna-issue-40-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout exact branch commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@12.3.4
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Application and player tests
+        run: pnpm test
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Optimized local build only
+        run: pnpm build
+      - name: Synthetic Garmin browser to PostgreSQL flow at 375px and 390px
+        run: CHROMIUM_BIN="$(command -v google-chrome)" node tests/source-evidence-browser.mjs
+      - name: Synthetic mobile layout at 375px and 390px
+        run: CHROMIUM_BIN="$(command -v google-chrome)" node tests/player-mobile-browser.mjs
+      - name: Workflow regression suite
+        run: node --test tests/workflow/*.test.mjs
+      - name: Whitespace and deployment exclusion
+        run: |
+          git diff --check HEAD~1 HEAD
+          node -e 'const c=require("./vercel.json"); if(c.git.deploymentEnabled["work/issue-40"] !== false) process.exit(1)'

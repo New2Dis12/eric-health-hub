@@ -1,3 +1,4 @@
+import type { SourceResult } from './source-evidence-models'
 import { z } from 'zod'
 const bounded = (max: number) => z.number().min(0).max(max)
 export const strengthActual = z.strictObject({
@@ -32,4 +33,4 @@ export type LogInput = z.infer<typeof loggingInput>
 export type LogValue = z.infer<typeof strengthActual> | z.infer<typeof intervalActual> | { notes: string } | { checked: boolean }
 export type LogEntry = { id: string; item_key: string; kind: string; occurrence_id: string | null; set_ordinal: number;
   revision: number; session_revision: number; value: LogValue; before_value: LogValue | null; actor_sub: string; source: 'browser'|'api'; reason: string; recorded_at: string }
-export type SessionResults = { sessionId: string; sessionRevision: number; status: string; notes: string; notesRevision: number; entries: LogEntry[]; nextOffset: number | null }
+export type SessionResults = { sourceResult?: SourceResult; sessionId: string; sessionRevision: number; status: string; notes: string; notesRevision: number; entries: LogEntry[]; nextOffset: number | null }

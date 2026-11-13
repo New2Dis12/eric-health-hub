@@ -1,23 +1,41 @@
 {
-  "owner": "codex-issue38-local",
-  "epoch": 5,
+  "issue": 40,
+  "owner": "codex-issue40-correction2-eb6ce4db-9327-4c88-a34d-38e389df0472",
+  "epoch": 3,
   "state": "review",
-  "spec": "0c07cc0a0d117df6a26570c10859455219a78f80e0c0306b419c44c6915a400d",
-  "attempts": 2,
+  "spec": "dbd85d17834b4affc99aca4b62644018a54008e97c9b16a47835e76eea4467b4",
+  "heartbeat": "2026-11-13T18:32:35.447Z",
+  "expires": "2026-11-13T19:27:35.447Z",
   "correction": {
-    "attempts": 1,
+    "attempts": 2,
+    "attemptId": "eb6ce4db-9327-4c88-a34d-38e389df0472",
     "findings": [
       {
-        "key": "warmup-mobile-ci-chromium-pipe-failure",
+        "key": "source-evidence-legacy-read-requires-migration",
         "severity": "P2",
-        "reviewedHead": "ed3b7c74097602c57913ea871dcd988878a2350d",
-        "reviewComment": 6845049491,
+        "reviewedHead": "5a78c632fec95b1da90e57cebc4cbe3e40c02cf3",
+        "reviewComment": 6846166501,
         "attempt": 1,
+        "status": "corrected-pending-independent-rereview"
+      },
+      {
+        "key": "source-evidence-unverified-receipt-readback",
+        "severity": "P2",
+        "reviewedHead": "5a78c632fec95b1da90e57cebc4cbe3e40c02cf3",
+        "reviewComment": 6846166501,
+        "attempt": 1,
+        "status": "corrected-pending-independent-rereview"
+      },
+      {
+        "key": "garmin-candidate-failure-stage-unobservable",
+        "severity": "P2",
+        "reviewedHead": "ab08a3444f24cbacfed1b90a9d55d0a9011c0628",
+        "reviewComment": 6846166501,
+        "attempt": 2,
         "status": "corrected-pending-independent-rereview"
       }
     ]
   },
-  "heartbeat": "2026-11-13T05:30:59.000Z",
-  "expires": "2026-11-13T06:25:59.000Z",
-  "checkpoint": "Issue38 correction 1/3 for independent P2 #6845049491: unified isolated-profile loopback WebSocket CDP across Windows/Linux; removed crashing single-process/pipe launch; pending requests reject on disconnect and graceful cleanup retained. Windows Chromium 375/390 PASS (122 text rectangles each, no errors). App source unchanged from 102 app/service + 26 player + 20 workflow tests, tsc and build PASS. Await exact-head Linux CI and independent re-review; no merge/deploy/auth/DB changes."
+  "checkpoint": "Correction 2/3 for independent P2 #6846166501. Emit safe Garmin candidate failure stages and HTTP statuses without changing responses, permissions, candidate criteria or writes. 118 app/service + 35 UI + 20 workflow tests, TypeScript, optimized build, whitespace, and deployment exclusion passed locally. Local Chromium exited before CDP; exact-head CI browser suites and independent review pending.",
+  "attempts": 2
 }

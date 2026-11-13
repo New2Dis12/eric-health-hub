@@ -4,7 +4,7 @@ import { ApiError, requireBrowserSubject, requireSameOrigin } from '../private-a
 import { isAllowedSubject } from '../web-auth'
 
 export type TrainingScope = 'training.read' | 'training.write'
-export type TrainingPrincipal = { subject: string; scopes: readonly TrainingScope[]; source: 'browser' | 'api' }
+export type TrainingPrincipal = { subject: string; scopes: readonly TrainingScope[]; source: 'browser' | 'api'; healthScopes?: readonly ('garmin.read')[] }
 import { mcpResourceUrl } from '../mcp-resource'
 let keySet: { domain: string; getKey: JWTVerifyGetKey } | undefined
 
@@ -25,7 +25,7 @@ export async function verifyTrainingBearer(header: string | null, testKey?: JWTV
     if (!isAllowedSubject(payload.sub)) return null
     const scopes = (typeof payload.scope === 'string' ? payload.scope.split(/\s+/) : [])
       .filter((s): s is TrainingScope => s === 'training.read' || s === 'training.write')
-    return { subject: payload.sub, scopes, source: 'api' }
+    return { subject: payload.sub, scopes, source: 'api', healthScopes: typeof payload.scope==='string' && payload.scope.split(/\s+/).includes('garmin.read') ? ['garmin.read'] : [] }
   } catch { return null }
 }
 

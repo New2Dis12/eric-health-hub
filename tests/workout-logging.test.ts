@@ -29,7 +29,7 @@ async function log(s:WorkoutSession,item:object,itemRevision=0){
 }
 before(async()=>{
   process.env.AUTH0_ALLOWED_SUB=subject
-  for(const name of ['001_foundation','002_prescriptions','003_methodology','004_workout_overviews','005_session_start','006_session_entries','007_execution_checks']) await db.exec(await readFile(new URL('../db/migrations/'+name+'.up.sql',import.meta.url),'utf8'))
+  for(const name of ['001_foundation','002_prescriptions','003_methodology','004_workout_overviews','005_session_start','006_session_entries','007_execution_checks','009_source_evidence']) await db.exec(await readFile(new URL('../db/migrations/'+name+'.up.sql',import.meta.url),'utf8'))
   await db.exec('CREATE ROLE stunna_runtime');await db.exec(await readFile(new URL('../db/runtime-grants.sql',import.meta.url),'utf8'))
   const b=await service.write(principal,cmd({operation:'create_block',block:{title:'Synthetic',goal:'Fixture',startsOn:'2026-01-01',endsOn:'2026-01-31',source:'manual'}}))
   athlete=(await db.query<{id:string}>('SELECT id FROM stunna.athletes WHERE auth0_sub=$1',[subject])).rows[0].id

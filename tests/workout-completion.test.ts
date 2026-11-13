@@ -28,7 +28,7 @@ let concurrent: typeof strength
 const ex = { key: 'synthetic-lift', name: 'Synthetic lift', sets: 3, reps: 5, durationSeconds: null, target: null, restSeconds: 30, notes: null }
 before(async () => {
   process.env.AUTH0_ALLOWED_SUB = subject
-  for (const name of ['001_foundation','002_prescriptions','003_methodology','004_workout_overviews','005_session_start','006_session_entries','007_execution_checks']) {
+  for (const name of ['001_foundation','002_prescriptions','003_methodology','004_workout_overviews','005_session_start','006_session_entries','007_execution_checks','009_source_evidence']) {
     await db.exec(await readFile(new URL('../db/migrations/'+name+'.up.sql',import.meta.url),'utf8'))
   }
   await db.exec('CREATE ROLE stunna_runtime')

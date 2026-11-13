@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test, mock, afterEach } from 'node:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { getGarminActivities, getGarminActivityFit } from '../lib/garmin'
+import { GarminRequestError, getGarminActivities, getGarminActivityFit } from '../lib/garmin'
 import { readLimitedResponse } from '../lib/limited-response'
 import { createEricHealthMcpServer } from '../lib/mcp-server'
 import { nativeWorkoutFit, workoutFit, zipFile } from './fixtures'
@@ -74,6 +74,48 @@ test('activity listing remains JSON and never downloads FIT without an ID', asyn
   })
   assert.deepEqual(await getGarminActivities(10), [{ activityId: 123, activityName: 'Run' }])
   await assert.rejects(getGarminActivityFit(-1), /Invalid/)
+})
+
+test('Garmin failures distinguish cache, key configuration, token exchange and activity response', async () => {
+  const expectFailure = (stage: GarminRequestError['stage'], status?: number) =>
+    (error: unknown) => error instanceof GarminRequestError && error.stage === stage && error.status === status
+
+  const previousUrl = process.env.UPSTASH_REDIS_KV_REST_API_URL
+  const previousKey = process.env.GARMIN_API_KEY
+  try {
+    delete process.env.UPSTASH_REDIS_KV_REST_API_URL
+    await assert.rejects(getGarminActivities(), expectFailure('token_cache'))
+
+    delete process.env.GARMIN_API_KEY
+    const first = mockGarminFetch(async () => new Response(null, { status: 401 }))
+    await assert.rejects(getGarminActivities(), expectFailure('key_configuration'))
+    first.fetch.mock.restore()
+
+    process.env.GARMIN_API_KEY = 'synthetic-key'
+    const rejected = mockGarminFetch(async url => new Response(null, {
+      status: String(url).includes('personalapitoken-service') ? 403 : 401,
+    }))
+    await assert.rejects(getGarminActivities(), expectFailure('token_exchange', 403))
+    rejected.fetch.mock.restore()
+
+    const invalidToken = mockGarminFetch(async url => String(url).includes('personalapitoken-service')
+      ? new Response('invalid token response')
+      : new Response(null, { status: 401 }))
+    await assert.rejects(getGarminActivities(), expectFailure('token_response', 200))
+    invalidToken.fetch.mock.restore()
+
+    const failedList = mockGarminFetch(async () => new Response(null, { status: 503 }))
+    await assert.rejects(getGarminActivities(), expectFailure('activity_request', 503))
+    failedList.fetch.mock.restore()
+
+    mockGarminFetch(async () => new Response('invalid activity response'))
+    await assert.rejects(getGarminActivities(), expectFailure('activity_response', 200))
+  } finally {
+    if (previousUrl === undefined) delete process.env.UPSTASH_REDIS_KV_REST_API_URL
+    else process.env.UPSTASH_REDIS_KV_REST_API_URL = previousUrl
+    if (previousKey === undefined) delete process.env.GARMIN_API_KEY
+    else process.env.GARMIN_API_KEY = previousKey
+  }
 })
 
 test('streamed size limit works with absent or misleading Content-Length, and empty bodies', async () => {

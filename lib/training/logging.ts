@@ -1,4 +1,5 @@
 import 'server-only'
+import { readSourceResult } from './source-evidence'
 import { randomUUID } from 'node:crypto'
 import { ApiError } from '../private-api'
 import type { Queryable } from './database'
@@ -14,7 +15,7 @@ export async function readResults(tx: Queryable, athlete: string, session: strin
     WHERE athlete_id=$1 AND session_id=$2) e ${history ? '' : "WHERE latest=1 AND kind<>'workout_note'"}
     ORDER BY session_revision,id LIMIT $3 OFFSET $4`, [athlete,session,limit+1,offset])).rows
   const note = (await tx.query<{revision:number}>("SELECT revision FROM stunna.session_entries WHERE athlete_id=$1 AND session_id=$2 AND kind='workout_note' ORDER BY revision DESC LIMIT 1",[athlete,session])).rows[0]
-  return { notesRevision:note?.revision??0, sessionId:session, sessionRevision: rows[0].revision, status:rows[0].status, notes:rows[0].notes,
+  return { sourceResult: await readSourceResult(tx,athlete,session), notesRevision:note?.revision??0, sessionId:session, sessionRevision: rows[0].revision, status:rows[0].status, notes:rows[0].notes,
     entries:entries.slice(0,limit),nextOffset:entries.length>limit && offset+limit<=10000?offset+limit:null }
 }
 

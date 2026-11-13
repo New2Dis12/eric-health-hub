@@ -1,0 +1,15 @@
+{
+  "issue": 40,
+  "owner": "codex-issue40-137c9426-e0f7-4311-bd6c-77d1b2bcfb97",
+  "epoch": 1,
+  "state": "review",
+  "spec": "dbd85d17834b4affc99aca4b62644018a54008e97c9b16a47835e76eea4467b4",
+  "heartbeat": "2026-11-13T06:36:38.165258+00:00",
+  "expires": "2026-11-13T07:31:38.165258+00:00",
+  "correction": {
+    "attempts": 0,
+    "findings": []
+  },
+  "checkpoint": "Garmin-only implementation complete. 114 app/service + 29 component + 20 workflow tests PASS; tsc and optimized Next build PASS. Synthetic browser \u2192 HTTP \u2192 restricted PGlite \u2192 durable fresh readback PASS 375/390; unchanged mobile layout assertions PASS with loopback HTTP adapter (file:// environment restriction). No live vendor/Auth0/hosted Neon/Production access. Source migration 009 unapplied. Await independent exact-head PR review; correction ledger 0/3. Prior in_progress spelling in initialization commits is retained in history; current canonical terminal review state follows workflow policy.",
+  "attempts": 1
+}

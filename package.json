@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "node --conditions=react-server --import tsx scripts/migrate.ts up",
     "db:rollback": "node --conditions=react-server --import tsx scripts/migrate.ts down",
-    "test:ui": "TSX_TSCONFIG_PATH=tests/tsconfig.ui.json node --import tsx --import ./tests/ui-hooks.mjs --test tests/player-ui.test.tsx"
+    "test:ui": "TSX_TSCONFIG_PATH=tests/tsconfig.ui.json node --import tsx --import ./tests/ui-hooks.mjs --test tests/player-ui.test.tsx tests/source-evidence-ui.test.tsx"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.33.0",
