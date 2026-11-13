@@ -28,7 +28,8 @@ await db.query("INSERT INTO stunna.actual_sessions(id,athlete_id,planned_session
 const database:TrainingDatabase={transaction:(s,fn)=>db.transaction(async tx=>{
   await tx.exec('SET LOCAL ROLE stunna_runtime');await tx.query("SELECT set_config('stunna.subject',$1,true)",[s]);return fn(tx as Queryable)
 })}
-let downloads=0
+let downloads=0,staleReadback=true
+const confirmationKeys:string[]=[]
 const service=createTrainingService(database,()=>new Date('2026-10-28T00:00:00Z'),{
   list:async()=>[501,502].map(activityId=>({activityId,activityName:'Synthetic same-day run '+activityId,activityType:{typeKey:'running'},startTimeGMT:'2026-10-27 18:52:01',duration:1800,distance:0})),
   fit:async activityId=>{
@@ -45,10 +46,17 @@ const server=createServer(async(req,res)=>{
   try {
     const url=new URL(req.url!,process.env.APP_BASE_URL)
     let response:Response
-    if(url.pathname==='/results') response=Response.json(await service.results(principal,session))
-    else if(url.pathname==='/probe') response=Response.json({downloads,links:(await db.query('SELECT id FROM stunna.source_links')).rows.length,audits:(await db.query("SELECT id FROM stunna.audit_events WHERE operation='link_garmin'")).rows.length})
+    if(url.pathname==='/results') {
+      const current=await service.results(principal,session)
+      response=Response.json(staleReadback?{...current,sourceResult:{status:'unavailable',evidence:[]}}:current)
+    }
+    else if(url.pathname==='/probe') {
+      if(url.searchParams.get('readback')==='verified')staleReadback=false
+      response=Response.json({confirmationKeys,downloads,links:(await db.query('SELECT id FROM stunna.source_links')).rows.length,audits:(await db.query("SELECT id FROM stunna.audit_events WHERE operation='link_garmin'")).rows.length})
+    }
     else if(url.pathname==='/api/training/sources') {
       const chunks:Buffer[]=[];for await(const c of req)chunks.push(c)
+      if(req.method==='POST')confirmationKeys.push(JSON.parse(Buffer.concat(chunks).toString()).idempotencyKey)
       const request=new Request(url,{method:req.method,headers:req.headers as Record<string,string>,...(req.method==='POST'?{body:Buffer.concat(chunks)}:{})})
       response=await(req.method==='POST'?handlers.POST(request):handlers.GET(request))
     } else {

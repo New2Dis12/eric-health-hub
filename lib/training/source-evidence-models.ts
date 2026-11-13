@@ -19,6 +19,7 @@ export const sourceLinkInput = z.strictObject({
   expectedEvidenceRevision: z.number().int().min(0).max(2147483646),
   confirmed: z.literal(true), idempotencyKey: z.uuid(), reason: z.string().trim().min(1).max(500),
 })
+export const sourceLinkReceipt = z.strictObject({evidenceId:z.uuid(),evidenceRevision:z.number().int().min(1).max(2147483647),actualSessionId:z.uuid()})
 export type SourceLinkInput = z.infer<typeof sourceLinkInput>
 export type GarminCandidate = { activityId: number; name: string; modality: string | null; startUtc: string | null; durationSeconds: number | null; distanceMeters: number | null; compatible: boolean; linked: boolean }
 export type CandidateResult = { status: 'matched' | 'needs_confirmation' | 'unavailable'; candidates: GarminCandidate[]; reason: string; sessionRevision: number; evidenceRevision: number }

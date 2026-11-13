@@ -6,8 +6,8 @@ function Fixture() {
   const [data,setData]=useState<SessionResults|null>(null)
   async function refresh() {
     const response=await fetch('/results',{cache:'no-store'})
-    if(!response.ok) return false
-    setData(await response.json());return true
+    if(!response.ok) return null
+    const current=await response.json();setData(current);return current
   }
   useEffect(()=>{void refresh()},[])
   return data?<WorkoutSourceResults sessionId={data.sessionId} sessionRevision={data.sessionRevision} result={data.sourceResult} refresh={refresh}/>:<p>Loading synthetic workout</p>

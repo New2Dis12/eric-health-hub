@@ -1,5 +1,7 @@
 'use client'
 import { useRef, useState } from 'react'
+import type { SessionResults } from '@/lib/training/logging-models'
+import { parseSourceReceipt, sourceReceiptMatches } from '@/lib/training/source-evidence-client'
 import type { CandidateResult, SourceLinkInput, SourceResult } from '@/lib/training/source-evidence-models'
 
 const labels:Record<string,string>={
@@ -17,7 +19,7 @@ const labels:Record<string,string>={
 const metricLabel=(field:string)=>labels[field]??field
 
 export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}: {
-  sessionId:string;sessionRevision:number;result?:SourceResult;refresh:()=>Promise<boolean>
+  sessionId:string;sessionRevision:number;result?:SourceResult;refresh:()=>Promise<SessionResults|null>
 }) {
   const [page,setPage]=useState<CandidateResult|null>(null)
   const [selected,setSelected]=useState('')
@@ -46,7 +48,9 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
         if(response.status>=400 && response.status<500) {pending.current=null;setPage(null);setSelected('')}
         throw new Error()
       }
-      if (!await refresh()) throw new Error()
+      const receipt=parseSourceReceipt(await response.json())
+      const current=await refresh()
+      if (!sourceReceiptMatches(pending.current,receipt,current)) throw new Error()
       pending.current=null;setPage(null);setSelected('');setMessage('Garmin source evidence saved and re-read.')
     } catch {setMessage(pending.current?'Save could not be verified. Retry the same confirmation to check it.':'Link rejected. Re-read candidates and saved results before confirming again.')}
     finally {active.current=false;setBusy(false)}

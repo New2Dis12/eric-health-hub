@@ -2,10 +2,10 @@
   "issue": 40,
   "owner": "codex-issue40-correction1-899561bb-08e0-4b73-b493-a4a38d326a91",
   "epoch": 2,
-  "state": "in-progress",
+  "state": "review",
   "spec": "dbd85d17834b4affc99aca4b62644018a54008e97c9b16a47835e76eea4467b4",
-  "heartbeat": "2026-11-13T06:42:50.035588+00:00",
-  "expires": "2026-11-13T07:37:50.035588+00:00",
+  "heartbeat": "2026-11-13T06:49:36.439920+00:00",
+  "expires": "2026-11-13T07:44:36.439920+00:00",
   "correction": {
     "attempts": 1,
     "attemptId": "18f0a5a1-b94c-413a-b796-c0e3af23663d",
@@ -16,7 +16,7 @@
         "reviewedHead": "5a78c632fec95b1da90e57cebc4cbe3e40c02cf3",
         "reviewComment": 6846166501,
         "attempt": 1,
-        "status": "reserved"
+        "status": "corrected-pending-independent-rereview"
       },
       {
         "key": "source-evidence-unverified-receipt-readback",
@@ -24,10 +24,10 @@
         "reviewedHead": "5a78c632fec95b1da90e57cebc4cbe3e40c02cf3",
         "reviewComment": 6846166501,
         "attempt": 1,
-        "status": "reserved"
+        "status": "corrected-pending-independent-rereview"
       }
     ]
   },
-  "checkpoint": "Correction attempt 1/3 reserved before edits for exact-head independent report 6846166501 on 5a78c632fec95b1da90e57cebc4cbe3e40c02cf3. Fix migration-008/rollback result-read compatibility and validate receipt against fresh source readback. Same PR41; no release authorization.",
+  "checkpoint": "Correction 1/3 complete for both P2 findings from exact-head review 6846166501 on 5a78c632fec95b1da90e57cebc4cbe3e40c02cf3. Catalog/privilege guard preserves migration008, missing-grant and rollback browser/MCP reads. Parsed receipt reconciles session/source/evidence identity and revision against fresh authoritative results; stale/missing readback preserves same retry command. 116 app/service + 35 component + 20 workflow tests, tsc, optimized build PASS; both synthetic browser suites PASS375/390 including successful-POST/stale-readback/same-key retry with single FIT/link/audit. Pending independent exact-head re-review; no release or hosted changes.",
   "attempts": 2
 }

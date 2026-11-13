@@ -749,12 +749,13 @@ export function WorkoutPlayer({
   }, []);
   async function refresh() {
     try {
-      setData(await loadPlayerResults(fetch, workout.id));
+      const current = await loadPlayerResults(fetch, workout.id);
+      setData(current);
       setError("");
-      return true;
+      return current;
     } catch {
       setError("Saved results unavailable. Sign in or retry this read.");
-      return false;
+      return null;
     }
   }
   async function retryRead() {

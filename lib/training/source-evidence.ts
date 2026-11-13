@@ -7,7 +7,13 @@ import { sourceLinkInput, type SavedSourceEvidence, type SourceResult, type Cand
 import { candidatesFrom, normalizeGarminFit, type GarminClient } from './garmin-evidence'
 import type { SessionSnapshot } from './session'
 
+export async function sourceStorageAvailable(tx:Queryable) {
+  // Check before referencing additive relations: a failed SQL statement would abort this transaction.
+  const {rows}=await tx.query<{available:boolean}>("SELECT coalesce(has_table_privilege(current_user,to_regclass('stunna.source_links'),'SELECT'),false) AND coalesce(has_table_privilege(current_user,to_regclass('stunna.source_evidence_revisions'),'SELECT'),false) AS available")
+  return rows[0]?.available===true
+}
 export async function readSourceResult(tx: Queryable, athlete: string, session: string): Promise<SourceResult> {
+  if(!await sourceStorageAvailable(tx)) return {status:'unavailable',evidence:[]}
   const rows=(await tx.query<{id:string;revision:number;evidence:SavedSourceEvidence['evidence'];recorded_at:Date}>(`SELECT e.id,e.revision,e.evidence,e.recorded_at
     FROM stunna.source_links l JOIN LATERAL (SELECT id,revision,evidence,recorded_at FROM stunna.source_evidence_revisions
       WHERE athlete_id=l.athlete_id AND link_id=l.id ORDER BY revision DESC LIMIT 1) e ON true
@@ -41,6 +47,7 @@ export function createSourceEvidenceService(database: TrainingDatabase, garmin: 
       assertSourceAccess(principal,'training.read')
       if (!sourceLinkInput.shape.sessionId.safeParse(sessionId).success) throw new ApiError(400,'Invalid session ID')
       const c=await context(principal,sessionId as string)
+      if(!await database.transaction(principal.subject,sourceStorageAvailable)) return {status:'unavailable',candidates:[],reason:'Source storage is not available; saved workout results are unchanged.',sessionRevision:c.session.revision,evidenceRevision:0}
       const saved=await database.transaction(principal.subject,tx=>readSourceResult(tx,c.athlete,c.session.id))
       const revision=saved.evidence.find(e=>e.evidence.provider==='garmin')?.revision??0
       try {
