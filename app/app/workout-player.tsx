@@ -1,4 +1,5 @@
 "use client";
+import { WorkoutSourceResults } from "./workout-source-results";
 import { useEffect, useRef, useState } from "react";
 import type { WorkoutSession } from "@/lib/training/session";
 import type {
@@ -750,8 +751,10 @@ export function WorkoutPlayer({
     try {
       setData(await loadPlayerResults(fetch, workout.id));
       setError("");
+      return true;
     } catch {
       setError("Saved results unavailable. Sign in or retry this read.");
+      return false;
     }
   }
   async function retryRead() {
@@ -901,7 +904,7 @@ export function WorkoutPlayer({
         <div className={styles.finishPanel} role="status">
           <strong>Completed — workout saved</strong>
           <p>Saved actuals and notes are read only.</p>
-          {cardio && <p>Device results not yet attached. Completion does not imply Garmin or Peloton metrics.</p>}
+          {cardio && <WorkoutSourceResults key={workout.id} sessionId={workout.id} sessionRevision={currentData.sessionRevision} result={currentData.sourceResult} refresh={refresh} />}
         </div>
       ) : currentData && workout.snapshot && !error ? (
         <div className={styles.finishPanel}>

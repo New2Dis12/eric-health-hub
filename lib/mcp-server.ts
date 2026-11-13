@@ -10,6 +10,8 @@ import { contextDate } from '@/lib/training/context-models'
 import type { TrainingPrincipal } from '@/lib/training/auth'
 import { actualsPage, actualsWrite, createMcpTrainingActuals } from '@/lib/training/mcp-actuals'
 import { weeklyIntentFields, approvedWorkoutFields } from '@/lib/training/models'
+import { trainingService } from '@/lib/training/service'
+import { sourceLinkInput } from '@/lib/training/source-evidence-models'
 import { createMcpTrainingPublisher } from '@/lib/training/mcp-publishing'
 
 const measurementSchema = z.object({
@@ -134,6 +136,33 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
   }
 
   const principal = options.trainingPrincipal
+  if (process.env.STUNNA_ENABLED === 'true' && process.env.GARMIN_MCP_ENABLED === 'true' && principal?.healthScopes?.includes('garmin.read')) {
+    if (principal.scopes.includes('training.read')) server.registerTool('get_workout_garmin_candidates', {
+      title:'Find Garmin activity for a completed workout',
+      description:'Read up to eight recent candidate IDs for an athlete-owned completed pinned workout. All matches require explicit owner selection/confirmation; dates and modalities are hints. No background polling.',
+      inputSchema:{sessionId:z.uuid()},
+      annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:true},
+    },async ({sessionId})=>{
+      try {
+        const result=await trainingService().sources.candidates(principal,sessionId)
+        return {structuredContent:result,content:[{type:'text' as const,text:JSON.stringify(result)}]}
+      } catch {return errorResult('Garmin candidates unavailable or access denied.')}
+    })
+    if (principal.scopes.includes('training.read') && principal.scopes.includes('training.write')) server.registerTool('confirm_workout_garmin_activity', {
+      title:'Confirm Garmin evidence for a completed workout',
+      description:'Only after the owner explicitly selects/confirms this exact candidate activity ID for this completed session. Fetch and store bounded native FIT evidence; no client-supplied metrics. Requires Garmin read plus training read/write, exact revisions, reason and stable idempotency key. Refresh appends history for the same activity. Replacement/relink is rejected. Never infer missing measurements or claim confirmation without owner consent.',
+      inputSchema:sourceLinkInput.shape,
+      annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:true},
+    },async input=>{
+      try {
+        const result=await trainingService().sources.link(principal,input)
+        return {structuredContent:result,content:[{type:'text' as const,text:JSON.stringify(result)}]}
+      } catch(e) {
+        if(e instanceof ApiError && e.status===409) return {...errorResult('Activity, revision or idempotency conflict. Re-read saved results before retrying.'),structuredContent:{errorCode:'REVISION_CONFLICT'}}
+        return errorResult('Garmin evidence rejected or unavailable. Check explicit confirmation, permissions and saved session.')
+      }
+    })
+  }
   if (process.env.STUNNA_ENABLED === 'true' && principal) {
     const actuals = options.actualsAdapter ?? createMcpTrainingActuals()
     if (principal.scopes.includes('training.read')) server.registerTool('get_saved_workout_results', {

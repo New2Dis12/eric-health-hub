@@ -12,6 +12,7 @@ import { connectionOptions } from '../lib/training/database'
 import { GET as ouraTest } from '../app/api/oura/test/route'
 import { GET as ouraAuthorize } from '../app/api/oura/authorize/route'
 import { GET as ouraCallback } from '../app/api/oura/callback/route'
+import { GET as sourceGet, POST as sourcePost } from '../app/api/training/sources/route'
 import { GET as garminTest } from '../app/api/garmin/test/route'
 import { GET as mcpGet, POST as mcpPost, DELETE as mcpDelete } from '../app/mcp/route'
 import { GET as oauthProtectedResource } from '../app/.well-known/oauth-protected-resource/route'
@@ -269,9 +270,11 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
     }
     assert.deepEqual(await toolNames('oura.read garmin.read'), ['get_oura_summary', 'get_garmin_activities'])
     assert.deepEqual(await toolNames('training.read'), ['get_saved_workout_results', 'get_training_context'])
-    assert.deepEqual(await toolNames('oura.read garmin.read training.read'), ['get_oura_summary', 'get_garmin_activities', 'get_saved_workout_results', 'get_training_context'])
+    assert.deepEqual(await toolNames('oura.read garmin.read training.read'), ['get_oura_summary', 'get_garmin_activities', 'get_workout_garmin_candidates', 'get_saved_workout_results', 'get_training_context'])
     assert.deepEqual(await toolNames('training.write'), ['save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result'])
     assert.deepEqual(await toolNames('training.read training.write'), ['get_saved_workout_results', 'save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result', 'get_training_context'])
+    assert.deepEqual(await toolNames('garmin.read training.read'), ['get_workout_garmin_candidates', 'get_saved_workout_results', 'get_training_context'])
+    assert.deepEqual(await toolNames('garmin.read training.read training.write'), ['get_workout_garmin_candidates', 'confirm_workout_garmin_activity', 'get_saved_workout_results', 'save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result', 'get_training_context'])
     assert.equal((await list('garmin.read')).status, 401)
   } finally {
     if (prior.client) process.env.AUTH0_CLIENT_ID = prior.client
@@ -325,4 +328,26 @@ test('completion endpoint enforces browser CSRF and rejects invalid bearer befor
   assert.equal((await send({cookie:await cookie(),origin:'https://wrong.invalid'})).status,403)
   assert.equal((await send({cookie:await cookie(),origin})).status,200)
   assert.equal(writes,1)
+})
+
+
+test('Garmin source endpoint enforces cookie CSRF, invalid-bearer fallback and scoped live authorization before vendor access', async () => {
+  process.env.MCP_RESOURCE_URL='https://eric-health-hub.vercel.app/mcp'
+  process.env.STUNNA_ENABLED='true'
+  process.env.GARMIN_MCP_ENABLED='true'
+  const sessionCookie=await cookie()
+  const path=origin+'/api/training/sources'
+  for(const extra of [{}, {origin:'https://attacker.invalid'}, {origin,'sec-fetch-site':'cross-site'}]) {
+    const r=await sourcePost(new Request(path,{method:'POST',headers:{cookie:sessionCookie,'content-type':'application/json',...extra} as Record<string,string>,body:'{}'}))
+    assert.equal(r.status,403)
+    assert.equal(r.headers.get('cache-control'),'private, no-store')
+  }
+  assert.equal((await sourcePost(new Request(path,{method:'POST',headers:{cookie:sessionCookie,origin,authorization:'Bearer invalid'}}))).status,401)
+  assert.equal((await sourceGet(new Request(path))).status,401)
+  mock.method(globalThis,'fetch',async (input: RequestInfo | URL)=>{
+    assert.equal(String(input),'https://tenant.invalid/.well-known/jwks.json')
+    return Response.json({keys:[jwk]})
+  })
+  assert.equal((await sourcePost(new Request(path,{method:'POST',headers:{authorization:await bearer({scope:'training.read garmin.read'}),'content-type':'application/json'},body:'{}'}))).status,403)
+  assert.equal((await sourcePost(new Request(path,{method:'POST',headers:{authorization:await bearer({scope:'training.read training.write'}),'content-type':'application/json'},body:'{}'}))).status,403)
 })

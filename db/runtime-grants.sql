@@ -40,3 +40,12 @@ DO $$ BEGIN
     GRANT SELECT,INSERT ON stunna.session_entries TO stunna_runtime;
   END IF;
 END $$;
+-- Device identity and provenance history are append-only, never runtime mutable.
+DO $$ DECLARE tab text; BEGIN
+  FOREACH tab IN ARRAY ARRAY['source_links','source_evidence_revisions'] LOOP
+    IF to_regclass(format('stunna.%I',tab)) IS NOT NULL THEN
+      EXECUTE format('REVOKE ALL ON stunna.%I FROM stunna_runtime',tab);
+      EXECUTE format('GRANT SELECT,INSERT ON stunna.%I TO stunna_runtime',tab);
+    END IF;
+  END LOOP;
+END $$;

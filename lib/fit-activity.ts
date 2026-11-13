@@ -1,4 +1,5 @@
 import 'server-only'
+import { createHash } from 'node:crypto'
 import { inflateRawSync } from 'node:zlib'
 import { Decoder, Stream } from '@garmin/fitsdk'
 
@@ -212,6 +213,8 @@ export function decodeGarminFitArchive(
     mesgDefinitionListener: definition => {
       const fields = new Set(definition.fieldDefinitions.map(field => field.fieldDefinitionNumber))
       if ((definition.globalMessageNumber === 20 && fields.has(6) && fields.has(73)) ||
+          (definition.globalMessageNumber === 18 &&
+            ((fields.has(14) && fields.has(124)) || (fields.has(15) && fields.has(125)))) ||
           (definition.globalMessageNumber === 19 &&
             ((fields.has(13) && fields.has(110)) || (fields.has(14) && fields.has(111))))) {
         overlappingSpeedFields = true
@@ -220,7 +223,7 @@ export function decodeGarminFitArchive(
   })
   // The SDK reports decoding errors separately; never return partial corrupt data.
   if (decoded.errors.length) throw new Error('Garmin FIT decoding failed')
-  const messages = decoded.messages as unknown as { recordMesgs?: FitRecord[]; lapMesgs?: FitRecord[] }
+  const messages = decoded.messages as unknown as { recordMesgs?: FitRecord[]; lapMesgs?: FitRecord[]; sessionMesgs?: FitRecord[] }
   const records = messages.recordMesgs ?? []
   const laps = messages.lapMesgs ?? []
   if (overlappingSpeedFields) {
@@ -239,6 +242,7 @@ export function decodeGarminFitArchive(
     for (const [expanded, native, fields] of [
       [records, explicit.messages.recordMesgs ?? [], ['enhancedSpeed']],
       [laps, explicit.messages.lapMesgs ?? [], ['enhancedAvgSpeed', 'enhancedMaxSpeed']],
+      [messages.sessionMesgs ?? [], explicit.messages.sessionMesgs ?? [], ['enhancedAvgSpeed', 'enhancedMaxSpeed']],
     ] as [FitRecord[], FitRecord[], string[]][]) {
       native.forEach((message, index) => {
         for (const field of fields) {
@@ -249,7 +253,7 @@ export function decodeGarminFitArchive(
       })
     }
   }
-  if (records.length === 0 && laps.length === 0) {
+  if (records.length === 0 && laps.length === 0 && !messages.sessionMesgs?.length) {
     return { available: false as const, reason: 'FIT file contains no recorded telemetry' }
   }
 
@@ -295,13 +299,20 @@ export function decodeGarminFitArchive(
     lastIncluded = elapsed
   }
 
-  if (firstTimestamp === null && laps.length === 0) {
+  if (firstTimestamp === null && laps.length === 0 && !messages.sessionMesgs?.length) {
     return { available: false as const, reason: 'FIT records contain no usable timestamps' }
   }
 
   return {
     available: true as const,
     source: 'original Garmin FIT file, downloaded and decoded on demand',
+    contentSha256: createHash('sha256').update(fit).digest('hex'),
+    fitSessionCount: messages.sessionMesgs?.length ?? 0,
+    // Multisport summaries must not be silently collapsed into one activity.
+    nativeSummary: messages.sessionMesgs?.length === 1 ? {
+      ...nativeLap(messages.sessionMesgs[0], 0),
+      sport: typeof messages.sessionMesgs[0].sport === 'string' ? messages.sessionMesgs[0].sport : null,
+    } : null,
     fitRecordCount: records.length,
     sampleIntervalSeconds: everySeconds,
     startTimestamp: firstTimestamp === null ? null : new Date(firstTimestamp).toISOString(),

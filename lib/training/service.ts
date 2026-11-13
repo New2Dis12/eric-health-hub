@@ -1,4 +1,7 @@
 import 'server-only'
+import { createSourceEvidenceService } from './source-evidence'
+import { getGarminActivities, getGarminActivityFit } from '../garmin'
+import type { GarminClient } from './garmin-evidence'
 import { logResult, readResults } from './logging'
 import { readWorkoutSession, startWorkout, completeWorkout, workoutId } from './session'
 import { createHash, randomUUID } from 'node:crypto'
@@ -8,8 +11,9 @@ import { getTrainingDatabase, type TrainingDatabase, type Queryable } from './da
 import { ApiError } from '../private-api'
 import { blockMethodology, localTrainingDate, moveTrainingDate, prescriptionExercisesFor } from './context-models'
 
-export function createTrainingService(database: TrainingDatabase, now = () => new Date()) {
+export function createTrainingService(database: TrainingDatabase, now = () => new Date(), garmin: GarminClient = {list:getGarminActivities,fit:id=>getGarminActivityFit(id,30,120,0,0,20)}) {
   return {
+    sources: createSourceEvidenceService(database,garmin,now),
     async results(principal: TrainingPrincipal, sessionId: unknown, history=false, limit=50, offset=0) {
       assertTrainingAccess(principal, 'training.read')
       if (!workoutId.safeParse(sessionId).success || typeof history!=='boolean' || !Number.isInteger(limit) || limit<1 || limit>100 || !Number.isInteger(offset) || offset<0 || offset>10000) throw new ApiError(400,'Invalid result page')
