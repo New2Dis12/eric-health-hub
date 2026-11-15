@@ -1,0 +1,39 @@
+name: Exact-head build for Stunna scope diagnostic
+on:
+  push:
+    branches:
+      - verification/issue-45
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout the exact diagnostic commit
+        uses: actions/checkout@v4
+        with:
+          ref: 9ca276a9b69164fa40145c5c80bb34528082d598
+          persist-credentials: false
+      - name: Verify the checkout identity
+        run: |
+          test "$(git rev-parse HEAD)" = '9ca276a9b69164fa40145c5c80bb34528082d598'
+          test "$(git rev-parse HEAD^{tree})" = '48e50491f2880ea1e8c20f3d551984dbf3131bb4'
+          git log -1 --format='%H %T'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install frozen dependencies
+        run: |
+          npm install --global pnpm@12.3.4
+          pnpm install --frozen-lockfile
+      - name: Test the application, UI and workflow
+        run: |
+          pnpm test
+          pnpm typecheck
+          node --test tests/workflow/*.test.mjs
+      - name: Build the exact diagnostic commit
+        run: pnpm build
