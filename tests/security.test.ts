@@ -301,8 +301,15 @@ test('discovery diagnostic logs only boolean scope evidence for authorized lists
   try {
     delete process.env[property]
     assert.equal((await request('tools/list', legacy)).status, 200)
-    process.env[property] = new Date(Date.now() - 60_000).toISOString()
-    assert.equal((await request('tools/list', legacy)).status, 200)
+    for (const disabledExpiry of [
+      new Date(Date.now() - 60_000).toISOString(),
+      new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+      new Date(Date.now() + 60_000).toISOString().slice(0, -1),
+      'invalid',
+    ]) {
+      process.env[property] = disabledExpiry
+      assert.equal((await request('tools/list', legacy)).status, 200)
+    }
     process.env[property] = new Date(Date.now() + 60_000).toISOString()
     assert.equal((await request('ping', legacy)).status, 200)
     assert.equal((await request('tools/list', 'Bearer invalid')).status, 401)

@@ -55,8 +55,11 @@ async function handle(request: Request) {
     enableJsonResponse: true,
   })
 
-  const diagnosticUntil = Date.parse(process.env.STUNNA_MCP_DISCOVERY_DIAGNOSTIC_UNTIL ?? '')
-  if (process.env.STUNNA_ENABLED === 'true' && Date.now() < diagnosticUntil) {
+  const diagnosticExpiry = process.env.STUNNA_MCP_DISCOVERY_DIAGNOSTIC_UNTIL
+  const diagnosticUntil = new Date(diagnosticExpiry ?? '')
+  const diagnosticRemaining = diagnosticUntil.getTime() - Date.now()
+  if (process.env.STUNNA_ENABLED === 'true' && diagnosticRemaining > 0 && diagnosticRemaining <= 24 * 60 * 60 * 1000 &&
+      diagnosticExpiry === diagnosticUntil.toISOString()) {
     transport.onmessage = message => {
       if (isJSONRPCRequest(message) && message.method === 'tools/list') {
         console.info('stunna.mcp_discovery', {
