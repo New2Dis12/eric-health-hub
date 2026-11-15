@@ -1,7 +1,6 @@
 
 import 'server-only'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import { isJSONRPCRequest } from '@modelcontextprotocol/sdk/types.js'
 import { createEricHealthMcpServer } from '@/lib/mcp-server'
 import { verifyHealthToken } from '@/lib/auth0'
 import { verifyTrainingBearer } from '@/lib/training/auth'
@@ -54,22 +53,6 @@ async function handle(request: Request) {
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   })
-
-  const diagnosticExpiry = process.env.STUNNA_MCP_DISCOVERY_DIAGNOSTIC_UNTIL
-  const diagnosticUntil = new Date(diagnosticExpiry ?? '')
-  const diagnosticRemaining = diagnosticUntil.getTime() - Date.now()
-  if (process.env.STUNNA_ENABLED === 'true' && diagnosticRemaining > 0 && diagnosticRemaining <= 24 * 60 * 60 * 1000 &&
-      diagnosticExpiry === diagnosticUntil.toISOString()) {
-    transport.onmessage = message => {
-      if (isJSONRPCRequest(message) && message.method === 'tools/list') {
-        console.info('stunna.mcp_discovery', {
-          trainingTokenVerified: trainingToken !== null,
-          trainingRead: trainingToken?.scopes.includes('training.read') ?? false,
-          trainingWrite: trainingToken?.scopes.includes('training.write') ?? false,
-        })
-      }
-    }
-  }
 
   try {
     await server.connect(transport)
