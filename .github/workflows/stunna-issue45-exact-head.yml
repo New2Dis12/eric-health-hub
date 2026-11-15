@@ -16,12 +16,12 @@ jobs:
       - name: Checkout the exact diagnostic commit
         uses: actions/checkout@v4
         with:
-          ref: d3618aff4a2b6cbefa71e00220d02e6dd94e9a1e
+          ref: b92fc4a41b1030d9209ed6fee3da6d6d4310d207
           persist-credentials: false
       - name: Verify the checkout identity
         run: |
-          test "$(git rev-parse HEAD)" = 'd3618aff4a2b6cbefa71e00220d02e6dd94e9a1e'
-          test "$(git rev-parse HEAD^{tree})" = '64373eb9950c434df2fe25c0389c3c3b4a20dceb'
+          test "$(git rev-parse HEAD)" = 'b92fc4a41b1030d9209ed6fee3da6d6d4310d207'
+          test "$(git rev-parse HEAD^{tree})" = 'a18ad571e2cd72b3e04db2ce66fb1cbc4d550c7c'
           git log -1 --format='%H %T'
       - uses: actions/setup-node@v4
         with:
