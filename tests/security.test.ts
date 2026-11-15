@@ -286,6 +286,47 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
   }
 })
 
+test('discovery diagnostic logs only boolean scope evidence for authorized lists before expiry', async () => {
+  mock.method(globalThis, 'fetch', async () => Response.json({ keys: [jwk] }))
+  const info = mock.method(console, 'info', () => {})
+  const property = 'STUNNA_MCP_DISCOVERY_DIAGNOSTIC_UNTIL'
+  const prior = process.env[property]
+  process.env.STUNNA_ENABLED = 'true'
+  process.env.MCP_RESOURCE_URL = 'https://eric-health-hub.vercel.app/mcp'
+  const request = (method: string, authorization: string) => mcpPost(new Request(origin + '/mcp', {
+    method: 'POST', headers: { authorization, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: {} }),
+  }))
+  const legacy = await bearer({ scope: 'oura.read garmin.read' })
+  try {
+    delete process.env[property]
+    assert.equal((await request('tools/list', legacy)).status, 200)
+    for (const disabledExpiry of [
+      new Date(Date.now() - 60_000).toISOString(),
+      new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+      new Date(Date.now() + 60_000).toISOString().slice(0, -1),
+      'invalid',
+    ]) {
+      process.env[property] = disabledExpiry
+      assert.equal((await request('tools/list', legacy)).status, 200)
+    }
+    process.env[property] = new Date(Date.now() + 60_000).toISOString()
+    assert.equal((await request('ping', legacy)).status, 200)
+    assert.equal((await request('tools/list', 'Bearer invalid')).status, 401)
+    assert.equal(info.mock.callCount(), 0)
+
+    assert.equal((await request('tools/list', legacy)).status, 200)
+    assert.equal((await request('tools/list', await bearer({ scope: 'oura.read training.read training.write' }))).status, 200)
+    assert.deepEqual(info.mock.calls.map(call => call.arguments), [
+      ['stunna.mcp_discovery', { trainingTokenVerified: true, trainingRead: false, trainingWrite: false }],
+      ['stunna.mcp_discovery', { trainingTokenVerified: true, trainingRead: true, trainingWrite: true }],
+    ])
+  } finally {
+    if (prior === undefined) delete process.env[property]
+    else process.env[property] = prior
+  }
+})
+
 test('staging resource differs from browser origin and rejects cross-environment audiences', async () => {
   process.env.APP_BASE_URL = 'https://browser-branch.invalid'
   process.env.STUNNA_ENABLED = 'true'
