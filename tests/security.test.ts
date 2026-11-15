@@ -127,7 +127,7 @@ test('OAuth metadata and unauthorized MCP challenges advertise training scopes o
       assert.equal(metadata.headers.get('cache-control'), 'no-store')
       const body = await metadata.json()
       assert.equal(body.resource, expectedResource)
-      assert.deepEqual(body.authorization_servers, ['https://tenant.invalid'])
+      assert.deepEqual(body.authorization_servers, ['https://tenant.invalid/'])
       assert.deepEqual(body.scopes_supported, expectedScopes)
       for (const handler of [mcpGet, mcpPost, mcpDelete]) {
         const response = await handler(new Request(origin+'/mcp'))
