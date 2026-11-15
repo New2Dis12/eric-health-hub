@@ -16,7 +16,8 @@ export function GET() {
     )
   }
 
-  const issuer = `https://${domain.replace(/^https?:\/\//, '').replace(/\/$/, '')}`
+  // The issuer identifier must exactly match Auth0's discovery metadata.
+  const issuer = `https://${domain.replace(/^https?:\/\//, '').replace(/\/$/, '')}/`
 
   const scopesSupported = ['oura.read', 'garmin.read']
   if (process.env.STUNNA_ENABLED === 'true') {
