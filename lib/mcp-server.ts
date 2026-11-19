@@ -3,6 +3,7 @@ import 'server-only'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { ApiError } from '@/lib/private-api'
+import { mcpResourceMetadataUrl } from '@/lib/mcp-resource'
 import { getOuraTestResultFromStore } from '@/lib/oura-data'
 import { getGarminActivities, getGarminActivityFit } from '@/lib/garmin'
 import { getTrainingContext } from '@/lib/training/context'
@@ -165,12 +166,26 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
   }
   if (process.env.STUNNA_ENABLED === 'true' && principal) {
     const actuals = options.actualsAdapter ?? createMcpTrainingActuals()
-    if (principal.scopes.includes('training.read')) server.registerTool('get_saved_workout_results', {
+    server.registerTool('get_saved_workout_results', {
       title: 'Read saved workout actuals and history',
       description: 'Read bounded saved workout results by actual session UUID or planned workout UUID from the training calendar, optionally including chronological corrections and notes. Supply exactly one identifier. Values and nulls are authoritative.',
       inputSchema: actualsPage.shape,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: [{ type: 'oauth2', scopes: ['training.read'] }] },
     }, async input => {
+      if (!principal.scopes.includes('training.read')) {
+        const metadataUrl = mcpResourceMetadataUrl()
+        const error = errorResult('Authorize Stunna workout history access to continue.')
+        if (!metadataUrl) return error
+        return {
+          ...error,
+          _meta: {
+            'mcp/www_authenticate': [
+              `Bearer resource_metadata="${metadataUrl}", error="insufficient_scope", error_description="Authorize Stunna workout history access", scope="training.read"`,
+            ],
+          },
+        }
+      }
       try {
         const result = await actuals.read(principal, input)
         const data = JSON.stringify(result)

@@ -268,9 +268,10 @@ test('MCP corrections share browser audit and idempotency with stale-revision an
   assert.equal((await service.results(principal,strength.id)).notes,'Synthetic MCP overall')
 })
 
-test('synthetic HTTP browser save to authenticated MCP tools/call and MCP correction to browser reload', async () => {
+test('synthetic HTTP browser save to authenticated MCP tools/call and MCP correction to browser reload', async t => {
   const {createMcpTrainingActuals}=await import('../lib/training/mcp-actuals')
   const adapter=createMcpTrainingActuals(()=>service)
+  const readAdapter = t.mock.method(adapter, 'read')
   process.env.STUNNA_ENABLED='true'
   const origin='https://task4.invalid'
   Object.assign(process.env,{AUTH0_DOMAIN:'tenant.invalid',AUTH0_CLIENT_ID:'synthetic',AUTH0_CLIENT_SECRET:'synthetic',AUTH0_SECRET:'2a'.repeat(32),APP_BASE_URL:origin})
@@ -293,7 +294,7 @@ test('synthetic HTTP browser save to authenticated MCP tools/call and MCP correc
       return payload.result as {isError?:boolean;structuredContent?:Record<string,unknown>;content:{type:string;text:string}[]}
     } finally {await transport.close();await server.close()}
   }
-  const read=await call('get_saved_workout_results',{plannedSessionId,history:true,limit:50,offset:0})
+  const read=await call('get_saved_workout_results',{plannedSessionId,history:true,limit:50,offset:0},['training.read'])
   assert.equal(read.isError,undefined)
   assert.equal(read.structuredContent?.sessionId,strength.id)
   assert.equal(read.structuredContent?.notes,'Synthetic transport browser note')
@@ -315,8 +316,11 @@ test('synthetic HTTP browser save to authenticated MCP tools/call and MCP correc
   assert.equal(conflict.structuredContent?.errorCode,'REVISION_CONFLICT')
   const deniedWrite=await call('correct_saved_strength_result',{...command,idempotencyKey:randomUUID()},['training.read'])
   assert.equal(deniedWrite.isError,true)
+  const readCalls = readAdapter.mock.callCount()
   const deniedRead=await call('get_saved_workout_results',{plannedSessionId},['training.write'])
   assert.equal(deniedRead.isError,true)
+  assert.equal((await call('get_saved_workout_results',{plannedSessionId},[])).isError,true)
+  assert.equal(readAdapter.mock.callCount(),readCalls)
   const wrong=await call('get_saved_workout_results',{plannedSessionId},['training.read'],'auth0|wrong')
   assert.equal(wrong.isError,true)
   const otherRead=await call('get_saved_workout_results',{sessionId:other.id},['training.read'])

@@ -39,14 +39,14 @@ async function handle(request: Request) {
   const token = await verifyHealthToken(authorization)
   const canReadOura = token?.scopes.includes('oura.read') ?? false
   const trainingToken = process.env.STUNNA_ENABLED === 'true' ? await verifyTrainingBearer(authorization) : null
-  const trainingPrincipal = trainingToken?.scopes.some(scope => scope === 'training.read' || scope === 'training.write') ? trainingToken : undefined
-  if (!canReadOura && !trainingPrincipal) {
+  const hasTrainingScope = trainingToken?.scopes.some(scope => scope === 'training.read' || scope === 'training.write')
+  if (!canReadOura && !hasTrainingScope) {
     return unauthorized()
   }
 
   const server = createEricHealthMcpServer(
     canReadOura && (token?.scopes.includes('garmin.read') ?? false),
-    { canReadOura, trainingPrincipal },
+    { canReadOura, trainingPrincipal: trainingToken ?? undefined },
   )
 
   const transport = new WebStandardStreamableHTTPServerTransport({
