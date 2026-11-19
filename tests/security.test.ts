@@ -236,7 +236,7 @@ test('Auth0 code callback issues a secure session only after state/nonce/subject
   assert.match(response.headers.get('set-cookie')!, /Secure/i)
 })
 
-test('legacy MCP bearer scopes and tool names work without browser or training database configuration', async () => {
+test('legacy MCP bearer scopes and tool names work without browser or training database configuration', async t => {
   mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
     assert.equal(String(input), 'https://tenant.invalid/.well-known/jwks.json')
     return Response.json({ keys: [jwk] })
@@ -296,6 +296,35 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
       assert.equal((await mcpRequest(authorization, 'tools/list')).status, 401)
       assert.equal((await mcpRequest(authorization, 'tools/call', callParams)).status, 401)
     }
+
+    await t.test('synthetic workout diagnostic logs only the read path within the configured window', async t => {
+      const expiryKey = 'STUNNA_MCP_DISCOVERY_DIAGNOSTIC_UNTIL'
+      const originalExpiry = process.env[expiryKey]
+      t.after(() => {
+        if (originalExpiry === undefined) delete process.env[expiryKey]
+        else process.env[expiryKey] = originalExpiry
+      })
+      const info = t.mock.method(console, 'info', () => {})
+      const legacyBearer = await bearer({ scope: legacyScope })
+      const readBearer = await bearer({ scope: 'training.read' })
+      for (const expiry of [undefined, 'invalid', new Date(Date.now() - 60_000).toISOString(), new Date(Date.now() + 16 * 60_000).toISOString()]) {
+        if (expiry === undefined) delete process.env[expiryKey]
+        else process.env[expiryKey] = expiry
+        await mcpRequest(legacyBearer, 'tools/call', callParams)
+      }
+      process.env[expiryKey] = new Date(Date.now() + 60_000).toISOString()
+      await mcpRequest(legacyBearer, 'tools/call', { ...callParams, arguments: { sessionId: '00000000-0000-4000-8000-000000000002' } })
+      await mcpRequest(null, 'tools/call', callParams)
+      assert.equal(info.mock.callCount(), 0)
+
+      const challenged = await mcpRequest(legacyBearer, 'tools/call', callParams)
+      assert.equal((await challenged.json()).result.isError, true)
+      await mcpRequest(readBearer, 'tools/call', callParams)
+      assert.deepEqual(info.mock.calls.map(call => call.arguments), [
+        ['Stunna saved workout read diagnostic', { trainingRead: false, lookupReached: false }],
+        ['Stunna saved workout read diagnostic', { trainingRead: true, lookupReached: true }],
+      ])
+    })
   } finally {
     if (prior.client) process.env.AUTH0_CLIENT_ID = prior.client
     if (prior.db) process.env.DATABASE_URL = prior.db
