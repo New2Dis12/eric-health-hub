@@ -1,0 +1,11 @@
+{
+  "issue": 48,
+  "owner": "codex-issue48-1795062898101",
+  "epoch": 1,
+  "state": "review",
+  "spec": "525bcfff20c81e3a908aaaab24b54c63dffae441a567d0084cf954d616f47773",
+  "heartbeat": "2026-11-19T04:34:58.101Z",
+  "expires": "2026-11-19T05:29:58.101Z",
+  "attempts": 0,
+  "checkpoint": "Implemented and validated the owner-only saved workout results OAuth read challenge. 118 app/service, 35 UI and 20 workflow tests passed, along with TypeScript, optimized build and whitespace checks. Pending independent review of this commit."
+}

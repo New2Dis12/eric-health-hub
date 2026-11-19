@@ -173,7 +173,15 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: [{ type: 'oauth2', scopes: ['training.read'] }] },
     }, async input => {
-      if (!principal.scopes.includes('training.read')) {
+      const trainingRead = principal.scopes.includes('training.read')
+      if (input.sessionId === '00000000-0000-4000-8000-000000000001' && input.plannedSessionId === undefined) {
+        // Reuse the existing diagnostic opt-in for this synthetic request only.
+        const remainingMs = Date.parse(process.env.STUNNA_MCP_DISCOVERY_DIAGNOSTIC_UNTIL ?? '') - Date.now()
+        if (remainingMs > 0 && remainingMs <= 15 * 60_000) {
+          console.info('Stunna saved workout read diagnostic', { trainingRead, lookupReached: trainingRead })
+        }
+      }
+      if (!trainingRead) {
         const metadataUrl = mcpResourceMetadataUrl()
         const error = errorResult('Authorize Stunna workout history access to continue.')
         if (!metadataUrl) return error
