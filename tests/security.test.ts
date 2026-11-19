@@ -246,10 +246,11 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
   delete process.env.DATABASE_URL
   process.env.GARMIN_MCP_ENABLED = 'true'
   process.env.STUNNA_ENABLED = 'false'
-  const list = async (scope: string) => mcpPost(new Request(origin+'/mcp', {
-    method: 'POST', headers: { authorization: await bearer({ scope }), 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+  const mcpRequest = (authorization: string | null, method: string, params: object = {}) => mcpPost(new Request(origin+'/mcp', {
+    method: 'POST', headers: { ...(authorization ? { authorization } : {}), 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
   }))
+  const list = async (scope: string) => mcpRequest(await bearer({ scope }), 'tools/list')
   try {
     const both = await list('oura.read garmin.read')
     assert.equal(both.status, 200)
@@ -268,14 +269,33 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
       assert.equal(response.status, 200)
       return (await response.json()).result.tools.map((tool: { name: string }) => tool.name)
     }
-    assert.deepEqual(await toolNames('oura.read garmin.read'), ['get_oura_summary', 'get_garmin_activities'])
+    assert.deepEqual(await toolNames('oura.read garmin.read'), ['get_oura_summary', 'get_garmin_activities', 'get_saved_workout_results'])
     assert.deepEqual(await toolNames('training.read'), ['get_saved_workout_results', 'get_training_context'])
     assert.deepEqual(await toolNames('oura.read garmin.read training.read'), ['get_oura_summary', 'get_garmin_activities', 'get_workout_garmin_candidates', 'get_saved_workout_results', 'get_training_context'])
-    assert.deepEqual(await toolNames('training.write'), ['save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result'])
+    assert.deepEqual(await toolNames('training.write'), ['get_saved_workout_results', 'save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result'])
     assert.deepEqual(await toolNames('training.read training.write'), ['get_saved_workout_results', 'save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result', 'get_training_context'])
     assert.deepEqual(await toolNames('garmin.read training.read'), ['get_workout_garmin_candidates', 'get_saved_workout_results', 'get_training_context'])
     assert.deepEqual(await toolNames('garmin.read training.read training.write'), ['get_workout_garmin_candidates', 'confirm_workout_garmin_activity', 'get_saved_workout_results', 'save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result', 'get_training_context'])
     assert.equal((await list('garmin.read')).status, 401)
+    const legacyScope = 'oura.read garmin.read'
+    const readTool = (await (await list(legacyScope)).json()).result.tools.find((tool: { name: string }) => tool.name === 'get_saved_workout_results')
+    assert.deepEqual(readTool._meta.securitySchemes, [{ type: 'oauth2', scopes: ['training.read'] }])
+    const callParams = { name: 'get_saved_workout_results', arguments: { sessionId: '00000000-0000-4000-8000-000000000001' } }
+    for (const scope of [legacyScope, 'training.write']) {
+      const response = await mcpRequest(await bearer({ scope }), 'tools/call', callParams)
+      assert.equal(response.status, 200)
+      const { result } = await response.json()
+      assert.equal(result.isError, true)
+      assert.equal(result.structuredContent, undefined)
+      assert.deepEqual(result._meta['mcp/www_authenticate'], [
+        'Bearer resource_metadata="https://eric-health-hub.vercel.app/.well-known/oauth-protected-resource", error="insufficient_scope", error_description="Authorize Stunna workout history access", scope="training.read"',
+      ])
+    }
+    for (const authorization of [null, 'Bearer invalid', await bearer({ scope: legacyScope, sub: 'auth0|other' }),
+      await bearer({ scope: legacyScope, exp: 1 }), await bearer({ scope: legacyScope }, 'https://wrong.invalid/mcp')]) {
+      assert.equal((await mcpRequest(authorization, 'tools/list')).status, 401)
+      assert.equal((await mcpRequest(authorization, 'tools/call', callParams)).status, 401)
+    }
   } finally {
     if (prior.client) process.env.AUTH0_CLIENT_ID = prior.client
     if (prior.db) process.env.DATABASE_URL = prior.db
