@@ -7,7 +7,7 @@ export function parseSourceReceipt(value: unknown) {
   return parsed.data
 }
 export function sourceReceiptMatches(command:SourceLinkInput,receipt:ReturnType<typeof parseSourceReceipt>,current:SessionResults|null) {
-  if(receipt.actualSessionId!==command.sessionId || receipt.evidenceRevision!==command.expectedEvidenceRevision+1 || !current || current.sessionId!==command.sessionId ||
+  if(receipt.actualSessionId!==command.sessionId || (receipt.evidenceRevision!==command.expectedEvidenceRevision+1 && receipt.evidenceRevision!==command.expectedEvidenceRevision) || !current || current.sessionId!==command.sessionId ||
     current.status!=='completed' || !Number.isInteger(current.sessionRevision) || current.sessionRevision<command.expectedSessionRevision ||
     current.sourceResult?.status!=='matched') return false
   return current.sourceResult.evidence.some(saved=>sourceLinkReceipt.shape.evidenceId.safeParse(saved.id).success && saved.evidence.version===1 && saved.evidence.format==='FIT' && saved.evidence.provider==='garmin' &&

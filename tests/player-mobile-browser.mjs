@@ -2,11 +2,11 @@
 // headless-shell binary. Optional SCREENSHOT_DIR retains synthetic evidence.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { readFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 
 const require = createRequire(import.meta.url);
@@ -14,6 +14,17 @@ const { build } = createRequire(require.resolve("tsx"))("esbuild");
 const binary = process.env.CHROMIUM_BIN;
 assert.ok(binary, "CHROMIUM_BIN must point to a local Chromium headless-shell binary");
 const work = await mkdtemp(join(tmpdir(), "stunna-layout-"));
+// Give the fixture a normal browser origin for relative training API reads.
+const server = createServer(async (request, response) => {
+  const assets = { "/": ["index.html", "text/html"], "/player.js": ["player.js", "text/javascript"], "/player.css": ["player.css", "text/css"] };
+  const asset = Object.hasOwn(assets, request.url) && assets[request.url];
+  if (!asset) return response.writeHead(404).end();
+  try {
+    const content = await readFile(join(work, asset[0]));
+    response.writeHead(200, { "content-type": asset[1] }).end(content);
+  } catch { response.writeHead(404).end(); }
+});
+await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 let browser;
 let closeBrowser;
 const deadline = setTimeout(() => {
@@ -244,7 +255,7 @@ try {
   }
   for (const width of [375, 390]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height: 1700, deviceScaleFactor: 1, mobile: true }, sessionId);
-    await send("Page.navigate", { url: pathToFileURL(page).href }, sessionId);
+    await send("Page.navigate", { url: `http://127.0.0.1:${server.address().port}/` }, sessionId);
     let evidence;
     for (let retry = 0; retry < 40 && !evidence; retry++) {
       await delay(75);
@@ -275,6 +286,7 @@ try {
     console.log(JSON.stringify(evidence));
   }
 } finally {
+  server.close();
   clearTimeout(deadline);
   await closeBrowser?.();
   browser?.kill();

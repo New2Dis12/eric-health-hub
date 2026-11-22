@@ -9,6 +9,7 @@ import { trainingService, type createTrainingService } from './service'
 export const actualsPage = z.strictObject({
   sessionId: z.uuid().optional(),
   plannedSessionId: z.uuid().optional(),
+  sourceEvidenceId: z.uuid().optional(),
   history: z.boolean().default(false),
   limit: z.number().int().min(1).max(50).default(25),
   offset: z.number().int().min(0).max(10000).default(0),
@@ -44,7 +45,22 @@ export function createMcpTrainingActuals(service: () => Service = trainingServic
         ? (await service().workout(principal, page.plannedSessionId))?.id
         : page.sessionId
       if (!sessionId) throw new ApiError(404, 'Saved session not found')
-      return service().results(principal,sessionId,page.history,page.limit,page.offset)
+      const result=await service().results(principal,sessionId,page.history,page.limit,page.offset)
+      const sources=result.sourceResult
+      if (page.sourceEvidenceId && !sources?.evidence.some(source=>source.id===page.sourceEvidenceId))
+        throw new ApiError(404,'Evidence revision is not current for this workout')
+      // A page of log entries can shrink independently of FIT evidence. Large pairs
+      // return both summaries and allow each immutable current revision to be inspected.
+      if (sources && (page.sourceEvidenceId || (sources.evidence.length>1 && Buffer.byteLength(JSON.stringify(result))>128*1024))) {
+        const evidence=sources.evidence.map(source=>{
+          if (source.id===page.sourceEvidenceId) return source
+          const {sensors,coverage}=source.evidence
+          return {...source,detailOmitted:true,evidence:{...source.evidence,laps:[],sensors:{...sensors,samples:[],sampleFields:[]},
+            coverage:{...coverage,warnings:[...coverage.warnings,'Saved lap and sensor detail omitted from this response. Request sourceEvidenceId equal to this evidence revision ID.']}}}
+        })
+        return {...result,sourceResult:{...sources,evidence}}
+      }
+      return result
     },
     async write(principal: TrainingPrincipal, input: z.infer<typeof actualsWrite>) {
       assertTrainingAccess(principal, 'training.write')
