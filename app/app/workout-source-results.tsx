@@ -40,8 +40,11 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
   async function link() {
     if(active.current || (!pending.current && !selected)) return
     active.current=true;setBusy(true);setMessage('')
+    const candidate=page?.candidates.find(c=>c.activityId===Number(selected))
+    const anchor=page?.pairAnchor
     pending.current??={sessionId,activityId:Number(selected),expectedSessionRevision:page?.sessionRevision??sessionRevision,
-      expectedEvidenceRevision:page?.evidenceRevision??0,confirmed:true,idempotencyKey:crypto.randomUUID(),reason:'Owner confirmed Garmin activity in workout results'}
+      expectedEvidenceRevision:candidate?.evidenceRevision??page?.evidenceRevision??0,
+      ...(anchor && !candidate?.linked && {pairedWithEvidenceId:anchor.evidenceId}),confirmed:true,idempotencyKey:crypto.randomUUID(),reason:'Owner confirmed Garmin activity in workout results'}
     try {
       const response=await fetch('/api/training/sources',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(pending.current)})
       if(!response.ok) {
@@ -57,9 +60,15 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
   }
   return <section aria-label="Device source results">
     <h4>Device source results</h4>
+    {result?.reconciled && <div>
+      <strong>Paired workout summary</strong>
+      <dl>{result.reconciled.summary.map(m=><div key={m.field}><dt>{metricLabel(m.field)}</dt>
+        <dd>{m.value} {m.unit} · activity {m.sourceId}{m.kind==='calculated'?' · calculated':''}{m.conflict?' · sources differ':''}</dd></div>)}</dl>
+      <p>{result.reconciled.limitations.join(' ')}</p>
+    </div>}
     {result?.status==='matched'?result.evidence.map(saved=><div key={saved.id}>
       <strong>Garmin FIT — sourced measurements</strong>
-      <p>Activity {saved.evidence.sourceId} · evidence revision {saved.revision} · retrieved {saved.evidence.retrievedAt}</p>
+      <p>Activity {saved.evidence.sourceId} · {saved.evidence.recording?.origin.replaceAll('_',' ')??'unknown origin'} · evidence revision {saved.revision} · retrieved {saved.evidence.retrievedAt}</p>
       <p>Confirmed by owner. Missing metrics remain unknown.</p>
       <dl>{saved.evidence.summary.map(m=><div key={m.field}><dt>{metricLabel(m.field)}</dt><dd>{m.value===null?'Unknown':`${m.value} ${m.unit}`}</dd></div>)}</dl>
       <p>{saved.evidence.coverage.records} FIT records; {saved.evidence.laps.length} of {saved.evidence.coverage.nativeLaps} native laps; {saved.evidence.sensors.samples.length} selected sensor samples.</p>
@@ -81,8 +90,10 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
       <p role="status">{page.status.replaceAll('_',' ')} — {page.reason}</p>
       <label>Garmin activity <select style={{maxWidth:'100%'}} value={selected} disabled={busy || !!pending.current} onChange={e=>setSelected(e.target.value)}>
         <option value="">Select an activity</option>
-        {page.candidates.map(c=><option key={c.activityId} value={c.activityId}>{c.activityId} · {c.name} · {c.modality??'Unknown modality'} · {c.startUtc??'Unknown UTC start'} · {c.durationSeconds??'Unknown'}s · {c.distanceMeters??'Unknown'}m{c.compatible?'':' · modality requires confirmation'}{c.linked?' · already linked':''}</option>)}
+        {page.candidates.map(c=><option key={c.activityId} value={c.activityId} disabled={c.linkedElsewhere}>{c.activityId} · {c.name} · {c.modality??'Unknown modality'} · {c.startUtc??'Unknown UTC start'} · {c.durationSeconds??'Unknown'}s · {c.distanceMeters??'Unknown'}m{c.compatible?'':' · modality requires confirmation'}{c.linked?' · already linked':''}</option>)}
       </select></label>
+      {page.pairAnchor && selected && !page.candidates.find(c=>c.activityId===Number(selected))?.linked &&
+        <p>Confirm that activity {selected} and saved activity {page.pairAnchor.sourceId} record the same workout.</p>}
       <p>Confirm this exact activity belongs to this completed workout. Date, time and modality are hints. A different existing activity link cannot be replaced.</p>
     </div>}
     {(page || pending.current) && <button type="button" disabled={busy || (!selected && !pending.current)} onClick={()=>void link()}>{pending.current?'Retry confirmation / verify':'Confirm Garmin activity'}</button>}

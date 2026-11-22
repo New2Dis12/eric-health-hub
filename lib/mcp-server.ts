@@ -151,7 +151,7 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
     })
     if (principal.scopes.includes('training.read') && principal.scopes.includes('training.write')) server.registerTool('confirm_workout_garmin_activity', {
       title:'Confirm Garmin evidence for a completed workout',
-      description:'Only after the owner explicitly selects/confirms this exact candidate activity ID for this completed session. Fetch and store bounded native FIT evidence; no client-supplied metrics. Requires Garmin read plus training read/write, exact revisions, reason and stable idempotency key. Refresh appends history for the same activity. Replacement/relink is rejected. Never infer missing measurements or claim confirmation without owner consent.',
+      description:'Only after the owner explicitly selects/confirms this exact candidate activity ID for this completed session. Fetch and store bounded native FIT evidence; no client-supplied metrics. Requires Garmin read plus training read/write, exact revisions, reason and stable idempotency key. Use the selected candidate’s evidenceRevision. To add a second recording, obtain explicit owner confirmation of both activity IDs and pass pairAnchor.evidenceId as pairedWithEvidenceId. Changed evidence appends history. Identical evidence returns its existing revision. Never infer missing measurements or claim confirmation without owner consent.',
       inputSchema:sourceLinkInput.shape,
       annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:true},
     },async input=>{
@@ -168,7 +168,7 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
     const actuals = options.actualsAdapter ?? createMcpTrainingActuals()
     server.registerTool('get_saved_workout_results', {
       title: 'Read saved workout actuals and history',
-      description: 'Read bounded saved workout results by actual session UUID or planned workout UUID from the training calendar, optionally including chronological corrections and notes. Supply exactly one identifier. Values and nulls are authoritative.',
+      description: 'Read bounded saved workout results by actual session UUID or planned workout UUID from the training calendar, optionally including chronological corrections and notes. Supply one workout identifier. Paired recordings share one reconciled summary. For a large pair, request sourceEvidenceId from either saved evidence entry to inspect its lap and sensor detail.',
       inputSchema: actualsPage.shape,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: [{ type: 'oauth2', scopes: ['training.read'] }] },

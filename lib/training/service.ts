@@ -11,7 +11,7 @@ import { getTrainingDatabase, type TrainingDatabase, type Queryable } from './da
 import { ApiError } from '../private-api'
 import { blockMethodology, localTrainingDate, moveTrainingDate, prescriptionExercisesFor } from './context-models'
 
-export function createTrainingService(database: TrainingDatabase, now = () => new Date(), garmin: GarminClient = {list:getGarminActivities,fit:id=>getGarminActivityFit(id,30,120,0,0,20)}) {
+export function createTrainingService(database: TrainingDatabase, now = () => new Date(), garmin: GarminClient = {list:getGarminActivities,fit:id=>getGarminActivityFit(id,30,120,0,0,20,true)}) {
   return {
     sources: createSourceEvidenceService(database,garmin,now),
     async results(principal: TrainingPrincipal, sessionId: unknown, history=false, limit=50, offset=0) {

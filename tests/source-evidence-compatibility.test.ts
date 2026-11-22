@@ -48,6 +48,7 @@ test('migration-008 results, enabled-009 evidence, missing grants and rollback p
     await db.exec(await readFile(new URL('../db/runtime-grants.sql',import.meta.url),'utf8'))
     const athlete=(await db.query<{id:string}>('SELECT id FROM stunna.athletes WHERE auth0_sub=$1',[subject])).rows[0].id
     const evidence=normalizeGarminFit({activityId:501,...decodeGarminFitArchive(workoutFit(),30,120)},501,subject,new Date())
+    delete evidence.recording // Simulate the existing JSON envelope stored before migration 010.
     const id=randomUUID(),link=randomUUID()
     await database.transaction(subject,async tx=>{
       await tx.query("INSERT INTO stunna.source_links(id,athlete_id,session_id,provider,source_id) VALUES($1,$2,$3,'garmin','501')",[link,athlete,sessions[1]])
@@ -56,6 +57,10 @@ test('migration-008 results, enabled-009 evidence, missing grants and rollback p
     const enabled=await service.results(principal,sessions[1])
     assert.equal(enabled.sourceResult?.status,'matched');assert.equal(enabled.sourceResult?.evidence[0].id,id)
     assert.deepEqual((await mcp.read(principal,{sessionId:sessions[1],history:false,limit:25,offset:0})).sourceResult,enabled.sourceResult)
+    await db.exec(await sql('010_paired_source_links.up.sql'))
+    assert.deepEqual(await service.results(principal,sessions[1]),enabled)
+    await db.exec(await sql('010_paired_source_links.down.sql'))
+    assert.deepEqual(await service.results(principal,sessions[1]),enabled)
     await db.exec(await sql('009_source_evidence.down.sql'))
     await baseline() // Rollback removes only optional evidence; existing reads still work.
   } finally {await db.close()}

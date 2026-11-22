@@ -2,11 +2,15 @@ import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { createEricHealthMcpServer } from '../lib/mcp-server'
 import { PGlite } from '@electric-sql/pglite'
 import { Encoder, Profile, type SessionMesg, type RecordMesg, type FileIdMesg, type LapMesg } from '@garmin/fitsdk'
 import { createTrainingService } from '../lib/training/service'
 import { GarminRequestError } from '../lib/garmin'
 import { decodeGarminFitArchive } from '../lib/fit-activity'
+import { compatiblePair, reconcilePair } from '../lib/training/paired-evidence'
 import { normalizeGarminFit, candidatesFrom } from '../lib/training/garmin-evidence'
 import type { GarminClient } from '../lib/training/garmin-evidence'
 import type { TrainingPrincipal } from '../lib/training/auth'
@@ -24,21 +28,22 @@ const database:TrainingDatabase={transaction:(s,work)=>db.transaction(async tx=>
   return work(tx as Queryable)
 })}
 const start='2026-10-27T18:52:01.000Z',end='2026-10-27T19:22:01.000Z'
-function syntheticFit(sport='running',missing=false) {
+function syntheticFit(sport='running',missing=false,manufacturer='garmin',heartRate=150) {
   const encoder=new Encoder()
-  encoder.onMesg(Profile.MesgNum.FILE_ID,{type:'activity',manufacturer:'garmin'} as FileIdMesg)
+  encoder.onMesg(Profile.MesgNum.FILE_ID,{type:'activity',manufacturer} as FileIdMesg)
   encoder.onMesg(Profile.MesgNum.SESSION,{sport,startTime:new Date(start),timestamp:new Date(end),
-    totalElapsedTime:1800,totalTimerTime:1750,totalDistance:0,...(missing?{}:{avgHeartRate:150,avgCadence:80,avgSpeed:2.5,enhancedAvgSpeed:4.0})} as SessionMesg)
+    totalElapsedTime:1800,totalTimerTime:1750,totalDistance:manufacturer==='peloton'?9000:0,...(missing?{}:{avgHeartRate:heartRate,avgPower:manufacturer==='peloton'?210:199,avgCadence:80,avgSpeed:2.5,enhancedAvgSpeed:manufacturer==='peloton'?5.0:4.0})} as SessionMesg)
   encoder.onMesg(Profile.MesgNum.LAP,{startTime:new Date(start),timestamp:new Date(end),totalElapsedTime:1800,totalDistance:0} as LapMesg)
-  encoder.onMesg(Profile.MesgNum.RECORD,{timestamp:new Date(start),distance:0,...(missing?{}:{heartRate:150,cadence:80,speed:0})} as RecordMesg)
+  encoder.onMesg(Profile.MesgNum.RECORD,{timestamp:new Date(start),distance:0,...(missing?{}:{heartRate,cadence:80,speed:0})} as RecordMesg)
   return Buffer.from(encoder.close())
 }
 const metadata=(id:number,typeKey='running')=>({activityId:id,activityName:'Synthetic activity',activityType:{typeKey},startTimeGMT:'2026-10-27 18:52:01',duration:1800,distance:0})
 let raw:unknown=[metadata(101),metadata(102,'indoor_cycling'),metadata(103,'indoor_rowing')]
+let refreshHr=150
 let unavailable=false,malformed=false,fitCalls=0,listCalls=0
 const client:GarminClient={list:async limit=>{listCalls++;assert.equal(limit,20);if(unavailable) throw new Error('synthetic outage');return raw},fit:async id=>{
   fitCalls++;if(unavailable) throw new Error('synthetic outage')
-  return {activityId:id,...decodeGarminFitArchive(malformed?Buffer.alloc(10):syntheticFit(id===102?'cycling':id===103?'rowing':'running',id===103),30,120,0,0,20)}
+  return {activityId:id,...decodeGarminFitArchive(malformed?Buffer.alloc(10):syntheticFit(id%100===2?'cycling':id%100===3?'rowing':'running',id===103,id>=200?'peloton':'garmin',id>=200?140:refreshHr),30,120,0,0,20,true)}
 }}
 const service=createTrainingService(database,()=>new Date('2026-10-28T00:00:00Z'),client)
 let athlete:string,run:string,bike:string,row:string,second:string,inProgress:string
@@ -46,7 +51,7 @@ const reject=(status:number)=>(e:unknown)=>e instanceof ApiError && e.status===s
 const command=(sessionId:string,activityId:number,expectedEvidenceRevision=0)=>({sessionId,activityId,expectedSessionRevision:2,expectedEvidenceRevision,confirmed:true,idempotencyKey:randomUUID(),reason:'Synthetic explicit owner confirmation'})
 before(async()=>{
   process.env.AUTH0_ALLOWED_SUB=subject;process.env.STUNNA_ENABLED='true';process.env.GARMIN_MCP_ENABLED='true'
-  for(const n of ['001_foundation','002_prescriptions','003_methodology','004_workout_overviews','005_session_start','006_session_entries','007_execution_checks','008_jit_publishing','009_source_evidence']) await db.exec(await readFile(new URL('../db/migrations/'+n+'.up.sql',import.meta.url),'utf8'))
+  for(const n of ['001_foundation','002_prescriptions','003_methodology','004_workout_overviews','005_session_start','006_session_entries','007_execution_checks','008_jit_publishing','009_source_evidence','010_paired_source_links']) await db.exec(await readFile(new URL('../db/migrations/'+n+'.up.sql',import.meta.url),'utf8'))
   await db.exec('CREATE ROLE stunna_runtime')
   await db.exec(await readFile(new URL('../db/runtime-grants.sql',import.meta.url),'utf8'))
   athlete=randomUUID();const block=randomUUID()
@@ -81,7 +86,7 @@ test('run FIT persists native summary, zero versus null, source identity and fre
   const saved=current.sourceResult!.evidence[0]
   assert.equal(saved.id,receipt.evidenceId);assert.equal(saved.evidence.sourceId,'101');assert.equal(saved.evidence.modality,'run')
   assert.equal(saved.evidence.summary.find(m=>m.field==='distanceMeters')?.value,0)
-  assert.equal(saved.evidence.summary.find(m=>m.field==='avgPowerWatts')?.value,null)
+  assert.equal(saved.evidence.summary.find(m=>m.field==='maxPowerWatts')?.value,null)
   assert.equal(saved.evidence.summary.find(m=>m.field==='elapsedSeconds')?.value,1800)
   assert.equal(saved.evidence.summary.find(m=>m.field==='avgSpeedMetersPerSecond')?.value,4)
   assert.match(saved.evidence.contentSha256,/^[0-9a-f]{64}$/)
@@ -111,8 +116,14 @@ test('duplicate activity and replacement/relink are rejected; refresh appends hi
   await assert.rejects(service.sources.link(principal,command(second,101)),reject(409))
   await assert.rejects(service.sources.link(principal,command(run,102,1)),reject(409))
   await assert.rejects(service.sources.link(principal,command(run,101)),reject(409))
+  const repeated=await service.sources.link(principal,command(run,101,1))
+  assert.equal(repeated.evidenceRevision,1)
+  refreshHr=151
   const result=await service.sources.link(principal,command(run,101,1))
   assert.equal(result.evidenceRevision,2)
+  refreshHr=150
+  await assert.rejects(service.sources.link(principal,command(run,101,2)),reject(409))
+  refreshHr=151
   assert.equal((await db.query('SELECT * FROM stunna.source_evidence_revisions e JOIN stunna.source_links l ON l.id=e.link_id WHERE l.session_id=$1',[run])).rows.length,2)
   assert.equal((await service.results(principal,run)).sourceResult?.evidence[0].revision,2)
   assert.equal((await service.results(principal,run)).sessionRevision,2)
@@ -209,4 +220,104 @@ test('multiple native FIT sessions do not become an invented summary or modality
   const evidence=normalizeGarminFit({activityId:1,...decodeGarminFitArchive(Buffer.from(encoder.close()),30,120)},1,subject,new Date())
   assert.deepEqual(evidence.summary,[]);assert.equal(evidence.modality,null)
   assert.ok(evidence.coverage.warnings.some(w=>w.includes('No single native session summary')))
+})
+
+test('explicit run, bike and rowing pairs survive fresh MCP reads without duplicate totals or audit',async()=>{
+  const baseline=(await db.query('SELECT * FROM stunna.actual_sessions ORDER BY id')).rows
+  for (const [sessionId,firstId,secondId] of [[run,101,201],[bike,102,202],[row,103,203]] as const) {
+    raw=[metadata(firstId),metadata(secondId)]
+    const page=await service.sources.candidates(principal,sessionId)
+    const anchor=page.pairAnchor!
+    assert.equal(anchor.sourceId,String(firstId))
+    const input={...command(sessionId,secondId),pairedWithEvidenceId:anchor.evidenceId}
+    await assert.rejects(service.sources.link(principal,command(sessionId,secondId)),reject(409))
+    await assert.rejects(service.sources.link(principal,{...input,pairedWithEvidenceId:randomUUID()}),reject(409))
+    process.env.STUNNA_PAIRED_EVIDENCE_DISABLED='true'
+    try { await assert.rejects(service.sources.link(principal,input),reject(409)) }
+    finally { delete process.env.STUNNA_PAIRED_EVIDENCE_DISABLED }
+    const [receipt,retry]=await Promise.all([service.sources.link(principal,input),service.sources.link(principal,input)])
+    assert.deepEqual(retry,receipt)
+    const fresh=createTrainingService(database)
+    const stored=(await createMcpTrainingActuals(()=>fresh).read(principal,{sessionId,history:false,limit:25,offset:0})).sourceResult!
+    const mcp=createEricHealthMcpServer(false,{canReadOura:false,trainingPrincipal:principal,actualsAdapter:createMcpTrainingActuals(()=>fresh)})
+    const client=new Client({name:'synthetic-pair',version:'1'})
+    const [clientTransport,serverTransport]=InMemoryTransport.createLinkedPair()
+    try {
+      await mcp.connect(serverTransport);await client.connect(clientTransport)
+      const read=await client.callTool({name:'get_saved_workout_results',arguments:{sessionId}})
+      assert.deepEqual((read.structuredContent as {sourceResult:typeof stored}).sourceResult,stored)
+      const detailed=await client.callTool({name:'get_saved_workout_results',arguments:{sessionId,sourceEvidenceId:receipt.evidenceId}})
+      const entries=(detailed.structuredContent as {sourceResult:typeof stored}).sourceResult.evidence
+      assert.deepEqual(entries.find(e=>e.id===receipt.evidenceId),stored.evidence.find(e=>e.id===receipt.evidenceId))
+      assert.ok(entries.find(e=>e.id!==receipt.evidenceId)?.evidence.coverage.warnings.some(w=>w.includes('omitted')))
+    } finally {await client.close();await mcp.close()}
+    assert.deepEqual(stored,(await fresh.results({...principal,source:'browser'},sessionId)).sourceResult)
+    assert.equal(stored.evidence.length,2)
+    assert.equal(stored.evidence[0].evidence.recording?.origin,'garmin_device')
+    assert.equal(stored.evidence[1].evidence.recording?.origin,'peloton_import')
+    assert.deepEqual(reconcilePair([...stored.evidence].reverse()),stored.reconciled)
+    const metric=(field:string)=>stored.reconciled!.summary.find(m=>m.field===field)!
+    assert.equal(metric('elapsedSeconds').value,1800)
+    assert.equal(metric('avgHeartRateBpm').sourceId,String(sessionId===row?secondId:firstId))
+    if(sessionId===run){
+      assert.equal(metric('distanceMeters').value,9000)
+      assert.equal(metric('distanceMeters').conflict,true)
+      assert.equal(metric('avgSpeedMetersPerSecond').nativeField,'enhancedAvgSpeed')
+    } else if(sessionId===bike){
+      assert.equal(metric('avgPowerWatts').value,210)
+      assert.equal(metric('avgCadenceCyclesPerMinute').sourceId,String(secondId))
+    } else {
+      assert.equal(metric('avgSplitSecondsPer500m').value,100)
+      assert.equal(metric('avgSplitSecondsPer500m').kind,'calculated')
+      assert.equal(metric('avgStrokeRate').sourceId,String(secondId))
+    }
+    assert.equal(stored.reconciled!.nativeLapSourceId,String(firstId))
+    assert.equal(stored.reconciled!.intervals[0].samples.find(s=>s.field==='heartRateBpm')?.count,1)
+    const count=(await db.query('SELECT * FROM stunna.audit_events')).rows.length
+    assert.deepEqual(await service.sources.link(principal,command(sessionId,secondId,1)),receipt)
+    assert.equal((await db.query('SELECT * FROM stunna.audit_events')).rows.length,count)
+    assert.deepEqual((await service.sources.candidates(principal,sessionId)).candidates.map(c=>c.evidenceRevision).sort(),[1,sessionId===run?2:1])
+  }
+  assert.deepEqual((await db.query('SELECT * FROM stunna.actual_sessions ORDER BY id')).rows,baseline)
+  await assert.rejects(db.transaction(async tx=>{await tx.exec(await readFile(new URL('../db/migrations/010_paired_source_links.down.sql',import.meta.url),'utf8'))}))
+  assert.equal((await service.results(principal,row)).sourceResult!.evidence.length,2)
+})
+
+test('pair policy uses recorded origins and UTC event windows; sample means respect lap boundaries and gaps',()=>{
+  const make=(id:number,manufacturer:string)=>normalizeGarminFit({activityId:id,...decodeGarminFitArchive(syntheticFit('running',false,manufacturer),30,120,0,0,20,true)},id,subject,new Date())
+  const a=make(301,'garmin'),b=make(302,'peloton')
+  const session={started_at:new Date(start),completed_at:new Date(end)}
+  assert.ok(compatiblePair(b,a,session,['run']))
+  for(const patch of [{recording:undefined},{recording:a.recording},{modality:'bike'},{startUtc:null},
+    {startUtc:end},{startUtc:'2026-10-27T19:10:00Z'},{startUtc:'2026-10-27T19:52:01Z',endUtc:'2026-10-27T20:22:01Z'}]){
+    assert.equal(compatiblePair(a,{...b,...patch},session,['run']),false)
+  }
+  assert.equal(compatiblePair(a,b,{...session,completed_at:new Date(start)},['run']),false)
+  assert.equal(compatiblePair(a,b,session,['row']),false)
+  assert.equal(compatiblePair(a,{...b,contentSha256:a.contentSha256},session,['run']),false)
+  assert.equal(compatiblePair(a,{...b,startField:'record.timestamp'},session,['run']),false)
+  assert.equal(compatiblePair(a,{...b,summary:b.summary.map(m=>m.field==='elapsedSeconds'?{...m,value:300}:m)},session,['run']),false)
+  const fit={activityId:302,...decodeGarminFitArchive(syntheticFit('running',false,'peloton'),30,120,0,0,20,true)}
+  assert.equal(normalizeGarminFit(fit,302,subject,new Date(),'garmin').recording?.origin,'unknown')
+  assert.equal(make(303,'development').recording?.origin,'unknown')
+  b.sensors={columns:['timestampUtc','speedMetersPerSecond'],units:['UTC','m/s'],samples:[
+    ['2026-10-27T13:52:01-05:00',0],[end,17],['2026-10-27T18:52:31Z',4],['2026-10-27T18:53:01Z',null]]}
+  const pair=[a,b].map(evidence=>({evidence,revision:1,id:randomUUID(),recordedAt:start}))
+  const speed=reconcilePair(pair)!.intervals[0].samples.find(s=>s.field==='speedMetersPerSecond')!
+  assert.deepEqual([speed.sourceId,speed.count,speed.selectedSampleMean],['302',2,2])
+})
+
+test('large native pages keep bounded aligned detail and disclose truncation',()=>{
+  const fit=decodeGarminFitArchive(syntheticFit(),1,120,0,0,20,true)
+  assert.ok(fit.available)
+  const source={...fit,activityId:11,fitRecordCount:120,fitLapCount:20,
+    laps:Array.from({length:20},(_,i)=>({...fit.laps[0],lapIndex:i})),
+    samples:Array.from({length:120},()=>fit.samples[0]),sampleFields:Array.from({length:120},()=>fit.sampleFields![0])}
+  // Use finite, high-precision native values to exercise the byte limit.
+  source.samples=source.samples.map(row=>row.map((v,i)=>i>1?123.45678901234567:v) as typeof row)
+  const evidence=normalizeGarminFit(source,11,subject,new Date())
+  assert.ok(Buffer.byteLength(JSON.stringify(evidence))<=64000)
+  assert.ok(evidence.coverage.lapsTruncated || evidence.coverage.samplesTruncated)
+  assert.ok(evidence.laps.length && evidence.sensors.samples.length)
+  assert.equal(evidence.sensors.sampleFields?.length,evidence.sensors.samples.length)
 })

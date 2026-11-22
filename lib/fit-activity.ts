@@ -49,7 +49,7 @@ function millimetersToCm(value: unknown): number | null {
   return millimeters === null ? null : Math.round(millimeters * 10) / 100
 }
 
-function nativeLap(lap: FitRecord, index: number) {
+function nativeLap(lap: FitRecord, index: number, evidenceFields: boolean) {
   const avgSpeed = safeNumber(lap.enhancedAvgSpeed) ?? safeNumber(lap.avgSpeed)
   const maxSpeed = safeNumber(lap.enhancedMaxSpeed) ?? safeNumber(lap.maxSpeed)
   return {
@@ -70,6 +70,12 @@ function nativeLap(lap: FitRecord, index: number) {
     bestPaceSecondsPerKm: pace(maxSpeed),
     avgCadenceCyclesPerMinute: cadence(lap.avgCadence, lap.avgFractionalCadence),
     maxCadenceCyclesPerMinute: cadence(lap.maxCadence, lap.maxFractionalCadence),
+    ...(evidenceFields && {metricFields: {
+      avgSpeedMetersPerSecond: lap.enhancedAvgSpeedExplicit || safeNumber(lap.avgSpeed) === null ? 'enhancedAvgSpeed' : 'avgSpeed',
+      maxSpeedMetersPerSecond: lap.enhancedMaxSpeedExplicit || safeNumber(lap.maxSpeed) === null ? 'enhancedMaxSpeed' : 'maxSpeed',
+      avgCadenceCyclesPerMinute: safeNumber(lap.avgFractionalCadence) === null ? 'avgCadence' : 'avgCadence+avgFractionalCadence',
+      maxCadenceCyclesPerMinute: safeNumber(lap.maxFractionalCadence) === null ? 'maxCadence' : 'maxCadence+maxFractionalCadence',
+    }}),
     avgPowerWatts: safeNumber(lap.avgPower),
     maxPowerWatts: safeNumber(lap.maxPower),
     avgGroundContactTimeMs: safeNumber(lap.avgStanceTime),
@@ -81,12 +87,12 @@ function nativeLap(lap: FitRecord, index: number) {
   }
 }
 
-function lapPage(laps: FitRecord[], startIndex: number, maxLaps: number) {
+function lapPage(laps: FitRecord[], startIndex: number, maxLaps: number, evidenceFields: boolean) {
   const page: ReturnType<typeof nativeLap>[] = []
   let bytes = 2
   let index = startIndex
   for (; index < laps.length; index++) {
-    const lap = nativeLap(laps[index], index)
+    const lap = nativeLap(laps[index], index, evidenceFields)
     const size = Buffer.byteLength(JSON.stringify(lap), 'utf8') + 1
     if (page.length >= maxLaps || bytes + size > MAX_LAP_JSON_BYTES) break
     page.push(lap)
@@ -184,6 +190,7 @@ export function decodeGarminFitArchive(
   startSeconds = 0,
   lapStartIndex = 0,
   maxLaps = 100,
+  evidenceFields = false,
 ) {
   if (!Number.isInteger(everySeconds) || everySeconds < 1 || everySeconds > 300 ||
       !Number.isInteger(maxSamples) || maxSamples < 1 || maxSamples > 2000 ||
@@ -223,7 +230,7 @@ export function decodeGarminFitArchive(
   })
   // The SDK reports decoding errors separately; never return partial corrupt data.
   if (decoded.errors.length) throw new Error('Garmin FIT decoding failed')
-  const messages = decoded.messages as unknown as { recordMesgs?: FitRecord[]; lapMesgs?: FitRecord[]; sessionMesgs?: FitRecord[] }
+  const messages = decoded.messages as unknown as { recordMesgs?: FitRecord[]; lapMesgs?: FitRecord[]; sessionMesgs?: FitRecord[]; fileIdMesgs?: FitRecord[] }
   const records = messages.recordMesgs ?? []
   const laps = messages.lapMesgs ?? []
   if (overlappingSpeedFields) {
@@ -248,6 +255,7 @@ export function decodeGarminFitArchive(
         for (const field of fields) {
           if (expanded[index] && safeNumber(message[field]) !== null) {
             expanded[index][field] = message[field]
+            expanded[index][field + "Explicit"] = true
           }
         }
       })
@@ -258,6 +266,7 @@ export function decodeGarminFitArchive(
   }
 
   const rows: NumericSample[] = []
+  const sampleFields: { speed: string | null; cadence: string | null }[] = []
   let sampleBytes = 2
   let firstTimestamp: number | null = null
   let lastIncluded: number | null = null
@@ -276,7 +285,7 @@ export function decodeGarminFitArchive(
       new Date(time).toISOString(),
       elapsed,
       safeNumber(record.heartRate),
-      speed === null ? null : Math.round(speed * 100) / 100,
+      speed === null || evidenceFields ? speed : Math.round(speed * 100) / 100,
       cadence(record.cadence, record.fractionalCadence),
       safeNumber(record.power),
       safeNumber(record.distance),
@@ -294,6 +303,10 @@ export function decodeGarminFitArchive(
       nextStartSeconds = elapsed
       break
     }
+    if (evidenceFields) sampleFields.push({
+      speed: speed===null ? null : record.enhancedSpeedExplicit || safeNumber(record.speed)===null ? 'enhancedSpeed' : 'speed',
+      cadence: row[4]===null ? null : safeNumber(record.fractionalCadence)===null ? 'cadence' : 'cadence+fractionalCadence',
+    })
     rows.push(row)
     sampleBytes += size
     lastIncluded = elapsed
@@ -307,10 +320,12 @@ export function decodeGarminFitArchive(
     available: true as const,
     source: 'original Garmin FIT file, downloaded and decoded on demand',
     contentSha256: createHash('sha256').update(fit).digest('hex'),
+    ...(evidenceFields && {fileManufacturer: messages.fileIdMesgs?.length === 1 && messages.fileIdMesgs[0].type === 'activity'
+      ? messages.fileIdMesgs[0].manufacturer : null}),
     fitSessionCount: messages.sessionMesgs?.length ?? 0,
     // Multisport summaries must not be silently collapsed into one activity.
     nativeSummary: messages.sessionMesgs?.length === 1 ? {
-      ...nativeLap(messages.sessionMesgs[0], 0),
+      ...nativeLap(messages.sessionMesgs[0], 0, evidenceFields),
       sport: typeof messages.sessionMesgs[0].sport === 'string' ? messages.sessionMesgs[0].sport : null,
     } : null,
     fitRecordCount: records.length,
@@ -325,9 +340,10 @@ export function decodeGarminFitArchive(
       'verticalRatioPercent', 'stepLengthCm', 'groundContactTimePercent',
     ],
     samples: rows,
+    ...(evidenceFields && {sampleFields}),
     truncated,
     nextStartSeconds,
-    ...lapPage(laps, lapStartIndex, maxLaps),
+    ...lapPage(laps, lapStartIndex, maxLaps, evidenceFields),
     lapNote: 'Native FIT lap messages in file order; boundaries and summaries are never estimated from samples or distance. Timer time excludes pauses; elapsed time includes them. Missing lap values are null. Lap pagination is independent of sample pagination: use nextLapStartIndex as lapStartIndex.',
     note: 'Samples are selected, not averaged. Missing fields and pace at zero speed are null. FIT cadence is cycles/minute (running strides/minute; double for steps/minute). Use nextStartSeconds with the same everySeconds for the next page. Dynamics use SDK-scaled native fields; oscillation and step length are converted from mm to cm. Balance is the recorded FIT percentage without inferring a complementary side. No GPS coordinates are returned.',
   }
