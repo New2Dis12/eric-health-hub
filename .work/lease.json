@@ -1,11 +1,11 @@
 {
-  "issue": 52,
-  "owner": "codex-issue52-9aa9c4bb-2453-470b-a1a0-9caa610a4f94",
+  "issue": 55,
+  "owner": "codex-a81389e6-0829-4394-a9ad-3660e51f7fab",
   "epoch": 1,
-  "state": "review",
-  "spec": "404a5287bbe86ee5089d5a32887b3a625067f878d9dfd98da208b55656d02f37",
-  "heartbeat": "2026-11-22T20:31:06.809Z",
-  "expires": "2026-11-22T21:26:06.810Z",
+  "state": "in-progress",
+  "spec": "ae69bae36447bfb3ec81345856b26265145f2a5118fdedd826ebab286974104c",
+  "heartbeat": "2026-11-23T01:25:07.220Z",
+  "expires": "2026-11-23T02:20:07.222Z",
   "attempts": 0,
-  "checkpoint": "Synthetic paired FIT implementation verified locally. 122 application/service, 35 UI and 20 workflow tests, paired and existing mobile browser checks, typecheck, optimized build and privacy checks passed. Awaiting independent current-commit review."
+  "checkpoint": "Owner receipt verified; synthetic player development."
 }
