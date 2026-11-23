@@ -1,11 +1,21 @@
 {
   "issue": 56,
-  "owner": "codex-6dcf12fa-b970-4da8-9038-6f02005f6488",
-  "epoch": 1,
-  "state": "review",
+  "owner": "codex-1c55a030-adb8-4b49-9c0f-339d171fa7f2",
+  "epoch": 2,
+  "state": "in-progress",
   "spec": "c4c311f3f8facd9ca9b37edc23f43b6ef7a673e8ed348672f8e75c4e22187c61",
-  "heartbeat": "2026-11-23T01:59:15.894Z",
-  "expires": "2026-11-23T02:45:57.302Z",
-  "attempts": 0,
-  "checkpoint": "Implemented on reviewed Task 1. Local synthetic application, UI, workflow, both mobile Chromium flows, typecheck and optimized build passed. Ready for independent review."
+  "heartbeat": "2026-11-23T02:46:11.396Z",
+  "expires": "2026-11-23T03:41:11.396Z",
+  "attempts": 1,
+  "checkpoint": "Owner acceptance correction reserved on PR #58",
+  "corrections": [
+    {
+      "attempt": 1,
+      "reviewedHead": "6fda3b33f6534eed5fd73e686ad57e0cf5a73719",
+      "findings": [
+        "owner-7090008725-distance",
+        "owner-7090027297-duration"
+      ]
+    }
+  ]
 }
