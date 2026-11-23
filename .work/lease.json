@@ -1,11 +1,21 @@
 {
   "issue": 59,
-  "owner": "stunna-issue59-inline-20261123-a7f9",
-  "epoch": 1,
-  "state": "review",
+  "owner": "stunna-issue59-correction1-20261123",
+  "epoch": 2,
+  "state": "in_progress",
   "spec": "9e3449702b2007bc634ed8d875cb492e14c7b19d1bc4b3f8b20cf2153fa1f82c",
-  "heartbeat": "2026-11-23T05:25:43.729Z",
-  "expires": "2026-11-23T06:10:43.729Z",
-  "attempts": 0,
-  "checkpoint": "Corrected GitHub connector truncated-blob publication: all four source/test blobs independently match exact git hash-object SHA1 from tested isolated checkout; 7 new history tests PASS, full pnpm test PASS, 20 workflow tests PASS, TS PASS, optimized build PASS, diff-check PASS. Awaiting exact-head CI and reviewer; no hosted or real-data changes."
+  "heartbeat": "2026-11-23T05:29:33.738Z",
+  "expires": "2026-11-23T06:14:33.738Z",
+  "attempts": 1,
+  "checkpoint": "One in-scope correction attempt 1/3 reserved on canonical branch for reviewer P2 pagination-tie and stored measurement-zone defects; original review P1 truncated-file defect already corrected; no deployment or real-data writes.",
+  "corrections": [
+    {
+      "attempt": 1,
+      "reviewedHead": "45198d938a86cf43f8d8ba7d5869c37502bb96b4",
+      "findings": [
+        "history-pagination-order-mismatch",
+        "history-measurement-calendar-timezone"
+      ]
+    }
+  ]
 }
