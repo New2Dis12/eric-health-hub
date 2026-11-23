@@ -1,7 +1,7 @@
 // Synthetic browser → HTTP adapter → restricted PostgreSQL → fresh readback.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -13,10 +13,10 @@ assert.ok(binary,'CHROMIUM_BIN required')
 const work=await mkdtemp(join(tmpdir(),'stunna-source-'))
 let browser,server,closeBrowser
 const errors=[]
-const deadline=setTimeout(()=>{browser?.kill();server?.kill();process.exitCode=1},45000)
+const deadline=setTimeout(()=>{browser?.kill();server?.kill();process.exitCode=1},90000)
 try {
   await build({entryPoints:['tests/fixtures/source-evidence-browser.tsx'],bundle:true,outfile:join(work,'source.js')})
-  await writeFile(join(work,'index.html'),'<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{font:16px Arial,sans-serif;overflow-wrap:anywhere}select{max-width:100%}</style><div id="root"></div><script src="source.js"></script></html>')
+  await writeFile(join(work,'index.html'),'<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{font:16px Arial,sans-serif;overflow-wrap:anywhere}select{max-width:100%}</style><link rel="stylesheet" href="/source.css"><div id="root"></div><script src="source.js"></script></html>')
   server=spawn(process.execPath,['--conditions=react-server','--import','tsx','tests/fixtures/source-evidence-server.ts',work],{stdio:['ignore','pipe','inherit']})
   const url=await new Promise((resolve,reject)=>{
     let output='';server.stdout.on('data',data=>{output+=data;const match=output.match(/http:\/\/127\.0\.0\.1:\d+/);if(match)resolve(match[0])})
@@ -102,46 +102,66 @@ try {
     throw Error('Browser condition not reached: '+expression)
   }
   const click=label=>evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.includes(${JSON.stringify(label)}));if(!b||b.disabled)throw Error('button unavailable');b.click()})()`)
-  for(const width of [375,390]) {
-    await send('Emulation.setDeviceMetricsOverride',{width,height:1700,deviceScaleFactor:1,mobile:true},sessionId)
-    await send('Page.navigate',{url},sessionId)
-    await until("document.body.textContent.includes('Find Garmin activity')")
-    if(width===375) {
-      assert.equal((await evaluate("fetch('/probe').then(r=>r.json())")).links,0)
-      await click('Find Garmin')
-      await until("document.querySelectorAll('option').length===3")
-      assert.equal((await evaluate("fetch('/probe').then(r=>r.json())")).downloads,0)
-      await evaluate("(()=>{const s=document.querySelector('select');s.value='502';s.dispatchEvent(new Event('change',{bubbles:true}))})()")
-      await delay(50)
-      await click('Confirm Garmin')
-      await until("document.body.textContent.includes('could not be verified')")
-      assert.ok(!await evaluate("document.body.textContent.includes('saved and re-read')"))
-      await evaluate("fetch('/probe?readback=verified').then(r=>r.json())")
-      await click('Retry confirmation')
-      await until("document.body.textContent.includes('saved and re-read')")
-      const receipt=await evaluate("fetch('/results').then(r=>r.json())")
-      assert.equal(receipt.sourceResult.evidence[0].evidence.sourceId,'502')
-      assert.equal(receipt.sessionRevision,2)
-      assert.equal(receipt.status,'completed')
-      const probe=await evaluate("fetch('/probe').then(r=>r.json())")
-      assert.equal(probe.downloads,1);assert.equal(probe.links,1);assert.equal(probe.audits,1)
-      assert.equal(probe.confirmationKeys.length,2);assert.equal(probe.confirmationKeys[0],probe.confirmationKeys[1])
-      await click('Find Garmin')
-      await until("document.querySelectorAll('option').length===3")
-      await evaluate("(()=>{const s=document.querySelector('select');s.value='501';s.dispatchEvent(new Event('change',{bubbles:true}))})()")
-      await until("document.body.textContent.includes('activity 501 and saved activity 502')")
-      await click('Confirm Garmin')
-      await until("document.body.textContent.includes('Paired workout summary')")
-    }
-    await send('Page.navigate',{url},sessionId)
-    await until("document.body.textContent.includes('Activity 502') && document.body.textContent.includes('Activity 501')")
-    assert.ok(await evaluate("document.body.textContent.includes('Paired workout summary')"))
-    const paired=await evaluate("fetch('/probe').then(r=>r.json())")
-    assert.deepEqual([paired.links,paired.audits,paired.downloads],[2,2,2])
-    assert.ok(await evaluate("document.body.textContent.includes('0 m') && document.body.textContent.includes('Unknown')"))
-    await evaluate("(()=>{document.querySelector('details').open=true})()")
+  const probe=(query='')=>evaluate("fetch('/probe"+query+"').then(r=>r.json())")
+  const waitText=text=>until('document.body.innerText.includes('+JSON.stringify(text)+')')
+  const retry=()=>click('Retry confirmation')
+  async function capture(width,name) {
+    await send('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true},sessionId)
     assert.ok(await evaluate('document.documentElement.scrollWidth<=innerWidth'))
-    console.log(JSON.stringify({width,confirmationRequired:true,freshReadback:true,staleReadbackRejected:true,sameRetryKey:true,activityId:502,overflow:false}))
+    const controls=await evaluate("Array.from(document.querySelectorAll('label,button,summary')).filter(e=>e.checkVisibility()).map(e=>e.getBoundingClientRect().height)")
+    assert.ok(controls.every(h=>h>=44),JSON.stringify(controls))
+    if(process.env.SCREENSHOT_DIR) {
+      await mkdir(process.env.SCREENSHOT_DIR,{recursive:true})
+      const shot=await send('Page.captureScreenshot',{format:'png'},sessionId)
+      await writeFile(join(process.env.SCREENSHOT_DIR,name+'-'+width+'.png'),Buffer.from(shot.data,'base64'))
+    }
+  }
+  await send('Page.navigate',{url},sessionId)
+  await until("document.querySelectorAll('input:checked').length===2")
+  assert.equal((await probe()).links,0)
+  for(const width of [375,390]) await capture(width,'selection')
+  // Owner can correct a suggestion without issuing any write.
+  await evaluate("document.querySelector('input[value=\"502\"]').click()")
+  await until("document.querySelectorAll('input:checked').length===1")
+  await evaluate("document.querySelector('input[value=\"502\"]').click()")
+  await probe('?fail=before501')
+  await click('Confirm selected')
+  await waitText('could not be verified')
+  assert.equal((await probe()).links,0)
+  await retry()
+  await waitText('could not be verified')
+  assert.equal((await probe()).links,1) // committed first write, stale readback
+  await probe('?readback=verified&fail=before502')
+  await retry()
+  await waitText('First recording saved. Save could not be verified')
+  assert.equal((await probe()).audits,1)
+  await send('Page.navigate',{url},sessionId)
+  await waitText('Saved · Garmin')
+  await until("document.querySelectorAll('input:checked').length===1")
+  assert.equal(await evaluate("document.querySelector('input:checked').value"),'502')
+  await probe('?fail=after502')
+  await click('Confirm selected')
+  await waitText('could not be verified')
+  await retry()
+  await waitText('Selected recordings saved and re-read.')
+  const state=await probe()
+  assert.deepEqual([state.links,state.audits],[2,2])
+  assert.equal(state.confirmationKeys.length,6)
+  assert.equal(new Set(state.confirmationKeys.slice(0,3)).size,1)
+  assert.equal(new Set(state.confirmationKeys.slice(3)).size,1)
+  const saved=await evaluate("fetch('/results').then(r=>r.json())")
+  assert.equal(saved.status,'completed');assert.equal(saved.sessionRevision,2)
+  assert.equal(new Set(saved.sourceResult.evidence.map(e=>e.id)).size,2)
+  assert.equal(saved.sourceResult.reconciled.summary.find(m=>m.field==='distanceMeters').sourceId,'502')
+  await send('Page.navigate',{url},sessionId)
+  await waitText('Workout summary')
+  assert.equal(await evaluate("document.querySelectorAll('.device-metrics dt').length"),2)
+  for(const width of [375,390]) {
+    await evaluate("document.querySelectorAll('details').forEach(e=>e.open=false)")
+    await capture(width,'summary')
+    await evaluate("document.querySelectorAll('details').forEach(e=>e.open=true)")
+    await capture(width,'detail')
+    console.log(JSON.stringify({width,verifiedPair:true,explicitConfirmation:true,partialReload:true,sameRetryKeys:true,links:2,audits:2,overflow:false}))
   }
   assert.deepEqual(errors,[])
 }finally{

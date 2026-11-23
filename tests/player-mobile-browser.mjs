@@ -180,7 +180,7 @@ try {
     if (!["120–160 W", "75–90", "12–18 level"].every(value => tables[2].textContent.includes(value)) ||
         !tables[2].closest("article").textContent.includes("Finalized · read only"))
       errors.push("bike targets or finalized status missing");
-    if (!tables[2].closest("article").textContent.includes("Device results not yet attached"))
+    if (!tables[2].closest("article").querySelector('[aria-label="Device source results"]'))
       errors.push("completed cardio device-evidence panel missing");
     if (!document.querySelector('[data-completion-probe="strength"] button'))
       errors.push("strength completion player missing");
@@ -240,7 +240,7 @@ try {
     if (!click("Retry completion / verify")) return { errors };
     await settle();
     if (!article.textContent.includes("Completed — workout saved") ||
-        article.textContent.includes("Device results not yet attached") ||
+        article.querySelector('[aria-label="Device source results"]') ||
         article.querySelector("button")?.textContent === "Complete Workout")
       errors.push("completed strength status is not truthful");
     const fields = [...article.querySelectorAll("fieldset")];

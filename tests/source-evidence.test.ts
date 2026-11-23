@@ -46,7 +46,7 @@ const client:GarminClient={list:async limit=>{listCalls++;assert.equal(limit,20)
   return {activityId:id,...decodeGarminFitArchive(malformed?Buffer.alloc(10):syntheticFit(id%100===2?'cycling':id%100===3?'rowing':'running',id===103,id>=200?'peloton':'garmin',id>=200?140:refreshHr),30,120,0,0,20,true)}
 }}
 const service=createTrainingService(database,()=>new Date('2026-10-28T00:00:00Z'),client)
-let athlete:string,run:string,bike:string,row:string,second:string,inProgress:string
+let athlete:string,run:string,bike:string,row:string,discoverySession:string,second:string,inProgress:string
 const reject=(status:number)=>(e:unknown)=>e instanceof ApiError && e.status===status
 const command=(sessionId:string,activityId:number,expectedEvidenceRevision=0)=>({sessionId,activityId,expectedSessionRevision:2,expectedEvidenceRevision,confirmed:true,idempotencyKey:randomUUID(),reason:'Synthetic explicit owner confirmation'})
 before(async()=>{
@@ -57,14 +57,14 @@ before(async()=>{
   athlete=randomUUID();const block=randomUUID()
   await db.query('INSERT INTO stunna.athletes(id,auth0_sub) VALUES($1,$2)',[athlete,subject])
   await db.query("INSERT INTO stunna.training_blocks(id,athlete_id,title,goal,starts_on,ends_on,source) VALUES($1,$2,'Synthetic','Fixture','2026-10-01','2026-10-31','manual')",[block,athlete])
-  for(const kind of ['run','bike','other','run','run']) {
+  for(const kind of ['run','bike','other','run','run','run']) {
     const plan=randomUUID(),id=randomUUID()
     await db.query("INSERT INTO stunna.planned_sessions(id,athlete_id,block_id,planned_on,time_zone,kind,purpose,source) VALUES($1,$2,$3,'2026-10-27','UTC',$4,'Synthetic','manual')",[plan,athlete,block,kind])
     const active=!!second
     const snapshot={title:'Synthetic pinned workout',kind,purpose:'Fixture',overview:null,exercises:kind==='other'?[{key:'row',name:'Synthetic rowing',sets:null,reps:null,durationSeconds:1800,target:null,restSeconds:null,notes:null,intervalBlocks:[{repeat:1,segments:[{modality:'row'}]}]}]:[],occurrences:[]}
     await db.query("INSERT INTO stunna.prescription_revisions(athlete_id,planned_session_id,revision,title,exercises,change_reason,source) VALUES($1,$2,1,'Synthetic',$3,'Fixture','synthetic')",[athlete,plan,JSON.stringify([{key:'synthetic',name:'Synthetic',sets:null,reps:null,durationSeconds:1800,target:null,restSeconds:null,notes:null}])])
     await db.query("INSERT INTO stunna.actual_sessions(id,athlete_id,planned_session_id,started_at,completed_at,status,source,revision,prescription_revision,prescription_snapshot) VALUES($1,$2,$3,$4,$5,$6,'manual',2,1,$7)",[id,athlete,plan,start,active?null:end,active?'in_progress':'completed',JSON.stringify(snapshot)])
-    if(!run)run=id;else if(!bike)bike=id;else if(!row)row=id;else if(!second)second=id;else inProgress=id
+    if(!run)run=id;else if(!bike)bike=id;else if(!row)row=id;else if(!discoverySession)discoverySession=id;else if(!second)second=id;else inProgress=id
   }
 })
 after(()=>db.close())
@@ -320,4 +320,34 @@ test('large native pages keep bounded aligned detail and disclose truncation',()
   assert.ok(evidence.coverage.lapsTruncated || evidence.coverage.samplesTruncated)
   assert.ok(evidence.laps.length && evidence.sensors.samples.length)
   assert.equal(evidence.sensors.sampleFields?.length,evidence.sensors.samples.length)
+})
+
+test('completed-session discovery suggests only a unique verified pair and writes nothing', async () => {
+  const baseline=(await db.query('SELECT id FROM stunna.audit_events')).rows.length
+  const watch=metadata(701), machine=metadata(702)
+  let rows:unknown[]=[watch,machine], origins:Record<number,string>={701:'garmin',702:'peloton',703:'peloton'}
+  const discovery=createTrainingService(database,()=>new Date(end),{
+    list:async()=>rows,
+    fit:async id=>({activityId:id,...decodeGarminFitArchive(syntheticFit('running',false,origins[id],id%100+120),30,120,0,0,20,true)}),
+  }).sources
+  const read=()=>discovery.candidates(principal,discoverySession,true)
+  assert.deepEqual((await read()).suggestedPair,[701,702])
+  rows=[watch,machine,metadata(703)]
+  assert.equal((await read()).verifiedPairs?.length,2)
+  assert.equal((await read()).suggestedPair,undefined)
+  rows=[watch,machine,{...metadata(703),manufacturer:'garmin'}]
+  assert.equal((await read()).candidates.at(-1)?.origin,'unknown')
+  assert.equal((await read()).suggestedPair,undefined)
+  rows=[watch,{...machine,startTimeGMT:'2026-10-27 20:00:00'}]
+  assert.deepEqual((await read()).verifiedPairs,[])
+  rows=[watch,machine,metadata(101)] // Previously attached to another completed workout.
+  const claimed=await read()
+  assert.ok(claimed.candidates.find(c=>c.activityId===101)?.linkedElsewhere)
+  assert.deepEqual(claimed.suggestedPair,[701,702])
+  rows=[watch,machine,...Array.from({length:18},(_,i)=>metadata(800+i))]
+  assert.equal((await read()).suggestedPair,undefined)
+  rows=[watch,machine];origins={701:'garmin',702:'unknown'}
+  assert.equal((await read()).suggestedPair,undefined)
+  await assert.rejects(discovery.candidates({...principal,subject:'synthetic-wrong-owner'},discoverySession,true),reject(403))
+  assert.equal((await db.query('SELECT id FROM stunna.audit_events')).rows.length,baseline)
 })

@@ -1,0 +1,20 @@
+.device-results { min-width:0; max-width:100%; overflow-wrap:anywhere }
+.device-results h4,.device-results h5 { margin:.8rem 0 .35rem }
+.device-results fieldset { min-width:0; margin:0; padding:0; border:0 }
+.device-results button,.device-results summary { min-height:44px; padding:.6rem; cursor:pointer }
+.device-results summary { align-content:center }
+.device-results button { margin:.4rem .4rem 0 0 }
+.device-row { display:flex; align-items:center; min-height:44px; gap:.7rem; padding:.65rem; margin:.35rem 0; border:1px solid currentColor; border-radius:.5rem }
+.device-row:has(:checked) { border:2px solid #338c77; background:rgba(42,150,119,.12); padding:calc(.65rem - 1px) }
+.device-results small { display:block; font-size:.85em }
+.device-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem; margin:.5rem 0 }
+.device-metrics div { padding:.5rem; border-bottom:1px solid #8887 }
+.device-results dd { margin:0 }
+.device-table { overflow-x:auto; max-width:100% }
+.device-table th,.device-table td { min-width:6rem }
+.device-results button { font:inherit; border:1px solid currentColor; border-radius:.45rem; background:transparent; color:inherit }
+.device-results .device-confirm { background:#175c4f; color:white; border-color:#175c4f; font-weight:600 }
+.device-results button:disabled { opacity:.6 }
+.device-results input { accent-color:#175c4f }
+.device-results h4 { font-size:1.1rem }
+.device-results h5 { font-size:1rem }

@@ -5,7 +5,7 @@ import { assertSourceAccess } from './source-evidence'
 import { assertTrainingAccess, requireTrainingPrincipal, type TrainingPrincipal, type TrainingScope } from './auth'
 import { readCommand } from './http'
 import { trainingService, type createTrainingService } from './service'
-const page=z.strictObject({session:z.uuid()})
+const page=z.strictObject({session:z.uuid(),discover:z.literal("1").optional()})
 export function createSourceHandlers(deps:{enabled:()=>boolean;principal:(r:Request,s:TrainingScope)=>Promise<TrainingPrincipal>;service:()=>ReturnType<typeof createTrainingService>}) {
   return {
     async GET(request:Request) {
@@ -15,7 +15,7 @@ export function createSourceHandlers(deps:{enabled:()=>boolean;principal:(r:Requ
         assertSourceAccess(principal,'training.read')
         const p=page.safeParse(Object.fromEntries(new URL(request.url).searchParams))
         if (!p.success) throw new ApiError(400,'Invalid source request')
-        return privateJson(await deps.service().sources.candidates(principal,p.data.session))
+        return privateJson(await deps.service().sources.candidates(principal,p.data.session,p.data.discover==="1"))
       } catch(e) {return apiError(e)}
     },
     async POST(request:Request) {

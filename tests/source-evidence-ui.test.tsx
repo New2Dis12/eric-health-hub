@@ -23,7 +23,7 @@ const label=(n:{children:unknown[]})=>n.children.filter(c=>typeof c==='string').
 const button=(tree:ReactTestRenderer,s:string)=>tree.root.findAllByType('button').find(n=>label(n).includes(s))!
 const text=(tree:ReactTestRenderer)=>JSON.stringify(tree.toJSON())
 async function click(tree:ReactTestRenderer,label:string) {await act(async()=>{button(tree,label).props.onClick();await new Promise(r=>setTimeout(r,0))})}
-async function select(tree:ReactTestRenderer,id:string) {await act(async()=>{tree.root.findByType('select').props.onChange({target:{value:id}})})}
+async function select(tree:ReactTestRenderer,id:string) {await act(async()=>{tree.root.findAllByType('input').find(n=>String(n.props.value)===id)!.props.onChange()})}
 
 test('candidate read never links automatically; exact ID confirmation verifies receipt against fresh source readback',async()=>{
   const original=globalThis.fetch,requests:{url:string;init?:RequestInit}[]=[]
@@ -31,10 +31,10 @@ test('candidate read never links automatically; exact ID confirmation verifies r
   globalThis.fetch=async(url,init)=>{requests.push({url:String(url),init});return Response.json(init?.method==='POST'?receipt:page)}
   try {
     await act(async()=>{tree=create(<WorkoutSourceResults sessionId={sessionId} sessionRevision={2} refresh={async()=>{reads++;return readback(102)}} />)})
-    assert.equal(requests.length,0)
-    await click(tree,'Find Garmin');assert.equal(requests.length,1);assert.equal(button(tree,'Confirm Garmin').props.disabled,true)
+    assert.equal(requests.length,1)
+    assert.equal(requests.length,1);assert.equal(button(tree,'Confirm selected').props.disabled,true)
     await select(tree,'102');assert.equal(requests.length,1)
-    await click(tree,'Confirm Garmin');assert.equal(requests.length,2);assert.equal(reads,1)
+    await click(tree,'Confirm selected');assert.equal(requests.filter(r=>r.init?.method==='POST').length,1);assert.equal(reads,1)
     const payload=JSON.parse(requests[1].init!.body as string)
     assert.equal(payload.activityId,102);assert.equal(payload.confirmed,true)
     assert.equal(payload.expectedSessionRevision,2);assert.equal(payload.expectedEvidenceRevision,0)
@@ -47,7 +47,7 @@ for(const failure of ['read unavailable','missing evidence','different activity'
     let ready=false,tree!:ReactTestRenderer
     globalThis.fetch=async(_url,init)=>{
       if(init?.method==='POST') {writes.push(init.body as string);return Response.json(failure==='malformed receipt'&&!ready?{evidenceId}:failure==='older evidence'?{...receipt,evidenceRevision:2}:receipt)}
-      return Response.json(failure==='older evidence'?{...page,evidenceRevision:1}:page)
+      return Response.json(failure==='older evidence'?{...page,candidates:page.candidates.map(c=>({...c,evidenceRevision:1}))}:page)
     }
     const refresh=async()=>{
       const data=readback()
@@ -61,9 +61,9 @@ for(const failure of ['read unavailable','missing evidence','different activity'
     }
     try {
       await act(async()=>{tree=create(<WorkoutSourceResults sessionId={sessionId} sessionRevision={2} refresh={refresh} />)})
-      await click(tree,'Find Garmin');await select(tree,'101');await click(tree,'Confirm Garmin')
+      await select(tree,'101');await click(tree,'Confirm selected')
       assert.match(text(tree),/could not be verified/);assert.doesNotMatch(text(tree),/saved and re-read/)
-      assert.equal(tree.root.findByType('select').props.disabled,true)
+      assert.equal(tree.root.findByType('fieldset').props.disabled,true)
       ready=true;await click(tree,'Retry confirmation')
       assert.equal(writes.length,2);assert.equal(writes[0],writes[1]);assert.match(text(tree),/saved and re-read/)
     } finally {globalThis.fetch=original;await act(async()=>tree?.unmount())}
@@ -73,6 +73,51 @@ test('saved source measurements label missing and zero distinctly from user-ente
   let tree!:ReactTestRenderer
   try {
     await act(async()=>{tree=create(<WorkoutSourceResults sessionId={sessionId} sessionRevision={2} result={readback().sourceResult} refresh={async()=>readback()}/> )})
-    assert.match(text(tree),/sourced measurements/);assert.match(text(tree),/0 m/);assert.match(text(tree),/Unknown/)
+    assert.match(text(tree),/Workout summary/);assert.match(text(tree),/0 m/);assert.doesNotMatch(text(tree),/Average power/)
   } finally {await act(async()=>tree?.unmount())}
+})
+
+test('one confirmation freezes both identities and stops for fresh owner confirmation on a stale partner',async()=>{
+  const original=globalThis.fetch,writes:Record<string,unknown>[]=[]
+  let stale=true,tree!:ReactTestRenderer
+  const pairPage={...page,verifiedPairs:[[101,102]],suggestedPair:[101,102]}
+  globalThis.fetch=async(_url,init)=>{
+    if(init?.method!=='POST') return Response.json(pairPage)
+    const command=JSON.parse(String(init.body));writes.push(command)
+    if(command.activityId===102 && stale) return new Response(null,{status:409})
+    return Response.json(receipt)
+  }
+  try {
+    await act(async()=>{tree=create(<WorkoutSourceResults sessionId={sessionId} sessionRevision={2} refresh={async()=>readback()} />)})
+    await click(tree,'Confirm selected')
+    assert.deepEqual(writes.map(w=>w.activityId),[101,102])
+    assert.equal(writes[1].pairedWithEvidenceId,evidenceId)
+    assert.match(text(tree),/First recording saved.*Confirmation rejected/)
+    assert.equal(button(tree,'Retry confirmation'),undefined)
+  } finally {globalThis.fetch=original;await act(async()=>tree?.unmount())}
+})
+
+test('a unique pair uses one confirmation, two immutable receipts and a verified partner',async()=>{
+  const original=globalThis.fetch,ids:number[]=[]
+  const partnerId='33333333-3333-4333-8333-333333333333'
+  let tree!:ReactTestRenderer
+  globalThis.fetch=async(_url,init)=>{
+    if(init?.method!=='POST') return Response.json({...page,verifiedPairs:[[101,102]],suggestedPair:[101,102]})
+    const command=JSON.parse(String(init.body))
+    ids.push(command.activityId)
+    assert.equal(command.pairedWithEvidenceId,ids.length===1?undefined:evidenceId)
+    return Response.json({...receipt,evidenceId:ids.length===1?evidenceId:partnerId})
+  }
+  const refresh=async()=>{
+    const current=readback()
+    if(ids.length===2) current.sourceResult!.evidence.push({...readback(102).sourceResult!.evidence[0],id:partnerId})
+    return current
+  }
+  try {
+    await act(async()=>{tree=create(<WorkoutSourceResults sessionId={sessionId} sessionRevision={2} refresh={refresh}/>)})
+    assert.deepEqual(ids,[])
+    await click(tree,'Confirm selected')
+    assert.deepEqual(ids,[101,102])
+    assert.match(text(tree),/saved and re-read/)
+  } finally {globalThis.fetch=original;await act(async()=>tree?.unmount())}
 })

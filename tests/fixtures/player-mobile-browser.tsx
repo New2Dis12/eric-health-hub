@@ -78,6 +78,7 @@ globalThis.fetch = async (url, init) => {
     server.set(strengthSession.id, { ...saved, status: "completed", sessionRevision: 2 });
     return Response.json({ actualSessionId: strengthSession.id, sessionRevision: 2 });
   }
+  if(String(url).startsWith('/api/training/sources?')) return Response.json({candidates:[],status:'unavailable',reason:'Synthetic empty list',sessionRevision:1,evidenceRevision:0})
   const sessionId = new URL(String(url), location.origin).searchParams.get("session");
   const saved = sessionId && server.get(sessionId);
   return saved ? Response.json(saved) : Response.json({}, { status: 404 });

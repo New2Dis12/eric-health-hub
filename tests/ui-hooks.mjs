@@ -1,7 +1,7 @@
 import { registerHooks } from "node:module";
 registerHooks({
   load(url, context, nextLoad) {
-    if (url.endsWith(".module.css"))
+    if (url.endsWith(".css"))
       return {
         format: "module",
         source: "export default new Proxy({}, {get:(_,key)=>String(key)})",
