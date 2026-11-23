@@ -1,5 +1,4 @@
 'use client'
-import { WorkoutPlayer } from './workout-player'
 import { useEffect, useRef, useState } from 'react'
 import type { WorkoutSession } from '@/lib/training/session'
 import styles from './stunna.module.css'
@@ -11,7 +10,11 @@ export function SessionStart({ workoutId, prescriptionRevision, isSyntheticDemo 
   const [workout, setWorkout] = useState<WorkoutSession | null>(null)
   const [state, setState] = useState<'loading'|'ready'|'saving'|'error'>('loading')
   const [message, setMessage] = useState('Loading saved session…')
-  const [opened, setOpened] = useState(false)
+  function openPlayer() {
+    const url = new URL(window.location.href)
+    url.searchParams.set('player', workoutId)
+    window.location.assign(url.href)
+  }
   const retry = useRef<{idempotencyKey:string; expectedSessionRevision:number} | null>(null)
   async function load(signal?: AbortSignal) {
     setState('loading')
@@ -25,19 +28,19 @@ export function SessionStart({ workoutId, prescriptionRevision, isSyntheticDemo 
   useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort() }, [workoutId]) // each overview owns its session
   async function start() {
     if (state !== 'ready') return
-    if (workout && (workout.status === 'completed' || prescriptionRevision === null)) { setOpened(true); return }
+    if (workout) { openPlayer(); return }
     if (prescriptionRevision === null) return
     setState('saving'); setMessage('Starting or resuming…')
-    const command = retry.current ?? { idempotencyKey: crypto.randomUUID(), expectedSessionRevision: workout?.revision ?? 0 }
+    const command = retry.current ?? { idempotencyKey: crypto.randomUUID(), expectedSessionRevision: 0 }
     retry.current = command
     // Do not keep displaying a potentially superseded session while reconciling.
-    setWorkout(null); setOpened(false)
+    setWorkout(null)
     try {
       const current = await confirmStartedWorkout(fetch, workoutId, {
         operation: 'start_workout', reason: 'Start or resume workout', plannedSessionId: workoutId,
         expectedPrescriptionRevision: prescriptionRevision, ...command,
       })
-      setWorkout(current); setOpened(true); retry.current = null; setState('ready'); setMessage('Current session confirmed on the server.')
+      setWorkout(current); openPlayer(); retry.current = null; setState('ready'); setMessage('Current session confirmed on the server.')
     } catch (error) {
       if (error instanceof SessionConflict) {
         retry.current = null; setMessage('The saved plan or session changed. Reload this page before retrying.'); setState('error')
@@ -47,8 +50,8 @@ export function SessionStart({ workoutId, prescriptionRevision, isSyntheticDemo 
     }
   }
   return <div className={styles.startArea}>
-    {!opened && <button className={styles.startWorkout} type="button" disabled={state !== 'ready' || (prescriptionRevision === null && !workout)}
-      onClick={() => void start()}>{state === 'saving' ? 'Saving…' : workout?.status === 'completed' ? 'View finalized session' : workout ? 'Resume Workout' : 'Start Workout'}</button>}
+    <button className={styles.startWorkout} type="button" disabled={state !== 'ready' || (prescriptionRevision === null && !workout)}
+      onClick={() => void start()}>{state === 'saving' ? 'Saving…' : workout?.status === 'completed' ? 'View finalized session' : workout ? 'Resume Workout' : 'Start Workout'}</button>
     {state === 'error' && <button type="button" onClick={() => void load()}>Reload saved session</button>}
     <p role="status" aria-live="polite">{message}</p>
     {isSyntheticDemo && workout && <p className={styles.demoSession}>
@@ -56,6 +59,5 @@ export function SessionStart({ workoutId, prescriptionRevision, isSyntheticDemo 
     </p>}
     {workout && <p>Saved session · {workout.status === 'completed' ? 'Finalized · read only' : 'In progress'} · revision {workout.revision}
       {workout.prescriptionRevision !== prescriptionRevision && ' · The plan has changed; this session retains its original prescription.'}</p>}
-    {opened && workout && <WorkoutPlayer key={workout.id} workout={workout} onBack={()=>setOpened(false)} />}
   </div>
 }

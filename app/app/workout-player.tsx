@@ -203,9 +203,9 @@ function SetRow({
             aria-label={`${pending.current ? "Retry Log Set" : "Log Set"} ${ordinal}`}
             disabled={conflict && !pending.current}
             onClick={submit}
-          >○</button>
+          ><span aria-hidden="true" /></button>
         )}
-        <span>{ordinal}<small>{saved ? "Actual" : dirty ? "Draft" : "Proposed"}</small></span>
+        <span>{ordinal}</span>
         <span>{saved ? (actual?.load ? `${showLoad(actual.load)}${exceptionalBasis ? ` (${exceptionalBasis})` : ""}` : "—") :
           dirty ? (draft.load === "" ? "—" : showLoad({ value: Number(draft.load), unit: draft.unit })) :
           (plannedLoad ? `${showLoad(plannedLoad)}${proposedLoad ? "" : " target only"}` : "—")}</span>
@@ -537,6 +537,7 @@ export function PlayerView({
   changed: (key: string, dirty: boolean) => void;
 }) {
   const [expandedSet, setExpandedSet] = useState<string | null>(null);
+  const [exerciseIndex, setExerciseIndex] = useState(0);
   const snapshot = workout.snapshot;
   if (!snapshot)
     return <p>Legacy session — prescription not pinned. Read only.</p>;
@@ -546,15 +547,17 @@ export function PlayerView({
     <div className={styles.player}>
       <header>
         <h3>{snapshot.title}</h3>
-        <p>{snapshot.purpose}</p>
-        <p>{snapshot.overview?.rationale}</p>
+
         <p>
           Pinned revision {workout.prescriptionRevision} ·{" "}
           {disabled ? "Finalized · read only" : "In progress"} · session
           revision {data.sessionRevision}
         </p>
-        {snapshot.exercises.some((exercise) => strengthExercise(snapshot.kind, exercise)) &&
-          <p>Weight in lb; use total weight unless the prescribed exercise specifies per-hand, added, or bodyweight.</p>}
+        {snapshot.exercises.length > 1 && <label>Exercise {exerciseIndex + 1} of {snapshot.exercises.length}
+          <select value={exerciseIndex} onChange={event=>setExerciseIndex(Number(event.target.value))}>
+            {snapshot.exercises.map((exercise,index)=><option key={index} value={index}>{index+1}. {exercise.name}</option>)}
+          </select>
+        </label>}
       </header>
       {snapshot.exercises.map((exercise, index) => {
         const occurrence = snapshot.occurrences.find(
@@ -604,7 +607,7 @@ export function PlayerView({
           clockStart = clockStart === null || row.duration === null ? null : clockStart + row.duration;
         }
         return (
-          <section className={styles.exercise} key={occurrence.id}>
+          <section className={styles.exercise} hidden={index !== exerciseIndex} key={occurrence.id}>
             <h4>
               {index + 1}. {exercise.name}
               {exercise.optional ? " · Optional" : ""}
@@ -619,9 +622,8 @@ export function PlayerView({
               </p>}
               {exercise.restSeconds !== null && <p>Rest {exercise.restSeconds}s</p>}
               {exercise.rpe && <p>Prescribed RPE {exercise.rpe.min}–{exercise.rpe.max}</p>}
+              {(exercise.notes || exercise.equipment || exercise.comparisonContext || !!exercise.adjustments?.length) && <details><summary>Exercise details</summary>
               {exercise.notes && <p>{exercise.notes}</p>}
-              {strength && exercise.loadBasis && loadBases.some((basis) => basis !== "total" && basis === exercise.loadBasis) &&
-                <p>Load convention: {exercise.loadBasis.replaceAll("_", " ")}</p>}
               {exercise.equipment && <p>Equipment · {exercise.equipment}</p>}
               {exercise.comparisonContext && (
                 <p>Comparison context · {exercise.comparisonContext}</p>
@@ -633,6 +635,9 @@ export function PlayerView({
                     ` · Alternative ${rule.substitution.name}`}
                 </p>
               ))}
+              </details>}
+              {strength && exercise.loadBasis && loadBases.some((basis) => basis !== "total" && basis === exercise.loadBasis) &&
+                <p>Load convention: {exercise.loadBasis.replaceAll("_", " ")}</p>}
             </div>
             {strength && !blocks.length && warmups.length > 0 && (
               <div className={styles.warmups} role="group" aria-label="Prescribed warm-ups">
@@ -661,6 +666,7 @@ export function PlayerView({
             </>}
             {strength && (
               <div aria-label="Strength sets">
+                <h5>Working sets</h5>
                 <div className={styles.strengthRow}>
                   <span className={styles.completionHeading}>Completion</span><span>Set</span><span>Load (lb)</span><span>Reps</span><span>Edit</span>
                 </div>
@@ -721,9 +727,11 @@ export function PlayerView({
 export function WorkoutPlayer({
   workout,
   onBack,
+  returnHref,
 }: {
   workout: WorkoutSession;
-  onBack: () => void;
+  onBack?: () => void;
+  returnHref?: string;
 }) {
   const [data, setData] = useState<SessionResults | null>(null),
     [busy, setBusy] = useState(false),
@@ -876,7 +884,7 @@ export function WorkoutPlayer({
             !dirty.current.size ||
             window.confirm("Leave with unsaved changes?")
           )
-            onBack();
+            { if (onBack) onBack(); else window.location.assign(returnHref ?? "/app"); }
         }}
       >
         Back to Overview
