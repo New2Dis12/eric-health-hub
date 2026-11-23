@@ -27,7 +27,8 @@ export function compatiblePair(first: SourceEvidence, second: SourceEvidence, se
 }
 
 function preferPeloton(field: string, modality: string | null) {
-  if (modality === 'run') return /speed|distance/i.test(field)
+  if (field === 'distanceMeters') return true
+  if (modality === 'run') return /speed/i.test(field)
   if (modality === 'bike') return /power|cadence/i.test(field)
   return modality === 'row' && /speed|cadence/i.test(field)
 }
@@ -61,6 +62,9 @@ export function reconcilePair(sources: SavedSourceEvidence[]): ReconciledWorkout
     })
     const first = choices[0]
     if (!first) continue
+    // For a confirmed machine pair, the watch distance remains comparison evidence only.
+    if (field === 'distanceMeters' && (first.source !== peloton || first.metric.unit !== 'm' ||
+        !Number.isFinite(first.metric.value) || first.metric.value! < 0)) continue
     summary.push({...first.metric, sourceId: first.source.evidence.sourceId, evidenceId: first.source.id, kind: 'native',
       conflict: choices.some(({metric}) => metric.unit !== first.metric.unit || metric.value !== first.metric.value)})
   }

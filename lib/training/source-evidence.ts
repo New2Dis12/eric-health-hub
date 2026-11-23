@@ -4,8 +4,8 @@ import { GarminRequestError } from '../garmin'
 import { ApiError } from '../private-api'
 import { assertTrainingAccess, type TrainingPrincipal } from './auth'
 import type { TrainingDatabase, Queryable } from './database'
-import { sourceLinkInput, type SavedSourceEvidence, type SourceResult, type CandidateResult } from './source-evidence-models'
-import { candidatesFrom, normalizeGarminFit, type GarminClient } from './garmin-evidence'
+import { sourceLinkInput, type SavedSourceEvidence, type SourceResult, type CandidateResult, type GarminCandidate, type SourceEvidence } from './source-evidence-models'
+import { candidatesFrom, garminUtc, origin, normalizeGarminFit, type GarminClient } from './garmin-evidence'
 import { compatiblePair, reconcilePair } from './paired-evidence'
 import type { SessionSnapshot } from './session'
 
@@ -44,10 +44,46 @@ function modalities(snapshot: SessionSnapshot) {
     ...(e.warmups??[]).map(s=>s.modality),...(e.intervalBlocks??[]).flatMap(b=>b.segments.map(s=>s.modality)),
   ])].filter(m=>['run','bike','row','ski','swim'].includes(m)))]
 }
+// Inspect a bounded number of FIT files on the completed-results screen only.
+async function discoverPairs(raw: unknown, candidates: GarminCandidate[], session: Awaited<ReturnType<typeof owned>>['session'],
+  saved: SavedSourceEvidence[], garmin: GarminClient, subject: string, now: () => Date) {
+  const verifiedPairs: number[][] = []
+  const inspected: SourceEvidence[] = saved.map(row => row.evidence)
+  const allowed = modalities(session.prescription_snapshot)
+  const start = new Date(session.started_at).getTime(), end = new Date(session.completed_at).getTime()
+  const rows = Array.isArray(raw) ? raw : []
+  const times = rows.map(row => Date.parse(garminUtc(row?.startTimeGMT) ?? ''))
+  // A full newest-first page can cover this session if it extends past the candidate window.
+  const coversWindow = rows.length < 20 || (times.every((t,i) => Number.isFinite(t) && (!i || t <= times[i-1])) &&
+    times[times.length-1] < start - 86400000)
+  let complete = coversWindow && candidates.length < 8 && new Set(rows.map(row=>row?.activityId)).size===rows.length && rows.every(row => Number.isSafeInteger(row?.activityId) && row.activityId > 0)
+  let downloads = 0
+  for (const candidate of candidates) {
+    candidate.origin = origin(candidate.manufacturer ?? null)
+    if (candidate.linked) continue
+    const time = Date.parse(candidate.startUtc ?? '')
+    const duration = candidate.durationSeconds
+    if (candidate.modality && !candidate.compatible || time >= end ||
+        (duration !== null && time + duration * 1000 <= start)) continue
+    if (downloads >= 4) { complete = false; continue }
+    downloads++
+    try {
+      const evidence = normalizeGarminFit(await garmin.fit(candidate.activityId),candidate.activityId,subject,now(),candidate.manufacturer)
+      candidate.origin = evidence.recording?.origin ?? 'unknown'
+      if (candidate.origin === 'unknown' || !evidence.modality || !evidence.startUtc || !evidence.endUtc || evidence.startField !== 'session.startTime') complete = false
+      for (const partner of inspected) {
+        if (saved.length && partner !== saved[0].evidence) continue
+        if (compatiblePair(partner,evidence,session,allowed)) verifiedPairs.push([Number(partner.sourceId),candidate.activityId])
+      }
+      inspected.push(evidence)
+    } catch { complete = false }
+  }
+  return {verifiedPairs, ...(complete && verifiedPairs.length === 1 && {suggestedPair:verifiedPairs[0]})}
+}
 export function createSourceEvidenceService(database: TrainingDatabase, garmin: GarminClient, now=()=>new Date()) {
   const context=(principal:TrainingPrincipal,id:string)=>database.transaction(principal.subject,tx=>owned(tx,principal.subject,id))
   return {
-    async candidates(principal:TrainingPrincipal,sessionId:unknown): Promise<CandidateResult> {
+    async candidates(principal:TrainingPrincipal,sessionId:unknown, discover=false): Promise<CandidateResult> {
       assertSourceAccess(principal,'training.read')
       if (!sourceLinkInput.shape.sessionId.safeParse(sessionId).success) throw new ApiError(400,'Invalid session ID')
       const c=await context(principal,sessionId as string)
@@ -68,7 +104,10 @@ export function createSourceEvidenceService(database: TrainingDatabase, garmin: 
           candidate.linkedElsewhere=candidate.linked && !current
           candidate.evidenceRevision=current?.revision??0
         }
-        return {...(sources.length===1 && process.env.STUNNA_PAIRED_EVIDENCE_DISABLED!=='true' && {pairAnchor:{evidenceId:sources[0].id,sourceId:sources[0].evidence.sourceId}}),status:revision?'matched':candidates.length?'needs_confirmation':'unavailable',candidates,reason:'Select and explicitly confirm the Garmin activity. Time and modality are hints; no automatic association.',sessionRevision:c.session.revision,evidenceRevision:revision}
+        const pairing = process.env.STUNNA_PAIRED_EVIDENCE_DISABLED!=='true'
+        const discovery = discover && pairing && sources.length < 2
+          ? await discoverPairs(raw,candidates,c.session,sources,garmin,principal.subject,now) : {}
+        return {...discovery,...(sources.length===1 && process.env.STUNNA_PAIRED_EVIDENCE_DISABLED!=='true' && {pairAnchor:{evidenceId:sources[0].id,sourceId:sources[0].evidence.sourceId}}),status:revision?'matched':candidates.length?'needs_confirmation':'unavailable',candidates,reason:'Select and explicitly confirm the Garmin activity. Time and modality are hints; no automatic association.',sessionRevision:c.session.revision,evidenceRevision:revision}
       } catch (error) {
         const failure = stage === 'activity_list' && error instanceof GarminRequestError ? error : null
         console.warn('Garmin candidate lookup failed', { stage: failure?.stage ?? stage, status: failure?.status })

@@ -28,7 +28,7 @@ await db.query("INSERT INTO stunna.actual_sessions(id,athlete_id,planned_session
 const database:TrainingDatabase={transaction:(s,fn)=>db.transaction(async tx=>{
   await tx.exec('SET LOCAL ROLE stunna_runtime');await tx.query("SELECT set_config('stunna.subject',$1,true)",[s]);return fn(tx as Queryable)
 })}
-let downloads=0,staleReadback=true
+let downloads=0,staleReadback=true,failure=''
 const confirmationKeys:string[]=[]
 const service=createTrainingService(database,()=>new Date('2026-10-28T00:00:00Z'),{
   list:async()=>[501,502].map(activityId=>({activityId,activityName:'Synthetic same-day run '+activityId,activityType:{typeKey:'running'},startTimeGMT:'2026-10-27 18:52:01',duration:1800,distance:0})),
@@ -36,7 +36,7 @@ const service=createTrainingService(database,()=>new Date('2026-10-28T00:00:00Z'
     downloads++
     const encoder=new Encoder()
     encoder.onMesg(Profile.MesgNum.FILE_ID,{type:'activity',manufacturer:activityId===502?'peloton':'garmin'} as FileIdMesg)
-    encoder.onMesg(Profile.MesgNum.SESSION,{sport:'running',startTime:new Date('2026-10-27T18:52:01Z'),timestamp:new Date('2026-10-27T19:22:01Z'),totalElapsedTime:1800,totalDistance:0} as SessionMesg)
+    encoder.onMesg(Profile.MesgNum.SESSION,{sport:'running',startTime:new Date('2026-10-27T18:52:01Z'),timestamp:new Date('2026-10-27T19:22:01Z'),totalElapsedTime:1800.25,totalDistance:activityId===502?8400:7900} as SessionMesg)
     encoder.onMesg(Profile.MesgNum.RECORD,{timestamp:new Date('2026-10-27T18:52:01Z'),distance:0} as RecordMesg)
     return {activityId,...decodeGarminFitArchive(Buffer.from(encoder.close()),30,120,0,0,20,true)}
   },
@@ -51,6 +51,7 @@ const server=createServer(async(req,res)=>{
       response=Response.json(staleReadback?{...current,sourceResult:{status:'unavailable',evidence:[]}}:current)
     }
     else if(url.pathname==='/probe') {
+      if(url.searchParams.has('fail')) failure=url.searchParams.get('fail')!
       if(url.searchParams.get('readback')==='verified')staleReadback=false
       response=Response.json({confirmationKeys,downloads,links:(await db.query('SELECT id FROM stunna.source_links')).rows.length,audits:(await db.query("SELECT id FROM stunna.audit_events WHERE operation='link_garmin'")).rows.length})
     }
@@ -58,10 +59,15 @@ const server=createServer(async(req,res)=>{
       const chunks:Buffer[]=[];for await(const c of req)chunks.push(c)
       if(req.method==='POST')confirmationKeys.push(JSON.parse(Buffer.concat(chunks).toString()).idempotencyKey)
       const request=new Request(url,{method:req.method,headers:req.headers as Record<string,string>,...(req.method==='POST'?{body:Buffer.concat(chunks)}:{})})
-      response=await(req.method==='POST'?handlers.POST(request):handlers.GET(request))
+      const id=req.method==='POST'?JSON.parse(Buffer.concat(chunks).toString()).activityId:0
+      if(failure==='before'+id) {failure='';response=new Response(null,{status:503})}
+      else {
+        response=await(req.method==='POST'?handlers.POST(request):handlers.GET(request))
+        if(failure==='after'+id) {failure='';response=new Response(null,{status:503})}
+      }
     } else {
-      const name=url.pathname==='/source.js'?'source.js':'index.html'
-      response=new Response(await readFile(join(process.argv[2],name)),{headers:{'content-type':name.endsWith('.js')?'text/javascript':'text/html'}})
+      const name=url.pathname==='/source.js'?'source.js':url.pathname==='/source.css'?'source.css':'index.html'
+      response=new Response(await readFile(join(process.argv[2],name)),{headers:{'content-type':name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':'text/html'}})
     }
     res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()))
   }catch{res.writeHead(500);res.end('Synthetic harness error')}

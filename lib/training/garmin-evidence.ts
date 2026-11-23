@@ -11,12 +11,12 @@ export function garminModality(sport: unknown): string | null {
 const finite = (v: unknown) => typeof v==='number' && Number.isFinite(v) && v>=0 ? v : null
 const utc = (v: unknown) => typeof v==='string' && /(?:Z|[+-]\d\d:\d\d)$/.test(v) && Number.isFinite(Date.parse(v)) ? new Date(v).toISOString() : null
 // Garmin's startTimeGMT is explicitly UTC even when the API omits its suffix.
-function garminUtc(v: unknown) { return typeof v==='string' ? utc(v.replace(' ','T') + (/(?:Z|[+-]\d\d:\d\d)$/.test(v)?'':'Z')) : null }
+export function garminUtc(v: unknown) { return typeof v==='string' ? utc(v.replace(' ','T') + (/(?:Z|[+-]\d\d:\d\d)$/.test(v)?'':'Z')) : null }
 function manufacturer(value: unknown): string | number | null {
   return typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(value) ? value
     : typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 65535 ? value : null
 }
-function origin(value: string | number | null): RecordingOrigin {
+export function origin(value: string | number | null): RecordingOrigin {
   if (value === 1 || String(value).toLowerCase() === 'garmin') return 'garmin_device'
   if (value === 340 || String(value).toLowerCase() === 'peloton') return 'peloton_import'
   return 'unknown'

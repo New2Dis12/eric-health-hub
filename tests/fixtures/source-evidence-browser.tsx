@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import styles from '../../app/app/player.module.css'
 import { WorkoutSourceResults } from '../../app/app/workout-source-results'
 import type { SessionResults } from '../../lib/training/logging-models'
 function Fixture() {
@@ -10,6 +11,6 @@ function Fixture() {
     const current=await response.json();setData(current);return current
   }
   useEffect(()=>{void refresh()},[])
-  return data?<WorkoutSourceResults sessionId={data.sessionId} sessionRevision={data.sessionRevision} result={data.sourceResult} refresh={refresh}/>:<p>Loading synthetic workout</p>
+  return data?<main className={styles.finishPanel}><strong>Completed — workout saved</strong><WorkoutSourceResults sessionId={data.sessionId} sessionRevision={data.sessionRevision} result={data.sourceResult} refresh={refresh}/></main>:<p>Loading synthetic workout</p>
 }
 createRoot(document.getElementById('root')!).render(<Fixture/> )
