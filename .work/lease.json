@@ -4,8 +4,8 @@
   "epoch": 1,
   "state": "review",
   "spec": "9e3449702b2007bc634ed8d875cb492e14c7b19d1bc4b3f8b20cf2153fa1f82c",
-  "heartbeat": "2026-11-23T05:17:37.290Z",
-  "expires": "2026-11-23T06:02:37.290Z",
+  "heartbeat": "2026-11-23T05:18:46.367Z",
+  "expires": "2026-11-23T06:03:46.367Z",
   "attempts": 0,
-  "checkpoint": "Issue #59 historical MCP read tool implemented with existing schema/RLS and existing training.read scope; 7 new synthetic tests including MCP discovery and dual subject isolation PASS; focused security compatibility PASS; full pnpm test PASS; pnpm typecheck PASS; optimized Next build PASS; diff check PASS. No hosted DB operations or real records imported. Awaiting exact-head CI/review and owner release gate."
+  "checkpoint": "Read-only historical MCP implementation and tests published on PR #60. All local app/UI tests, focused new tests, TS and optimized build passed. Added standard branch-specific read-only GitHub Actions validation; awaiting CI and independent exact-head technical review."
 }
