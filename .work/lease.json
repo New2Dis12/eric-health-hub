@@ -2,10 +2,10 @@
   "issue": 59,
   "owner": "stunna-issue59-inline-20261123-a7f9",
   "epoch": 1,
-  "state": "in_progress",
+  "state": "review",
   "spec": "9e3449702b2007bc634ed8d875cb492e14c7b19d1bc4b3f8b20cf2153fa1f82c",
-  "heartbeat": "2026-11-23T05:06:36.799Z",
-  "expires": "2026-11-23T05:51:36.799Z",
+  "heartbeat": "2026-11-23T05:17:37.290Z",
+  "expires": "2026-11-23T06:02:37.290Z",
   "attempts": 0,
-  "checkpoint": "Owner approval verified; executable isolated checkout available. First commit disables deployment. Implementing owner-scoped historical MCP read with synthetic tests."
+  "checkpoint": "Issue #59 historical MCP read tool implemented with existing schema/RLS and existing training.read scope; 7 new synthetic tests including MCP discovery and dual subject isolation PASS; focused security compatibility PASS; full pnpm test PASS; pnpm typecheck PASS; optimized Next build PASS; diff check PASS. No hosted DB operations or real records imported. Awaiting exact-head CI/review and owner release gate."
 }
