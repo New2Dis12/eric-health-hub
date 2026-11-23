@@ -2,7 +2,9 @@ import React from 'react'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { create, act, type ReactTestRenderer } from 'react-test-renderer'
-import { WorkoutSourceResults } from '../app/app/workout-source-results'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { reconcilePair } from '../lib/training/paired-evidence'
+import { formatDuration, WorkoutSourceResults } from '../app/app/workout-source-results'
 import type { CandidateResult } from '../lib/training/source-evidence-models'
 import type { SessionResults } from '../lib/training/logging-models'
 const sessionId='11111111-1111-4111-8111-111111111111'
@@ -121,3 +123,46 @@ test('a unique pair uses one confirmation, two immutable receipts and a verified
     assert.match(text(tree),/saved and re-read/)
   } finally {globalThis.fetch=original;await act(async()=>tree?.unmount())}
 })
+
+test('FIT durations round to hundredths before carrying into minutes and hours',()=>{
+  for(const [seconds,clock] of [
+    [0,'00:00.00'],[45,'00:45.00'],[10.075,'00:10.08'],[59.995,'01:00.00'],[750.5,'12:30.50'],
+    [3599,'59:59.00'],[3599.994,'59:59.99'],[3599.995,'01:00:00.00'],[3600,'01:00:00.00'],
+    [3600.006,'01:00:00.01'],[4530.25,'01:15:30.25'],[360001,'100:00:01.00'],
+  ] as const) assert.equal(formatDuration(seconds),clock)
+})
+
+for(const modality of ['run','bike','row']) {
+  test(modality+' results retain Garmin-only distance and use confirmed machine distance and Garmin heart rate when paired',()=>{
+    const saved=readback()
+    const result=saved.sourceResult!
+    const watch=result.evidence[0]
+    watch.evidence.modality=modality
+    watch.evidence.recording={origin:'garmin_device',fitManufacturer:'garmin',listManufacturer:null}
+    watch.evidence.summary[0].value=700
+    watch.evidence.summary.push({field:'avgHeartRateBpm',value:135,unit:'bpm',nativeField:'avgHeartRate',nativeUnit:'bpm'})
+    const render=()=>renderToStaticMarkup(<WorkoutSourceResults sessionId={sessionId} sessionRevision={2} result={result} refresh={async()=>saved}/>)
+    const compact=()=>render().split('<details>')[0]
+    assert.match(compact(),/700 m<\/strong><small>Garmin/)
+    const machine=structuredClone(watch)
+    machine.id='33333333-3333-4333-8333-333333333333'
+    machine.evidence.sourceId='102'
+    machine.evidence.recording!.origin='peloton_import'
+    machine.evidence.summary[0].value=800
+    machine.evidence.summary.at(-1)!.value=121
+    result.evidence.push(machine)
+    result.reconciled=reconcilePair(result.evidence)
+    assert.match(compact(),/800 m<\/strong><small>Peloton/)
+    assert.match(compact(),/135 bpm<\/strong><small>Garmin/)
+    for(const unavailable of [null,-1]) {
+      machine.evidence.summary[0].value=unavailable
+      result.reconciled=reconcilePair(result.evidence)
+      assert.match(compact(),/Peloton distance unavailable/)
+      assert.doesNotMatch(compact(),/700 m/)
+      assert.match(render().split('<details>').slice(1).join(''),/700 m/)
+    }
+    machine.evidence.summary[0].value=0
+    result.reconciled=reconcilePair(result.evidence)
+    assert.match(compact(),/0 m<\/strong><small>Peloton/)
+  })
+}

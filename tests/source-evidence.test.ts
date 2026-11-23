@@ -259,9 +259,10 @@ test('explicit run, bike and rowing pairs survive fresh MCP reads without duplic
     const metric=(field:string)=>stored.reconciled!.summary.find(m=>m.field===field)!
     assert.equal(metric('elapsedSeconds').value,1800)
     assert.equal(metric('avgHeartRateBpm').sourceId,String(sessionId===row?secondId:firstId))
+    const distance=metric('distanceMeters')
+    assert.deepEqual([distance.value,distance.unit,distance.nativeField,distance.sourceId,distance.evidenceId,distance.conflict],
+      [9000,'m','totalDistance',String(secondId),receipt.evidenceId,true])
     if(sessionId===run){
-      assert.equal(metric('distanceMeters').value,9000)
-      assert.equal(metric('distanceMeters').conflict,true)
       assert.equal(metric('avgSpeedMetersPerSecond').nativeField,'enhancedAvgSpeed')
     } else if(sessionId===bike){
       assert.equal(metric('avgPowerWatts').value,210)

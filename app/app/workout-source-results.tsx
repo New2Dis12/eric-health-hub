@@ -24,7 +24,22 @@ const metricLabel=(field:string)=>labels[field]??field
 const originLabel = (origin?:RecordingOrigin) => origin === 'peloton_import' ? 'Peloton' : origin === 'garmin_device' ? 'Garmin' : 'Garmin Connect · origin unverified'
 const localTime = (utc:string|null) => utc ? new Date(utc).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}) : 'Time unavailable'
 const overviewFields = ['elapsedSeconds','distanceMeters','avgHeartRateBpm','avgPowerWatts','avgSpeedMetersPerSecond','avgCadenceCyclesPerMinute','avgSplitSecondsPer500m','avgStrokeRate']
-const display = (value:number, unit:string) => value.toLocaleString(undefined,{maximumFractionDigits:2})+' '+unit
+const hundredths = new Intl.NumberFormat('en-US', {
+  useGrouping:false, minimumFractionDigits:2, maximumFractionDigits:2,
+})
+export function formatDuration(seconds:number) {
+  // Round decimal seconds first so a carry can change the number of clock segments.
+  const [whole,fraction]=hundredths.format(seconds).split('.')
+  const total=Number(whole)
+  const pad=(n:number)=>String(n).padStart(2,'0')
+  const hours=Math.floor(total/3600)
+  return (hours ? pad(hours)+':' : '')+pad(Math.floor(total/60)%60)+':'+pad(total%60)+'.'+fraction
+}
+function displayMetric(metric:{field:string;value:number|null;unit:string}) {
+  if(metric.value===null) return 'Unavailable'
+  if(metric.unit==='s' && (metric.field==='elapsedSeconds' || metric.field==='timerSeconds')) return formatDuration(metric.value)
+  return metric.value.toLocaleString(undefined,{maximumFractionDigits:2})+' '+metric.unit
+}
 type Confirmation = { commands: SourceLinkInput[]; index:number }
 
 // Keep only the last unresolved command in this tab. After a reload, discovery
@@ -144,22 +159,23 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
     <h4>Device results</h4>
     {sources.length>0 && <>
       <h5>Workout summary</h5>
+      {result?.reconciled && !measured.some(m=>m.field==='distanceMeters') && <p>Peloton distance unavailable.</p>}
       {!summary.length && <p>No measured totals available.</p>}
       <dl className="device-metrics">{summary.map(m=>
-        <div key={m.field}><dt>{metricLabel(m.field)}</dt><dd><strong>{display(m.value!,m.unit)}</strong>
+        <div key={m.field}><dt>{metricLabel(m.field)}</dt><dd><strong>{displayMetric(m)}</strong>
           <small>{originLabel(sources.find(s=>s.evidence.sourceId===m.sourceId)?.evidence.recording?.origin)}</small></dd></div>)}</dl>
       <details><summary>Source details · {sources.length} saved</summary>
         {result?.reconciled && <><h5>Metric comparison</h5><dl>{result.reconciled.summary.map(m=><div key={m.field}><dt>{metricLabel(m.field)}</dt>
-          <dd>{display(m.value!,m.unit)} · activity {m.sourceId}{m.conflict?' · sources differ':''} {m.formula}</dd></div>)}</dl></>}
+          <dd>{displayMetric(m)} · activity {m.sourceId}{m.conflict?' · sources differ':''} {m.formula}</dd></div>)}</dl></>}
         {sources.map(({id,evidence:e,revision})=><details key={id}><summary>{originLabel(e.recording?.origin)} · activity {e.sourceId}</summary>
           <p>Evidence revision {revision} · {localTime(e.retrievedAt)}</p>
-          <dl>{e.summary.filter(m=>m.value!==null).map(m=><div key={m.field}><dt>{metricLabel(m.field)}</dt><dd>{display(m.value!,m.unit)}</dd></div>)}</dl>
+          <dl>{e.summary.filter(m=>m.value!==null).map(m=><div key={m.field}><dt>{metricLabel(m.field)}</dt><dd>{displayMetric(m)}</dd></div>)}</dl>
           <details><summary>Native laps and sensor measurements</summary>
             <p>{e.laps.length} of {e.coverage.nativeLaps} native laps · {e.sensors.samples.length} selected samples · {e.coverage.sampleIntervalSeconds}s sample interval</p>
             {e.coverage.samplesTruncated && <p>Partial sample coverage</p>}
             {e.coverage.warnings.map(w=><p key={w}>{w}</p>)}
             {e.laps.map(l=><div key={l.index}><strong>Lap {l.index+1} · {localTime(l.startUtc)}</strong>
-              <dl>{l.metrics.filter(m=>m.value!==null).map(m=><div key={m.field}><dt>{metricLabel(m.field)}</dt><dd>{display(m.value!,m.unit)}</dd></div>)}</dl></div>)}
+              <dl>{l.metrics.filter(m=>m.value!==null).map(m=><div key={m.field}><dt>{metricLabel(m.field)}</dt><dd>{displayMetric(m)}</dd></div>)}</dl></div>)}
             <div className="device-table" tabIndex={0} role="region" aria-label="Selected FIT sensor measurements"><table>
               <caption>Selected sensor measurements</caption><thead><tr>{e.sensors.columns.map((c,i)=><th key={c}>{metricLabel(c)} ({e.sensors.units[i]})</th>)}</tr></thead>
               <tbody>{e.sensors.samples.map((row,i)=><tr key={i}>{row.map((v,j)=><td key={j}>{v??'Unknown'}</td>)}</tr>)}</tbody></table></div>
@@ -174,7 +190,7 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
         {page.candidates.filter(c=>!c.linked).map(c=><label className="device-row" key={c.activityId}>
           <input type="checkbox" value={c.activityId} checked={selected.includes(c.activityId)}
             disabled={!selected.includes(c.activityId) && identities.length>=2} onChange={()=>toggle(c.activityId)}/>
-          <span><strong>{originLabel(c.origin)} · {c.name}</strong><small>{localTime(c.startUtc)} · {c.durationSeconds===null?'Duration unavailable':display(c.durationSeconds/60,'min')}</small>
+          <span><strong>{originLabel(c.origin)} · {c.name}</strong><small>{localTime(c.startUtc)} · {c.durationSeconds===null?'Duration unavailable':formatDuration(c.durationSeconds)}</small>
           <small>{c.modality??'Modality unavailable'} · activity {c.activityId}</small></span>
         </label>)}
         {!page.candidates.some(c=>!c.linked) && <p>{page.status==='unavailable'?page.reason:'No additional recordings available.'}</p>}

@@ -36,7 +36,7 @@ const service=createTrainingService(database,()=>new Date('2026-10-28T00:00:00Z'
     downloads++
     const encoder=new Encoder()
     encoder.onMesg(Profile.MesgNum.FILE_ID,{type:'activity',manufacturer:activityId===502?'peloton':'garmin'} as FileIdMesg)
-    encoder.onMesg(Profile.MesgNum.SESSION,{sport:'running',startTime:new Date('2026-10-27T18:52:01Z'),timestamp:new Date('2026-10-27T19:22:01Z'),totalElapsedTime:1800,totalDistance:0} as SessionMesg)
+    encoder.onMesg(Profile.MesgNum.SESSION,{sport:'running',startTime:new Date('2026-10-27T18:52:01Z'),timestamp:new Date('2026-10-27T19:22:01Z'),totalElapsedTime:1800.25,totalDistance:activityId===502?8400:7900} as SessionMesg)
     encoder.onMesg(Profile.MesgNum.RECORD,{timestamp:new Date('2026-10-27T18:52:01Z'),distance:0} as RecordMesg)
     return {activityId,...decodeGarminFitArchive(Buffer.from(encoder.close()),30,120,0,0,20,true)}
   },

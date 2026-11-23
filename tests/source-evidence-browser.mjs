@@ -159,8 +159,13 @@ try {
   for(const width of [375,390]) {
     await evaluate("document.querySelectorAll('details').forEach(e=>e.open=false)")
     await capture(width,'summary')
+    assert.match(await evaluate("document.querySelector('.device-metrics').innerText"),/30:00\.25/)
+    assert.match(await evaluate("document.querySelector('.device-metrics').innerText"),/8,400 m\s+Peloton/)
     await evaluate("document.querySelectorAll('details').forEach(e=>e.open=true)")
     await capture(width,'detail')
+    const details=await evaluate("document.querySelector('details').innerText")
+    assert.ok(details.includes('30:00.25') && details.includes('7,900 m') && details.includes('8,400 m'))
+    assert.ok(!details.includes('1,800.25 s'))
     console.log(JSON.stringify({width,verifiedPair:true,explicitConfirmation:true,partialReload:true,sameRetryKeys:true,links:2,audits:2,overflow:false}))
   }
   assert.deepEqual(errors,[])
