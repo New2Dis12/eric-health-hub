@@ -5,6 +5,9 @@ import { getTrainingContext, type TrainingContext } from '@/lib/training/context
 import { contextInput, moveTrainingDate, type Dose, type MetricTarget, type Segment } from '@/lib/training/context-models'
 import { durationEstimate, effortSummary, exerciseSummary, type Workout } from '@/lib/training/workout-summary'
 import styles from './stunna.module.css'
+import { trainingService } from '@/lib/training/service'
+import { workoutId } from '@/lib/training/session'
+import { WorkoutPlayer } from './workout-player'
 import { SessionStart } from './session-start'
 
 export const dynamic = 'force-dynamic'
@@ -143,7 +146,7 @@ function Notice({ title, children }: { title: string; children: React.ReactNode 
   </div></main>
 }
 
-export default async function StunnaPage({ searchParams }: { searchParams: Promise<{ date?: string | string[] }> }) {
+export default async function StunnaPage({ searchParams }: { searchParams: Promise<{ date?: string | string[]; player?: string | string[] }> }) {
   if (process.env.STUNNA_ENABLED !== 'true') notFound()
   let subject: string | null = null
   try { subject = await getWebSubject() } catch {
@@ -153,11 +156,26 @@ export default async function StunnaPage({ searchParams }: { searchParams: Promi
     <a className={styles.button} href="/auth/login?returnTo=%2Fapp">Sign in to Health Hub</a>
   </Notice>
 
-  const { date } = await searchParams
+  const { date, player } = await searchParams
   const input = contextInput.safeParse({ date })
   if (!input.success) return <Notice title="Invalid training date">
     <a className={styles.button} href="/app">Return to today</a>
   </Notice>
+
+  if (player !== undefined) {
+    if (!workoutId.safeParse(player).success) notFound()
+    const returnHref = dateLink(input.data.date)
+    let workout
+    try {
+      workout = await trainingService().workout({subject, scopes:['training.read'], source:'browser'}, player)
+    } catch {
+      return <Notice title="Saved session unavailable"><a href={returnHref}>Return to calendar</a></Notice>
+    }
+    if (!workout) return <Notice title="Saved session unavailable"><a href={returnHref}>Return to calendar</a></Notice>
+    return <main className={styles.shell}><div className={styles.content}>
+      <WorkoutPlayer key={workout.id} workout={workout} returnHref={returnHref} />
+    </div></main>
+  }
 
   let context: TrainingContext
   try {

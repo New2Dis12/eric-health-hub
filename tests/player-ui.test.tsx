@@ -195,7 +195,7 @@ test("mobile component hierarchy has unsaved upper-bound proposed reps, native h
   assert.equal(edit(1).props["aria-expanded"], false);
   assert.equal(edit(2).props["aria-expanded"], true);
   assert.equal(writes, 0);
-  assert.match(text(tree), /Proposed/);
+  assert.doesNotMatch(text(tree), /Proposed/);
   assert.match(text(tree), /Prescribed cardio/);
   const rpe = tree.root
     .findAllByType("select")
@@ -206,6 +206,12 @@ test("mobile component hierarchy has unsaved upper-bound proposed reps, native h
   assert.equal(rpe.findAllByType("option").length, 22);
   const sections = tree.root.findAllByType("section");
   assert.equal(sections.length, 2);
+  const navigate=tree.root.findAllByType("select").find(n=>n.props.value===0)!;
+  assert.deepEqual(sections.map(section=>section.props.hidden),[false,true]);
+  await act(async()=>navigate.props.onChange({target:{value:"1"}}));
+  assert.deepEqual(sections.map(section=>section.props.hidden),[true,false]);
+  await act(async()=>navigate.props.onChange({target:{value:"0"}}));
+  assert.equal(writes,0);
   for (const section of sections)
     assert.match(
       JSON.stringify(
@@ -829,7 +835,7 @@ test("strength editor uses lb convention for new loads and preserves historical 
   for (const [index, unit, basis] of [[0,"kg","added"],[1,"lb","per_hand"]] as const) {
     await act(async () => buttons().filter(node=>node.props.children==="Edit")[index].props.onClick());
     assert.ok(tree.root.findAllByType("label").some(node => node.props.children[0] === `Load (${unit})`));
-    assert.equal(tree.root.findAllByType("select").length,1);
+    assert.equal(tree.root.findAllByType("fieldset").filter(n=>n.props["aria-label"]==="Set "+(index+1))[0].findAllByType("select").length,1);
     await act(async () => tree.root.findAllByType("input")[1].props.onChange({target:{value:"22"}}));
     await act(async () => buttons().find(node=>node.props.children==="Save")!.props.onClick());
     assert.deepEqual((writes[index] as {actual:{load:unknown}}).actual.load,{value:22,unit,basis});
@@ -842,8 +848,9 @@ test("server session state controls Start, Resume, and finalized labels independ
   const previousWindow = globalThis.window;
   let current: WorkoutSession | null = null;
   let posts = 0;
+  const destinations:string[]=[];
   let tree: ReactTestRenderer | undefined;
-  Object.assign(globalThis, { window: { addEventListener() {}, removeEventListener() {}, confirm() { return true; } } });
+  Object.assign(globalThis, { window: { location:{href:"https://synthetic.invalid/app?date=2026-11-01",assign:(url:string)=>destinations.push(url)}, addEventListener() {}, removeEventListener() {}, confirm() { return true; } } });
   globalThis.fetch = async (url, init) => {
     if (String(url).startsWith("/api/training/results")) return Response.json({ ...data, status: current?.status });
     if (init?.method === "POST") {
@@ -866,13 +873,13 @@ test("server session state controls Start, Resume, and finalized labels independ
     assert.ok(button("Start Workout"));
     assert.doesNotMatch(text(tree!), /previously started for testing/);
     await click("Start Workout");
-    await click("Back to Overview");
+    assert.match(destinations.at(-1)!, /date=2026-11-01&player=synthetic-plan/);
     assert.ok(button("Resume Workout"));
     assert.match(text(tree!), /previously started for testing/);
     await click("Resume Workout");
-    await click("Back to Overview");
+    assert.match(destinations.at(-1)!, /date=2026-11-01&player=synthetic-plan/);
     assert.ok(button("Resume Workout"));
-    assert.equal(posts, 2);
+    assert.equal(posts, 1);
     await mount(false);
     assert.ok(button("Resume Workout"));
     assert.doesNotMatch(text(tree!), /Demo session/);
@@ -880,7 +887,7 @@ test("server session state controls Start, Resume, and finalized labels independ
     await mount(true);
     assert.ok(button("View finalized session"));
     await click("View finalized session");
-    assert.equal(posts, 2);
+    assert.equal(posts, 1);
     assert.match(text(tree!), /Finalized · read only/);
     assert.equal(tree!.root.findAllByType("button").some(node => node.props["aria-pressed"] !== undefined), false);
   } finally {

@@ -137,7 +137,14 @@
 }
 
 .player .logBubble {
-  border: 1px solid #668271;
+  display: grid;
+  place-items: center;
+  background: transparent;
+}
+.logBubble > span {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #9bb8a6;
   border-radius: 50%;
   background: #0e1d16;
   color: #c9f779;
