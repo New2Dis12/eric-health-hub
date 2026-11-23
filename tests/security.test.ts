@@ -270,12 +270,12 @@ test('legacy MCP bearer scopes and tool names work without browser or training d
       return (await response.json()).result.tools.map((tool: { name: string }) => tool.name)
     }
     assert.deepEqual(await toolNames('oura.read garmin.read'), ['get_oura_summary', 'get_garmin_activities', 'get_saved_workout_results'])
-    assert.deepEqual(await toolNames('training.read'), ['get_saved_workout_results', 'get_training_context'])
-    assert.deepEqual(await toolNames('oura.read garmin.read training.read'), ['get_oura_summary', 'get_garmin_activities', 'get_workout_garmin_candidates', 'get_saved_workout_results', 'get_training_context'])
+    assert.deepEqual(await toolNames('training.read'), ['get_saved_workout_results', 'get_training_history', 'get_training_context'])
+    assert.deepEqual(await toolNames('oura.read garmin.read training.read'), ['get_oura_summary', 'get_garmin_activities', 'get_workout_garmin_candidates', 'get_saved_workout_results', 'get_training_history', 'get_training_context'])
     assert.deepEqual(await toolNames('training.write'), ['get_saved_workout_results', 'save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result'])
-    assert.deepEqual(await toolNames('training.read training.write'), ['get_saved_workout_results', 'save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result', 'get_training_context'])
-    assert.deepEqual(await toolNames('garmin.read training.read'), ['get_workout_garmin_candidates', 'get_saved_workout_results', 'get_training_context'])
-    assert.deepEqual(await toolNames('garmin.read training.read training.write'), ['get_workout_garmin_candidates', 'confirm_workout_garmin_activity', 'get_saved_workout_results', 'save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result', 'get_training_context'])
+    assert.deepEqual(await toolNames('training.read training.write'), ['get_saved_workout_results', 'save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result', 'get_training_history', 'get_training_context'])
+    assert.deepEqual(await toolNames('garmin.read training.read'), ['get_workout_garmin_candidates', 'get_saved_workout_results', 'get_training_history', 'get_training_context'])
+    assert.deepEqual(await toolNames('garmin.read training.read training.write'), ['get_workout_garmin_candidates', 'confirm_workout_garmin_activity', 'get_saved_workout_results', 'save_weekly_training_intent', 'publish_approved_workout', 'correct_saved_strength_result', 'get_training_history', 'get_training_context'])
     assert.equal((await list('garmin.read')).status, 401)
     const legacyScope = 'oura.read garmin.read'
     const readTool = (await (await list(legacyScope)).json()).result.tools.find((tool: { name: string }) => tool.name === 'get_saved_workout_results')

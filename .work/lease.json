@@ -1,20 +1,20 @@
 {
-  "issue": 56,
-  "owner": "codex-1c55a030-adb8-4b49-9c0f-339d171fa7f2",
+  "issue": 59,
+  "owner": "stunna-issue59-correction1-20261123",
   "epoch": 2,
   "state": "review",
-  "spec": "c4c311f3f8facd9ca9b37edc23f43b6ef7a673e8ed348672f8e75c4e22187c61",
-  "heartbeat": "2026-11-23T02:51:33.966Z",
-  "expires": "2026-11-23T03:41:11.396Z",
+  "spec": "9e3449702b2007bc634ed8d875cb492e14c7b19d1bc4b3f8b20cf2153fa1f82c",
+  "heartbeat": "2026-11-23T05:33:17.893Z",
+  "expires": "2026-11-23T06:18:17.893Z",
   "attempts": 1,
-  "checkpoint": "Owner distance and elapsed-time corrections implemented. Local synthetic application, UI, workflow, both mobile checks, typecheck and optimized build passed. Awaiting exact-head review.",
+  "checkpoint": "Correction 1/3: aligned source SQL tie ID ordering with final global paging; fixed body_measurements filters and displayed date to use stored per-record timezone. Added synthetic tie-page and Tokyo/Chicago-midnight regression tests. Nine focused historical tests PASS, full pnpm test PASS, typecheck PASS, build PASS; blob hashes independently verified. Awaiting exact-head CI/independent re-review.",
   "corrections": [
     {
       "attempt": 1,
-      "reviewedHead": "6fda3b33f6534eed5fd73e686ad57e0cf5a73719",
+      "reviewedHead": "45198d938a86cf43f8d8ba7d5869c37502bb96b4",
       "findings": [
-        "owner-7090008725-distance",
-        "owner-7090027297-duration"
+        "history-pagination-order-mismatch",
+        "history-measurement-calendar-timezone"
       ]
     }
   ]

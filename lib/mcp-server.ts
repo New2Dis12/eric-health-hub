@@ -7,6 +7,7 @@ import { mcpResourceMetadataUrl } from '@/lib/mcp-resource'
 import { getOuraTestResultFromStore } from '@/lib/oura-data'
 import { getGarminActivities, getGarminActivityFit } from '@/lib/garmin'
 import { getTrainingContext } from '@/lib/training/context'
+import { createTrainingHistoryReader, historyFields } from '@/lib/training/history'
 import { contextDate } from '@/lib/training/context-models'
 import type { TrainingPrincipal } from '@/lib/training/auth'
 import { actualsPage, actualsWrite, createMcpTrainingActuals } from '@/lib/training/mcp-actuals'
@@ -37,6 +38,7 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
   trainingPrincipal?: TrainingPrincipal
   actualsAdapter?: ReturnType<typeof createMcpTrainingActuals>
   publishingAdapter?: ReturnType<typeof createMcpTrainingPublisher>
+  historyReader?: ReturnType<typeof createTrainingHistoryReader>
 } = {}) {
   const server = new McpServer({ name: 'eric-health-hub', version: '0.1.0' })
 
@@ -252,6 +254,24 @@ export function createEricHealthMcpServer(canReadGarmin = false, options: {
     })
   }
   if (process.env.STUNNA_ENABLED === 'true' && principal?.scopes.includes('training.read')) {
+    const historyReader = options.historyReader ?? createTrainingHistoryReader()
+    server.registerTool('get_training_history', {
+      title: 'Search saved Stunna training history',
+      description: 'Search athlete-owned workout, exercise benchmark, weight/waist, and training-block history by date/range, exercise or metric, and category. Returns bounded chronological records with provenance and saved-session IDs for detailed reads. No known workout ID required. Imported :noon timestamps are standardized local-date anchors, not measured start times.',
+      inputSchema: historyFields.shape,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: [{ type: 'oauth2', scopes: ['training.read'] }] },
+    }, async input => {
+      try {
+        const result = await historyReader(principal, input)
+        const text = JSON.stringify(result)
+        if (Buffer.byteLength(text, 'utf8') > 128 * 1024)
+          return errorResult('History response too large; narrow dates or page size.')
+        return { structuredContent: result, content: [{ type: 'text' as const, text }] }
+      } catch {
+        return errorResult('Training history unavailable or access denied.')
+      }
+    })
     server.registerTool('get_training_context', {
       title: 'Get training context',
       description: 'Read the saved approved training prescription and calendar for a date. Defaults to today in the athlete’s training time zone. Missing targets or previous performance remain null.',
