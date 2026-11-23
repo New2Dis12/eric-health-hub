@@ -119,6 +119,42 @@ test('read-only runtime RLS separates both valid athlete identities', async () =
   }
 })
 
+test('tied noon timestamps page through every benchmark exactly once', async () => {
+  const { rows: ownerRows } = await db.query<{id:string}>('SELECT id FROM stunna.athletes WHERE auth0_sub=$1',[owner])
+  for (let n=1;n<=3;n++) {
+    const id='00000000-0000-4000-8000-'+String(n).padStart(12,'0')
+    await db.query(
+      "INSERT INTO stunna.exercise_benchmarks(id,athlete_id,exercise_key,performed_at,performance,source,verification_status,comparison_context,source_reference) VALUES ($1,$2,'tie-benchmark','2026-10-15T17:00:00Z',$3,'synthetic','verified','Tied synthetic noon','test:tie:noon')",
+      [id,ownerRows[0].id,JSON.stringify({sets:1,reps:n,durationSeconds:null,target:null})],
+    )
+  }
+  const pageIds:string[]=[]
+  for (let offset=0;offset<3;offset++) {
+    const page=await read(principal,{category:'benchmarks',query:'tie-benchmark',fromDate:'2026-10-15',toDate:'2026-10-15',limit:1,offset})
+    assert.equal(page.records.length,1)
+    pageIds.push(page.records[0].id)
+  }
+  assert.deepEqual(pageIds,[1,2,3].map(n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0')))
+  assert.equal(new Set(pageIds).size,3)
+  const last=await read(principal,{category:'benchmarks',query:'tie-benchmark',fromDate:'2026-10-15',toDate:'2026-10-15',limit:1,offset:3})
+  assert.equal(last.records.length,0)
+})
+
+test('measurement date filters use record timezone rather than current Chicago setting', async () => {
+  const {rows:ownerRows}=await db.query<{id:string}>('SELECT id FROM stunna.athletes WHERE auth0_sub=$1',[owner])
+  const id=randomUUID()
+  await db.query(
+    "INSERT INTO stunna.body_measurements(id,athlete_id,kind,value,unit,measured_at,time_zone,source) VALUES ($1,$2,'waist',34,'in','2026-10-07T00:30:00Z','Asia/Tokyo','api')",
+    [id,ownerRows[0].id],
+  )
+  const tokyoDay=await read(principal,{category:'measurements',query:'waist',fromDate:'2026-10-07',toDate:'2026-10-07'})
+  assert.deepEqual(tokyoDay.records.map(x=>x.id),[id])
+  assert.equal(tokyoDay.records[0].date,'2026-10-07')
+  assert.equal(tokyoDay.records[0].details.measurementTimeZone,'Asia/Tokyo')
+  const priorChicagoDate=await read(principal,{category:'measurements',query:'waist',fromDate:'2026-10-06',toDate:'2026-10-06'})
+  assert.equal(priorChicagoDate.records.length,0)
+})
+
 test('existing MCP connection exposes read-only history with owner scope and structured results', async () => {
   const server = createEricHealthMcpServer(false,{
     canReadOura:false,trainingPrincipal:principal,historyReader:read,

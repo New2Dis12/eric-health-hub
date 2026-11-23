@@ -2,12 +2,12 @@
   "issue": 59,
   "owner": "stunna-issue59-correction1-20261123",
   "epoch": 2,
-  "state": "in_progress",
+  "state": "review",
   "spec": "9e3449702b2007bc634ed8d875cb492e14c7b19d1bc4b3f8b20cf2153fa1f82c",
-  "heartbeat": "2026-11-23T05:29:33.738Z",
-  "expires": "2026-11-23T06:14:33.738Z",
+  "heartbeat": "2026-11-23T05:33:17.893Z",
+  "expires": "2026-11-23T06:18:17.893Z",
   "attempts": 1,
-  "checkpoint": "One in-scope correction attempt 1/3 reserved on canonical branch for reviewer P2 pagination-tie and stored measurement-zone defects; original review P1 truncated-file defect already corrected; no deployment or real-data writes.",
+  "checkpoint": "Correction 1/3: aligned source SQL tie ID ordering with final global paging; fixed body_measurements filters and displayed date to use stored per-record timezone. Added synthetic tie-page and Tokyo/Chicago-midnight regression tests. Nine focused historical tests PASS, full pnpm test PASS, typecheck PASS, build PASS; blob hashes independently verified. Awaiting exact-head CI/independent re-review.",
   "corrections": [
     {
       "attempt": 1,

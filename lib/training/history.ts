@@ -84,7 +84,7 @@ export function createTrainingHistoryReader(database: () => TrainingDatabase = g
           'AND ($2::date IS NULL OR (performed_at AT TIME ZONE $4::text)::date >= $2::date)',
           'AND ($3::date IS NULL OR (performed_at AT TIME ZONE $4::text)::date <= $3::date)',
           "AND ($5::text IS NULL OR POSITION($5 IN LOWER(exercise_key || ' ' || COALESCE(comparison_context,'') || ' ' || performance::text || ' ' || COALESCE(source_reference,''))) > 0)",
-          'ORDER BY performed_at DESC, id DESC LIMIT $6',
+          'ORDER BY performed_at DESC, id ASC LIMIT $6',
         ].join(' '), params)
         for (const r of rows) {
           // Import source identifiers may encode :noon to document a deterministic
@@ -110,7 +110,7 @@ export function createTrainingHistoryReader(database: () => TrainingDatabase = g
           'AND ($2::date IS NULL OR (a.started_at AT TIME ZONE $4::text)::date >= $2::date)',
           'AND ($3::date IS NULL OR (a.started_at AT TIME ZONE $4::text)::date <= $3::date)',
           "AND ($5::text IS NULL OR POSITION($5 IN LOWER(p.kind || ' ' || p.purpose || ' ' || COALESCE(a.notes,''))) > 0)",
-          'ORDER BY a.started_at DESC,a.id DESC LIMIT $6',
+          'ORDER BY a.started_at DESC,a.id ASC LIMIT $6',
         ].join(' '), params)
         for (const r of rows) output.push({
           id: r.id, category: 'workout', date: itemDate(r.started_at, athlete.time_zone),
@@ -125,13 +125,13 @@ export function createTrainingHistoryReader(database: () => TrainingDatabase = g
         const { rows } = await tx.query<MeasurementRow>([
           'SELECT id,kind,value,unit,measured_at,time_zone,source,revision',
           'FROM stunna.body_measurements WHERE athlete_id=$1',
-          'AND ($2::date IS NULL OR (measured_at AT TIME ZONE $4::text)::date >= $2::date)',
-          'AND ($3::date IS NULL OR (measured_at AT TIME ZONE $4::text)::date <= $3::date)',
-          "AND ($5::text IS NULL OR POSITION($5 IN LOWER(kind || ' ' || unit)) > 0)",
-          'ORDER BY measured_at DESC,id DESC LIMIT $6',
-        ].join(' '), params)
+          'AND ($2::date IS NULL OR (measured_at AT TIME ZONE time_zone)::date >= $2::date)',
+          'AND ($3::date IS NULL OR (measured_at AT TIME ZONE time_zone)::date <= $3::date)',
+          "AND ($4::text IS NULL OR POSITION($4 IN LOWER(kind || ' ' || unit)) > 0)",
+          'ORDER BY (measured_at AT TIME ZONE time_zone)::date DESC,measured_at DESC,id ASC LIMIT $5',
+        ].join(' '), [params[0],params[1],params[2],params[4],params[5]])
         for (const r of rows) output.push({
-          id: r.id, category: 'measurement', date: itemDate(r.measured_at, athlete.time_zone),
+          id: r.id, category: 'measurement', date: itemDate(r.measured_at, r.time_zone),
           timestamp: instant(r.measured_at), timePrecision: 'stored',
           label: r.kind, source: r.source, sourceReference: null,
           details: { value: r.value, unit: r.unit, revision: r.revision, measurementTimeZone: r.time_zone },
@@ -148,7 +148,7 @@ export function createTrainingHistoryReader(database: () => TrainingDatabase = g
           'AND ($2::date IS NULL OR b.ends_on >= $2::date)',
           'AND ($3::date IS NULL OR b.starts_on <= $3::date)',
           "AND ($4::text IS NULL OR POSITION($4 IN LOWER(b.title || ' ' || b.goal || ' ' || COALESCE(context.context::text,''))) > 0)",
-          'ORDER BY b.starts_on DESC,b.id DESC LIMIT $5',
+          'ORDER BY b.starts_on DESC,b.id ASC LIMIT $5',
         ].join(' '), [params[0],params[1],params[2],params[4],params[5]])
         for (const r of rows) output.push({
           id: r.id, category: 'block', date: r.starts_on,
