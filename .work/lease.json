@@ -4,8 +4,8 @@
   "epoch": 1,
   "state": "review",
   "spec": "9e3449702b2007bc634ed8d875cb492e14c7b19d1bc4b3f8b20cf2153fa1f82c",
-  "heartbeat": "2026-11-23T05:18:46.367Z",
-  "expires": "2026-11-23T06:03:46.367Z",
+  "heartbeat": "2026-11-23T05:25:43.729Z",
+  "expires": "2026-11-23T06:10:43.729Z",
   "attempts": 0,
-  "checkpoint": "Read-only historical MCP implementation and tests published on PR #60. All local app/UI tests, focused new tests, TS and optimized build passed. Added standard branch-specific read-only GitHub Actions validation; awaiting CI and independent exact-head technical review."
+  "checkpoint": "Corrected GitHub connector truncated-blob publication: all four source/test blobs independently match exact git hash-object SHA1 from tested isolated checkout; 7 new history tests PASS, full pnpm test PASS, 20 workflow tests PASS, TS PASS, optimized build PASS, diff-check PASS. Awaiting exact-head CI and reviewer; no hosted or real-data changes."
 }
