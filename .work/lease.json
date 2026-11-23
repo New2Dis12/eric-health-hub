@@ -1,21 +1,11 @@
 {
-  "issue": 56,
-  "owner": "codex-1c55a030-adb8-4b49-9c0f-339d171fa7f2",
-  "epoch": 2,
-  "state": "review",
-  "spec": "c4c311f3f8facd9ca9b37edc23f43b6ef7a673e8ed348672f8e75c4e22187c61",
-  "heartbeat": "2026-11-23T02:51:33.966Z",
-  "expires": "2026-11-23T03:41:11.396Z",
-  "attempts": 1,
-  "checkpoint": "Owner distance and elapsed-time corrections implemented. Local synthetic application, UI, workflow, both mobile checks, typecheck and optimized build passed. Awaiting exact-head review.",
-  "corrections": [
-    {
-      "attempt": 1,
-      "reviewedHead": "6fda3b33f6534eed5fd73e686ad57e0cf5a73719",
-      "findings": [
-        "owner-7090008725-distance",
-        "owner-7090027297-duration"
-      ]
-    }
-  ]
+  "issue": 59,
+  "owner": "stunna-issue59-inline-20261123-a7f9",
+  "epoch": 1,
+  "state": "in_progress",
+  "spec": "9e3449702b2007bc634ed8d875cb492e14c7b19d1bc4b3f8b20cf2153fa1f82c",
+  "heartbeat": "2026-11-23T05:06:36.799Z",
+  "expires": "2026-11-23T05:51:36.799Z",
+  "attempts": 0,
+  "checkpoint": "Owner approval verified; executable isolated checkout available. First commit disables deployment. Implementing owner-scoped historical MCP read with synthetic tests."
 }
