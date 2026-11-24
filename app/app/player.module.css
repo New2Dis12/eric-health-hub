@@ -237,6 +237,13 @@
   align-items:center; gap:.25rem; width:100%; box-sizing:border-box;
   padding:.5rem .25rem; text-align:center; line-height:1.25;
 }
+@media (max-width: 480px) {
+  .columnLabels, .player .exerciseRow {
+    grid-template-columns: minmax(0, 1fr) 4.5rem 4.25rem .875rem .75rem;
+    column-gap: .125rem;
+  }
+  .exerciseRow span:nth-child(3) { white-space: nowrap; }
+}
 .columnLabels { font-size:.75rem; font-weight:700 }
 .player .exerciseRow { min-height:48px; margin:0; background:#20352a; color:#f4f7f4; border:1px solid #567460; font-size:.9rem }
 .exerciseRow span:first-child,.columnLabels span:first-child { text-align:left }

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - work/issue-61
+      - fix/mobile-rpe-spacing
 
 permissions:
   contents: read
@@ -58,4 +59,4 @@ jobs:
       - name: Whitespace and deployment exclusion
         run: |
           git diff --check HEAD~1 HEAD
-          node -e 'const c=require("./vercel.json"); if(c.git.deploymentEnabled["work/issue-61"] !== false) process.exit(1)'
+          node -e 'const c=require("./vercel.json"); if(c.git.deploymentEnabled[process.env.GITHUB_REF_NAME] !== false) process.exit(1)'
