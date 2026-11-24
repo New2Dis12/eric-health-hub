@@ -1,8 +1,9 @@
+import { SessionStart } from "../../app/app/session-start";
 import { createRoot } from "react-dom/client";
 import { PlayerView, WorkoutPlayer } from "../../app/app/workout-player";
 import shell from "../../app/app/stunna.module.css";
 import type { WorkoutSession } from "../../lib/training/session";
-import type { SessionResults } from "../../lib/training/logging-models";
+import type { LogInput, SessionResults } from "../../lib/training/logging-models";
 import { metricTarget, type MetricTarget, type Segment } from "../../lib/training/context-models";
 
 const target = (metric: MetricTarget["metric"], unit: MetricTarget["unit"], min: number, max = min) =>
@@ -84,8 +85,58 @@ globalThis.fetch = async (url, init) => {
   return saved ? Response.json(saved) : Response.json({}, { status: 404 });
 };
 
+// Isolated browser acceptance adapter. Session storage emulates a durable synthetic
+// results endpoint across navigation; service/security tests exercise real local SQL.
+const query=new URLSearchParams(location.search);
+const flow=structuredClone(strengthSession);
+flow.id="synthetic-accordion";
+const snapshot=flow.snapshot!;
+snapshot.title="Strength and conditioning";
+snapshot.exercises[0]={...snapshot.exercises[0],name:"Single-arm half-kneeling overhead press",sets:1,reps:null,repsRange:{min:6,max:8},restSeconds:150,rpe:{min:7,max:8},loadBasis:"per_hand"};
+snapshot.exercises.push({...snapshot.exercises[0],key:"hold",name:"Side plank hold",sets:2,repsRange:undefined,durationSeconds:45,rpe:undefined,warmups:[]},
+  {...steady.snapshot!.exercises[0],key:"ride",name:"Bike cooldown",durationSeconds:180});
+snapshot.occurrences.push({id:"hold",key:"hold",exercise:1,type:"exercise"},{id:"ride",key:"ride",exercise:2,type:"exercise"});
+if(query.has("flow")) {
+  const key="synthetic-61-"+query.get("flow");
+  const state=JSON.parse(sessionStorage.getItem(key)??"null")??{started:false,data:result(flow),receipts:{},keys:[],loseSet:true,staleNote:true};
+  const persist=()=>sessionStorage.setItem(key,JSON.stringify(state));
+  globalThis.fetch=async(url,init)=>{
+    const current:SessionResults=state.data;
+    const session={...flow,revision:current.sessionRevision,status:current.status};
+    if(init?.method!=="POST") return Response.json(String(url).includes("/sources")?{candidates:[]}:
+      String(url).includes("/session")?{workout:state.started?session:null}:current);
+    const cmd=JSON.parse(String(init.body));
+    if(cmd.operation==="start_workout"){state.started=true;persist();return Response.json({workout:session})}
+    state.keys.push(cmd.idempotencyKey);
+    if(state.receipts[cmd.idempotencyKey]) {persist();return Response.json(state.receipts[cmd.idempotencyKey])}
+    const item:LogInput["item"]=cmd.item;
+    if(item?.kind==="workout_note" && state.staleNote) {
+      state.staleNote=false; current.notes="Synthetic newer note";current.notesRevision++;current.sessionRevision++;persist();
+      return Response.json({},{status:409})
+    }
+    if(cmd.expectedSessionRevision!==current.sessionRevision) return Response.json({},{status:409});
+    if(cmd.operation==="complete_workout") current.status="completed";
+    else if(item.kind==="workout_note"){current.notes=item.notes;current.notesRevision++}
+    else if(item.kind==="exercise_note" || item.kind==="strength_set") {
+      const ordinal=item.kind==="strength_set"?item.setOrdinal:0;
+      const existing=current.entries.find(e=>e.kind===item.kind && e.occurrence_id===item.occurrenceId && e.set_ordinal===ordinal);
+      if((existing?.revision??0)!==cmd.expectedItemRevision) return Response.json({},{status:409});
+      current.entries=current.entries.filter(e=>e!==existing);
+      current.entries.push({id:crypto.randomUUID(),item_key:item.kind,kind:item.kind,occurrence_id:item.occurrenceId,set_ordinal:ordinal,
+        revision:cmd.expectedItemRevision+1,session_revision:current.sessionRevision+1,value:item.kind==="strength_set"?item.actual:{notes:item.notes},
+        before_value:existing?.value??null,actor_sub:"synthetic",source:"browser",reason:"fixture",recorded_at:"synthetic"})
+    }
+    current.sessionRevision++;
+    const receipt={actualSessionId:flow.id,sessionRevision:current.sessionRevision};
+    state.receipts[cmd.idempotencyKey]=receipt;
+    if(item?.kind==="strength_set" && state.loseSet) {state.loseSet=false;persist();return Response.json({},{status:503})}
+    persist();return Response.json(receipt)
+  }
+}
 createRoot(document.querySelector("#root")!).render(
-  <main className={shell.shell}><div className={shell.content}>
+  query.has("flow")?<main className={shell.shell}><div className={shell.content}><article className={shell.workout}>
+    {query.has("player")?<WorkoutPlayer workout={flow} returnHref={"?flow="+query.get("flow")}/>:<SessionStart workoutId={flow.id} prescriptionRevision={1}/>}
+  </article></div></main>:<main className={shell.shell}><div className={shell.content}>
     {workouts.map(workout => <article className={shell.workout} key={workout.id}><div className={shell.startArea}>
       {workout.status === "completed" ? (
         <WorkoutPlayer workout={workout} onBack={() => {}} />

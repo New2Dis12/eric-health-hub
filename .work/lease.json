@@ -2,10 +2,10 @@
   "issue": 61,
   "epoch": 1,
   "owner": "codex-e4e09064-81e4-42d3-b51e-0340b5494b61",
-  "state": "in-progress",
+  "state": "review",
   "spec": "d4b892ac2963f1bfd013f4f56153732469062b6711a49b8550d846812218bcfa",
   "attempts": 0,
-  "heartbeat": "2026-11-24T00:11:44.123Z",
+  "heartbeat": "2026-11-24T00:18:30.575Z",
   "expires": "2026-11-24T01:06:44.126Z",
-  "checkpoint": "Approved player work reserved; deployment exclusion installed."
+  "checkpoint": "Implemented and validated player accordion, draft-safe completion and durations. Ready for independent review."
 }

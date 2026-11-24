@@ -1,6 +1,6 @@
 "use client";
 import { WorkoutSourceResults } from "./workout-source-results";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { WorkoutSession } from "@/lib/training/session";
 import type {
   LogInput,
@@ -18,6 +18,7 @@ import {
   completionSummary,
   completePlayerWorkout,
 } from "@/lib/training/player-client";
+import { durationClock as elapsed, durationWords, instructionDurations } from '@/lib/training/duration';
 import styles from "./player.module.css";
 
 type Item = LogInput["item"];
@@ -32,8 +33,19 @@ const loadBases: readonly ActualLoad["basis"][] = ["total", "per_hand", "added",
 const showLoad = (load: { value: number; unit: string }) =>
   load.unit === "lb" ? String(load.value) : `${load.value} ${load.unit}`;
 
+type DraftAction = {label:string; submit:()=>Promise<string | undefined>; reveal:()=>void}
+const Drafts = createContext<Map<string,DraftAction> | null>(null)
+function useDraftAction(key:string, dirty:boolean, action:DraftAction) {
+  const registry=useContext(Drafts)
+  useLayoutEffect(()=>{
+    if (dirty) registry?.set(key,action)
+    return ()=>{ registry?.delete(key) }
+  })
+}
+
 function SetRow({
   occurrence,
+  exerciseName,
   ordinal,
   reps,
   target,
@@ -49,6 +61,7 @@ function SetRow({
   changed,
 }: {
   occurrence: string;
+  exerciseName: string;
   ordinal: number;
   reps: number | null;
   target: { value: number; unit: string } | null;
@@ -95,6 +108,7 @@ function SetRow({
     saved ? "Saved · Logged" : "",
   );
   const pending = useRef<unknown>(null);
+  const edited=useRef(new Set<string>());
   const key = `${occurrence}:${ordinal}`;
   useEffect(() => {
     if (!dirty) {
@@ -105,6 +119,7 @@ function SetRow({
     }
   }, [saved, dirty]);
   function update(field: "reps" | "load" | "rpe", value: string) {
+    edited.current.add(field);
     if (!dirty) setDraftRevision(revision);
     setDraft((d) => ({ ...d, [field]: value }));
     setDirty(true);
@@ -113,6 +128,7 @@ function SetRow({
     setStatus("Unsaved");
   }
   function discard() {
+    edited.current.clear();
     pending.current = null;
     setWriteConflict(false);
     setDirty(false);
@@ -121,22 +137,27 @@ function SetRow({
     changed(key, false);
     onCollapse();
   }
-  async function submit() {
-    if (disabled || busy || resultsUnavailable) return;
+  async function submit(automatic=false):Promise<string|undefined> {
+    if (disabled || (!automatic && busy) || resultsUnavailable) return "Saved results unavailable";
+    const values={...draft};
+    if (automatic && !saved && !pending.current) {
+      if (!edited.current.has("reps")) values.reps="";
+      if (!edited.current.has("load")) values.load="";
+    }
     // An already-sent command may be replayed byte-for-byte. A new command
     // cannot use a revision the user has not accepted for this draft.
-    if (conflict && !pending.current) return;
-    if (!pending.current && draft.reps === "" && draft.load === "" && draft.rpe === "") {
+    if (conflict && !pending.current) return "Review changed server values";
+    if (!pending.current && values.reps === "" && values.load === "" && values.rpe === "") {
       setStatus("Use Edit to enter a value before logging.");
       onExpand();
-      return;
+      return "Enter reps, load or RPE, or cancel this set";
     }
     if (!pending.current) {
       const validationError = validateStrengthDraft(draft.reps, draft.load);
       if (validationError) {
         setStatus(validationError);
         onExpand();
-        return;
+        return validationError;
       }
     }
     const baseRevision = dirty ? draftRevision : revision;
@@ -151,22 +172,23 @@ function SetRow({
           occurrenceId: occurrence,
           setOrdinal: ordinal,
           actual: {
-            reps: optionalNumber(draft.reps),
+            reps: optionalNumber(values.reps),
             load:
-              draft.load === ""
+              values.load === ""
                 ? null
                 : {
-                    value: Number(draft.load),
-                    unit: draft.unit,
-                    basis: draft.basis,
+                    value: Number(values.load),
+                    unit: values.unit,
+                    basis: values.basis,
                   },
-            rpe: optionalNumber(draft.rpe),
+            rpe: optionalNumber(values.rpe),
             source: "user_reported",
           },
         },
         baseRevision,
         pending,
       );
+      edited.current.clear();
       setDirty(false);
       changed(key, false);
       pending.current = null;
@@ -187,10 +209,15 @@ function SetRow({
       );
       setDirty(true);
       changed(key, true);
+      return "Set save unverified. Review the draft and retry.";
     }
   }
+  useDraftAction(key,dirty,{label:exerciseName+" · set "+ordinal,submit:()=>submit(true),reveal:()=>{
+    onExpand();
+    if(typeof requestAnimationFrame!=="undefined") requestAnimationFrame(()=>document.getElementById("field-"+key)?.querySelector("input")?.focus());
+  }})
   return (
-    <fieldset className={styles.set} disabled={disabled || busy} aria-label={`Set ${ordinal}`}>
+    <fieldset id={"field-"+key} className={styles.set} disabled={disabled || busy} aria-label={`Set ${ordinal}`}>
       <div className={styles.strengthRow}>
         {saved ? (
           <span className={styles.checked} role="img" aria-label="Logged">✓</span>
@@ -202,7 +229,7 @@ function SetRow({
             type="button"
             aria-label={`${pending.current ? "Retry Log Set" : "Log Set"} ${ordinal}`}
             disabled={conflict && !pending.current}
-            onClick={submit}
+            onClick={()=>submit()}
           ><span aria-hidden="true" /></button>
         )}
         <span>{ordinal}</span>
@@ -267,7 +294,7 @@ function SetRow({
               discard={discard}
             />
           )}
-          <button type="button" disabled={resultsUnavailable || (conflict && !pending.current)} onClick={submit}>
+          <button type="button" disabled={resultsUnavailable || (conflict && !pending.current)} onClick={()=>submit()}>
             {pending.current ? "Retry previous save" : "Save"}
           </button>{" "}
           <button type="button" onClick={discard}>Cancel</button>
@@ -300,6 +327,8 @@ function Note({
   save,
   changed,
   identity,
+  fieldLabel,
+  reveal,
 }: {
   title: string;
   initial: string;
@@ -311,6 +340,8 @@ function Note({
   save: Save;
   changed: (key: string, dirty: boolean) => void;
   identity: string;
+  fieldLabel:string;
+  reveal:()=>void;
 }) {
   const [draft, setDraft] = useState(initial),
     [dirty, setDirty] = useState(false),
@@ -323,8 +354,11 @@ function Note({
   useEffect(() => {
     if (!dirty) setDraft(initial);
   }, [initial, dirty]);
-  async function submit() {
-    if (conflict && !pending.current) return;
+  async function submit():Promise<string|undefined> {
+    if (conflict && !pending.current) return "Review changed server notes";
+    if (!pending.current && (draft===initial || (!initial && !draft.trim()))) {
+      setDirty(false); changed(identity,false); setStatus("Saved"); return;
+    }
     const draftBase = dirty ? base : { revision, text: initial };
     setBase(draftBase);
     setDirty(true);
@@ -346,10 +380,12 @@ function Note({
             ? "Access unavailable. Sign in and reopen."
             : "Failed — retry safely",
       );
+      return "Notes save unverified. Review the draft and retry.";
     }
   }
+  useDraftAction(identity,dirty,{label:fieldLabel,submit,reveal})
   return (
-    <fieldset className={styles.note} disabled={disabled || busy}>
+    <fieldset id={'field-'+identity} className={styles.note} disabled={disabled || busy}>
       <label>
         {title}
         <textarea
@@ -390,9 +426,6 @@ function Note({
       <p role="status">{status}</p>
     </fieldset>
   );
-}
-function elapsed(seconds: number) {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 const showRange = ({ min, max }: { min: number; max: number }) =>
   min === max ? String(min) : `${min}–${max}`;
@@ -537,11 +570,23 @@ export function PlayerView({
   changed: (key: string, dirty: boolean) => void;
 }) {
   const [expandedSet, setExpandedSet] = useState<string | null>(null);
-  const [exerciseIndex, setExerciseIndex] = useState(0);
+  const [open,setOpen]=useState<Set<number>>(()=>new Set([0]));
+  const drafts=useContext(Drafts);
+  const [noteError,setNoteError]=useState("");
+  function reveal(index:number) { setOpen(current=>new Set(current).add(index)); }
+  async function toggle(index:number,id:string) {
+    if (!open.has(index)) {reveal(index);return;}
+    const note=drafts?.get(id)
+    const failure=await note?.submit()
+    if (failure) { setNoteError(note!.label+" · "+failure);note!.reveal();return }
+    setNoteError("")
+    setOpen(current=>{const next=new Set(current);next.delete(index);return next})
+  }
   const snapshot = workout.snapshot;
   if (!snapshot)
     return <p>Legacy session — prescription not pinned. Read only.</p>;
   const disabled = data.status === "completed";
+  const progress=completionSummary(workout,data);
   let clockStart: number | null = 0;
   return (
     <div className={styles.player}>
@@ -553,12 +598,10 @@ export function PlayerView({
           {disabled ? "Finalized · read only" : "In progress"} · session
           revision {data.sessionRevision}
         </p>
-        {snapshot.exercises.length > 1 && <label>Exercise {exerciseIndex + 1} of {snapshot.exercises.length}
-          <select value={exerciseIndex} onChange={event=>setExerciseIndex(Number(event.target.value))}>
-            {snapshot.exercises.map((exercise,index)=><option key={index} value={index}>{index+1}. {exercise.name}</option>)}
-          </select>
-        </label>}
+        <p>{progress.prescribed>0 && <>{progress.recorded} of {progress.prescribed} working sets logged</>}</p>
       </header>
+      {noteError && <p role="alert">{noteError}</p>}
+      <div className={styles.columnLabels} aria-hidden="true"><span>Exercise</span><span>Sets × reps</span><span>RPE</span><span>✓</span><span /></div>
       {snapshot.exercises.map((exercise, index) => {
         const occurrence = snapshot.occurrences.find(
           (o) => o.exercise === index && o.type === "exercise",
@@ -606,12 +649,28 @@ export function PlayerView({
         for (const row of cardioRows) {
           clockStart = clockStart === null || row.duration === null ? null : clockStart + row.duration;
         }
+        const logged=data.entries.filter(e=>e.kind==="strength_set" && e.occurrence_id===occurrence.id)
+        const segments=snapshot.occurrences.filter(o=>o.exercise===index && (o.type==="interval" || o.type==="warmup"))
+        const segmentsSaved=!!segments.length && segments.every(o=>data.entries.some(e=>e.occurrence_id===o.id &&
+          (e.kind==="interval" || (e.kind==="execution_check" && "checked" in e.value && e.value.checked))))
+        const complete=strength ? !!exercise.sets && Array.from({length:exercise.sets},(_,i)=>logged.some(e=>e.set_ordinal===i+1)).every(Boolean) : segmentsSaved
+        const reps=exercise.repsRange ? showRange(exercise.repsRange) : exercise.reps
+        const dose=reps!=null ? String(reps) : exercise.durationSeconds!=null ? elapsed(exercise.durationSeconds) : null
+        const work=exercise.sets!=null ? exercise.sets+" × "+(dose??"—") : dose ??
+          (blocks.length ? blocks.reduce((sum,b)=>sum+b.repeat,0)+" rounds" : "—")
+        const focusField=(key:string)=>{reveal(index); if(typeof requestAnimationFrame!=="undefined") requestAnimationFrame(()=>{
+          document.getElementById("field-"+key)?.querySelector<HTMLElement>("input,textarea,button")?.focus()
+        })}
         return (
-          <section className={styles.exercise} hidden={index !== exerciseIndex} key={occurrence.id}>
-            <h4>
-              {index + 1}. {exercise.name}
-              {exercise.optional ? " · Optional" : ""}
-            </h4>
+          <section className={styles.exercise} key={occurrence.id}>
+            <button type="button" className={styles.exerciseRow} aria-expanded={open.has(index)}
+              aria-controls={"detail-"+occurrence.id} disabled={busy} onClick={()=>void toggle(index,occurrence.id)}>
+              <span>{exercise.name}{exercise.optional ? " · Optional" : ""}</span>
+              <span>{work}</span><span>{exercise.rpe ? showRange(exercise.rpe) : "—"}</span>
+              <span className={complete?styles.checked:undefined} aria-label={complete?"All working sets saved":"Unfinished"}>{complete?"✓":"○"}</span>
+              <span aria-hidden="true">{open.has(index)?"▴":"▾"}</span>
+            </button>
+            <div id={"detail-"+occurrence.id} hidden={!open.has(index)}>
             <div className={styles.plan}>
               {strength && <p>
                 {exercise.sets ?? "Unspecified"} sets ·{" "}
@@ -620,10 +679,10 @@ export function PlayerView({
                   : (exercise.reps ?? "Unspecified")}{" "}
                 reps
               </p>}
-              {exercise.restSeconds !== null && <p>Rest {exercise.restSeconds}s</p>}
+              {exercise.restSeconds !== null && <p>Rest for {durationWords(exercise.restSeconds)}</p>}
               {exercise.rpe && <p>Prescribed RPE {exercise.rpe.min}–{exercise.rpe.max}</p>}
               {(exercise.notes || exercise.equipment || exercise.comparisonContext || !!exercise.adjustments?.length) && <details><summary>Exercise details</summary>
-              {exercise.notes && <p>{exercise.notes}</p>}
+              {exercise.notes && <p>{instructionDurations(exercise.notes)}</p>}
               {exercise.equipment && <p>Equipment · {exercise.equipment}</p>}
               {exercise.comparisonContext && (
                 <p>Comparison context · {exercise.comparisonContext}</p>
@@ -645,7 +704,7 @@ export function PlayerView({
                 <ol>
                   {warmups.map((segment, i) => (
                     <li key={i}>
-                      <p>{segment.label}</p>
+                      <p>{instructionDurations(segment.label)}</p>
                       {segment.durationSeconds !== null && <p>{elapsed(segment.durationSeconds)}</p>}
                       {segment.strength && <p>
                         {[
@@ -674,12 +733,13 @@ export function PlayerView({
                   <SetRow
                     key={i}
                     occurrence={occurrence.id}
+                    exerciseName={exercise.name}
                     ordinal={i + 1}
                     reps={proposedReps(exercise)}
                     target={exercise.target}
                     basis={exercise.loadBasis}
                     expanded={expandedSet === `${occurrence.id}:${i + 1}`}
-                    onExpand={() => setExpandedSet(`${occurrence.id}:${i + 1}`)}
+                    onExpand={() => {reveal(index);setExpandedSet(`${occurrence.id}:${i + 1}`);}}
                     onCollapse={() => setExpandedSet((current) => current === `${occurrence.id}:${i + 1}` ? null : current)}
                     saved={data.entries.find(
                       (e) =>
@@ -698,6 +758,8 @@ export function PlayerView({
             )}
             <Note
               title="Exercise Notes"
+              fieldLabel={exercise.name+" · Exercise Notes"}
+              reveal={()=>focusField(occurrence.id)}
               identity={occurrence.id}
               initial={note && "notes" in note.value ? note.value.notes : ""}
               revision={note?.revision ?? 0}
@@ -707,11 +769,14 @@ export function PlayerView({
               save={save}
               changed={changed}
             />
+            </div>
           </section>
         );
       })}
       <Note
         title="Overall Workout Notes"
+        fieldLabel="Overall Workout Notes"
+        reveal={()=>{if(typeof document!=="undefined") document.getElementById("field-overall")?.querySelector("textarea")?.focus()}}
         identity="overall"
         initial={data.notes}
         revision={data.notesRevision}
@@ -738,6 +803,12 @@ export function WorkoutPlayer({
     [error, setError] = useState(""),
     [confirming, setConfirming] = useState(false),
     [completionError, setCompletionError] = useState("");
+  const drafts=useRef(new Map<string,DraftAction>());
+  const latest=useRef<SessionResults|null>(null);
+  const flushing=useRef(false);
+  const [batchBusy,setBatchBusy]=useState(false);
+  const [failedField,setFailedField]=useState<DraftAction|null>(null);
+  function accept(current:SessionResults) {latest.current=current;setData(current)}
   const dirty = useRef(new Set<string>()),
     inFlight = useRef(false),
     completionPending = useRef<unknown>(null);
@@ -758,7 +829,7 @@ export function WorkoutPlayer({
   async function refresh() {
     try {
       const current = await loadPlayerResults(fetch, workout.id);
-      setData(current);
+      accept(current);
       setError("");
       return current;
     } catch {
@@ -778,6 +849,7 @@ export function WorkoutPlayer({
     }
   }
   useEffect(() => {
+    latest.current=null;
     setData(null);
     setError("");
     setConfirming(false);
@@ -787,7 +859,7 @@ export function WorkoutPlayer({
     let active = true;
     loadPlayerResults(fetch, workout.id)
       .then((result) => {
-        if (active) setData(result);
+        if (active) accept(result);
       })
       .catch(() => {
         if (active) setError("Saved results unavailable. Retry or sign in.");
@@ -797,6 +869,7 @@ export function WorkoutPlayer({
     };
   }, [workout.id]);
   const save: Save = async (item, revision, pending) => {
+    const data=latest.current;
     if (inFlight.current || !data || data.sessionId !== workout.id || data.status !== "in_progress" || error) throw new PlayerError("failed");
     inFlight.current = true;
     setBusy(true);
@@ -811,19 +884,30 @@ export function WorkoutPlayer({
     };
     try {
       const current = await savePlayerItem(fetch, workout.id, pending.current);
-      if (item.kind === "strength_set" && !current.entries.some((entry) =>
-        entry.kind === item.kind && entry.occurrence_id === item.occurrenceId &&
-        entry.set_ordinal === item.setOrdinal && entry.revision > revision
-      )) throw new PlayerError("failed");
+      // A replay may carry a different draft display. Verify what was actually sent.
+      const sent=(pending.current as {item:Item}).item;
+      if (sent.kind==="workout_note") {
+        if(current.notesRevision<=revision) throw new PlayerError("failed");
+        if(current.notes!==sent.notes) throw new PlayerError("conflict");
+      } else if(sent.kind==="exercise_note" || sent.kind==="strength_set") {
+        const entry=current.entries.find(e=>e.kind===sent.kind && e.occurrence_id===sent.occurrenceId &&
+          (sent.kind!=="strength_set" || e.set_ordinal===sent.setOrdinal));
+        if(!entry || entry.revision<=revision) throw new PlayerError("failed");
+        const v=entry.value;
+        if(sent.kind==="exercise_note" ? !("notes" in v && v.notes===sent.notes) :
+           !("reps" in v && v.reps===sent.actual.reps && v.rpe===sent.actual.rpe &&
+             v.load?.value===sent.actual.load?.value && v.load?.basis===sent.actual.load?.basis && v.load?.unit===sent.actual.load?.unit))
+          throw new PlayerError("conflict");
+      }
       if (item.kind === "execution_check") {
         const entry = current.entries.find((entry) => entry.kind === item.kind && entry.occurrence_id === item.occurrenceId);
         if (!entry || entry.revision <= (pending.current as { expectedItemRevision: number }).expectedItemRevision || !("checked" in entry.value)) throw new PlayerError("failed");
         if (entry.value.checked !== item.checked) {
-          setData(current);
+          accept(current);
           throw new PlayerError("conflict");
         }
       }
-      setData(current);
+      accept(current);
     } catch (e) {
       if (e instanceof PlayerError && e.kind === "conflict") {
         pending.current = null;
@@ -835,23 +919,36 @@ export function WorkoutPlayer({
       setBusy(false);
     }
   };
+  async function flushDrafts() {
+    if (flushing.current || inFlight.current) return false;
+    flushing.current=true;setBatchBusy(true);setFailedField(null);setCompletionError("");
+    try {
+      for (const key of [...dirty.current]) {
+        const field=drafts.current.get(key);
+        if (!field) {setCompletionError("Draft unavailable. Review the workout before continuing.");return false}
+        const failure=await field.submit();
+        if (failure || dirty.current.has(key)) {
+          setFailedField(field);setCompletionError(field.label+" · "+(failure??"Save unverified"));
+          field.reveal();return false;
+        }
+      }
+      return true;
+    } finally {flushing.current=false;setBatchBusy(false)}
+  }
   async function complete() {
     if (!data || data.sessionId !== workout.id || inFlight.current || error || data.status === 'completed') return;
-    if (dirty.current.size) {
-      setCompletionError('Unsaved drafts are not included. Save or discard them before completing.');
-      return;
-    }
+    if (!await flushDrafts()) return;
     completionPending.current ??= {
       operation: 'complete_workout', idempotencyKey: crypto.randomUUID(),
       reason: 'Athlete confirmed workout completion', sessionId: workout.id,
-      expectedSessionRevision: data.sessionRevision,
+      expectedSessionRevision: latest.current!.sessionRevision,
     };
     inFlight.current = true;
     setBusy(true);
     setCompletionError('');
     try {
       const current = await completePlayerWorkout(fetch, workout.id, completionPending.current);
-      setData(current);
+      accept(current);
       setConfirming(false);
       completionPending.current = null;
     } catch (e) {
@@ -878,12 +975,9 @@ export function WorkoutPlayer({
       <button
         className={styles.back}
         type="button"
-        disabled={busy}
-        onClick={() => {
-          if (
-            !dirty.current.size ||
-            window.confirm("Leave with unsaved changes?")
-          )
+        disabled={busy || batchBusy}
+        onClick={async () => {
+          if (await flushDrafts())
             { if (onBack) onBack(); else window.location.assign(returnHref ?? "/app"); }
         }}
       >
@@ -892,20 +986,20 @@ export function WorkoutPlayer({
       {error && (
         <div role="alert">
           {error}
-          <button type="button" disabled={busy} onClick={retryRead}>Retry read</button>
+          <button type="button" disabled={busy || batchBusy} onClick={retryRead}>Retry read</button>
         </div>
       )}
       {!workout.snapshot ? (
         <p>Legacy session — read only. No prescription available.</p>
       ) : currentData ? (
-        <PlayerView
+        <Drafts.Provider value={drafts.current}><PlayerView
           workout={workout}
           data={currentData}
-          busy={busy || !!error}
+          busy={busy || batchBusy || !!error || !!completionPending.current}
           resultsUnavailable={!!error}
           save={save}
           changed={changed}
-        />
+        /></Drafts.Provider>
       ) : (
         <p role="status">Loading saved actuals and notes…</p>
       )}
@@ -918,7 +1012,7 @@ export function WorkoutPlayer({
       ) : currentData && workout.snapshot && !error ? (
         <div className={styles.finishPanel}>
           {!confirming ? (
-            <button type="button" disabled={busy} onClick={() => {
+            <button type="button" disabled={busy || batchBusy} onClick={() => {
               setCompletionError('');
               setConfirming(true);
             }}>Complete Workout</button>
@@ -929,17 +1023,17 @@ export function WorkoutPlayer({
                 Unrecorded: {summary?.unrecorded ?? 0}.</p>
               <p>Saved overall notes: {summary?.notes || 'None saved'}</p>
               <p>Unrecorded sets and missing cardio device results remain unknown, not performed, skipped or zero.</p>
-              <button type="button" disabled={busy} onClick={() => void complete()}>
+              <button type="button" disabled={busy || batchBusy} onClick={() => void complete()}>
                 {completionPending.current ? 'Retry completion / verify' : 'Confirm Complete Workout'}
               </button>{' '}
-              <button type="button" disabled={busy} onClick={() => {
+              <button type="button" disabled={busy || batchBusy} onClick={() => {
                 setConfirming(false);
                 setCompletionError('');
                 // Keep the idempotency command after an ambiguous response.
               }}>Cancel</button>
             </div>
           )}
-          {completionError && <p role="alert">{completionError}</p>}
+          {completionError && <div role="alert">{completionError}{failedField && <button type="button" onClick={failedField.reveal}>Review field</button>}</div>}
         </div>
       ) : null}
     </section>

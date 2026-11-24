@@ -1,3 +1,4 @@
+import { durationWords } from './duration'
 import type { TrainingContext } from './context'
 import type { Segment } from './context-models'
 
@@ -18,8 +19,7 @@ export function effortSummary(workout: Workout) {
 
 function segmentDose(segment: Segment) {
   if (segment.durationSeconds !== null) {
-    const seconds = segment.durationSeconds
-    return seconds >= 60 && seconds % 60 === 0 ? seconds / 60 + ' min' : seconds + ' sec'
+    return durationWords(segment.durationSeconds)
   }
   const distance = segment.targets.find(target => target.metric === 'distance' && target.range !== null)
   if (distance?.range) return (distance.range.min === distance.range.max
@@ -37,7 +37,7 @@ export function exerciseSummary(exercise: Exercise) {
     exercise.sets === null ? '' : exercise.sets + ' sets',
     exercise.repsRange ? exercise.repsRange.min + '–' + exercise.repsRange.max + ' reps' :
       exercise.reps === null ? '' : exercise.reps + ' reps',
-    exercise.durationSeconds === null ? '' : exercise.durationSeconds + ' sec',
+    exercise.durationSeconds === null ? '' : durationWords(exercise.durationSeconds),
   ]
   return parts.filter(Boolean).join(' · ') || 'Dose not specified'
 }

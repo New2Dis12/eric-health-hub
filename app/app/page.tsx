@@ -1,3 +1,4 @@
+import { durationWords as duration, instructionDurations } from '@/lib/training/duration'
 import { ArrowLeft, ArrowRight, CalendarDays, Dumbbell } from 'lucide-react'
 import { notFound } from 'next/navigation'
 import { getWebSubject } from '@/lib/web-auth'
@@ -15,12 +16,6 @@ export const metadata = { title: 'Stunna', robots: { index: false, follow: false
 
 function label(date: string, options: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' }).format(new Date(date + 'T12:00:00Z'))
-}
-
-function duration(seconds: number) {
-  const minutes = Math.floor(seconds / 60)
-  const remainder = seconds % 60
-  return [minutes ? `${minutes} min` : '', remainder || !minutes ? `${remainder} sec` : ''].filter(Boolean).join(' ')
 }
 
 function doseLabel(dose: Dose) {
@@ -44,7 +39,7 @@ function metricLabel(target: MetricTarget) {
 
 function SegmentLine({ segment }: { segment: Segment }) {
   return <li>
-    <strong>{segment.label}</strong> · {segment.modality} · {segment.phase}
+    <strong>{instructionDurations(segment.label)}</strong> · {segment.modality} · {segment.phase}
     {segment.durationSeconds !== null && <> · {duration(segment.durationSeconds)}</>}
     {segment.targets.map((target, i) => <span key={i}> · {metricLabel(target)}</span>)}
     {segment.rpe && <> · RPE {segment.rpe.min}–{segment.rpe.max}</>}
@@ -81,7 +76,7 @@ function PrescriptionDetails({ workout, showPrevious }: { workout: Workout; show
                   <strong>{adjustment.condition}</strong><p>{adjustment.action}</p>
                   {adjustment.substitution && <p>Alternative · {adjustment.substitution.name} · {adjustment.substitution.equipment}</p>}
                 </div>)}
-                {exercise.notes && <p className={styles.cue}>{exercise.notes}</p>}
+                {exercise.notes && <p className={styles.cue}>{instructionDurations(exercise.notes)}</p>}
                 {showPrevious && <p className={styles.previous}>
                   <strong>Previous</strong> {exercise.previous
                     ? `${[doseLabel(exercise.previous.performance), ...(exercise.previous.performance.targets ?? []).map(metricLabel)].filter(Boolean).join(' · ')} · ${label(exercise.previous.date, { month: 'short', day: 'numeric', year: 'numeric' })}${exercise.previous.source === 'synthetic' ? ' · Demo' : ''}`

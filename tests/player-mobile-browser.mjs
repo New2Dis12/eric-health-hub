@@ -17,7 +17,7 @@ const work = await mkdtemp(join(tmpdir(), "stunna-layout-"));
 // Give the fixture a normal browser origin for relative training API reads.
 const server = createServer(async (request, response) => {
   const assets = { "/": ["index.html", "text/html"], "/player.js": ["player.js", "text/javascript"], "/player.css": ["player.css", "text/css"] };
-  const asset = Object.hasOwn(assets, request.url) && assets[request.url];
+  const asset = assets[new URL(request.url,"http://localhost").pathname];
   if (!asset) return response.writeHead(404).end();
   try {
     const content = await readFile(join(work, asset[0]));
@@ -31,7 +31,7 @@ const deadline = setTimeout(() => {
   browser?.kill();
   console.error("Chromium layout test timed out");
   process.exitCode = 1;
-}, 30000);
+}, 90000);
 try {
   await build({
     entryPoints: ["tests/fixtures/player-mobile-browser.tsx"],
@@ -165,7 +165,7 @@ try {
           !player.textContent.includes("Exercise Notes") || !player.textContent.includes("Overall Workout Notes")) errors.push("notes misplaced");
       if (table.querySelector("button")) errors.push("cardio table exposes progress controls");
     }
-    if (!["59:00–60:30", "5.4–5.6", "0.5–2.5%"].every(value => tables[0].textContent.includes(value)))
+    if (!["59:00–01:00:30", "5.4–5.6", "0.5–2.5%"].every(value => tables[0].textContent.includes(value)))
       errors.push("run clock or targets lost");
     const speedHeader = tables[0].firstElementChild.children[2];
     const speedHeaderLines = textRects(speedHeader);
@@ -175,7 +175,7 @@ try {
       errors.push("mph belongs on a second header line only");
     const rowCells = [...tables[1].children].slice(1).map(row => [...row.children].map(cell => cell.textContent));
     if (JSON.stringify(rowCells.slice(0, 2)) !== JSON.stringify([
-      ["", "Work 1", "400 m", "20–22", "2:45.5–2:55.5"], ["1:30", "Recovery 1", "", "", ""],
+      ["", "Work 1", "400 m", "20–22", "02:45.5–02:55.5"], ["01:30", "Recovery 1", "", "", ""],
     ])) errors.push("rowing targets or recovery time incorrect");
     if (!["120–160 W", "75–90", "12–18 level"].every(value => tables[2].textContent.includes(value)) ||
         !tables[2].closest("article").textContent.includes("Finalized · read only"))
@@ -193,7 +193,7 @@ try {
       errors.push("warm-ups are not full-width above sets");
     if (warmups.querySelector('button,input,[role="row"]') || warmups.closest('[aria-label="Strength sets"]'))
       errors.push("warm-ups contain set controls or rows");
-    if (warmups.querySelectorAll("li").length !== 2 || !warmups.textContent.includes("3:00") ||
+    if (warmups.querySelectorAll("li").length !== 2 || !warmups.textContent.includes("03:00") ||
         !warmups.textContent.includes("1 sets · 8 reps · 5 lb")) errors.push("warm-up order, duration or strength dose lost");
     if (sets.querySelectorAll('button[aria-label^="Log Set"]').length !== 2 ||
         [...sets.querySelectorAll("button")].filter(button => button.textContent === "Edit").length !== 2)
@@ -253,7 +253,7 @@ try {
       errors.push("completion panel causes horizontal overflow");
     return { errors, attempts: probe.attempts, idempotent: probe.keys[0] === probe.keys[1] };
   }
-  for (const width of [375, 390]) {
+  for (const width of [402, 390, 375]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height: 1700, deviceScaleFactor: 1, mobile: true }, sessionId);
     await send("Page.navigate", { url: `http://127.0.0.1:${server.address().port}/` }, sessionId);
     let evidence;
@@ -284,6 +284,66 @@ try {
       await writeFile(join(process.env.SCREENSHOT_DIR, `stunna-cardio-${width}.png`), Buffer.from(data, "base64"));
     }
     console.log(JSON.stringify(evidence));
+  }
+  async function evaluate(expression) {
+    const {result,exceptionDetails}=await send("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true},sessionId);
+    if(exceptionDetails) throw Error(exceptionDetails.exception?.description??exceptionDetails.text);
+    return result.value;
+  }
+  async function until(expression) {
+    for(let i=0;i<100;i++){if(await evaluate(expression))return;await delay(40)}
+    throw Error("Timed out waiting for "+expression);
+  }
+  const click=async(label)=>{const expression="Array.from(document.querySelectorAll('button')).find(b=>b.checkVisibility() && !b.disabled && b.textContent.trim()==="+JSON.stringify(label)+")";await until("!!("+expression+")");await evaluate("("+expression+").click()")};
+  async function edit(selector,value) {
+    await evaluate("(()=>{const el=document.querySelector("+JSON.stringify(selector)+");Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el),'value').set.call(el,"+JSON.stringify(value)+");el.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  }
+  for(const width of [402,390,375]) {
+    const url="http://127.0.0.1:"+server.address().port+"/?flow="+width;
+    await send("Emulation.setDeviceMetricsOverride",{width,height:820,deviceScaleFactor:1,mobile:true},sessionId);
+    await send("Page.navigate",{url},sessionId);
+    await click("Start Workout");
+    const headers="document.querySelectorAll('button[aria-controls]')";
+    await until(headers+".length===3");
+    const row=index=>evaluate(headers+"["+index+"].click()");
+    const open=(index,value)=>until(headers+"["+index+"].getAttribute('aria-expanded')==='"+value+"'");
+    async function capture(mode) {
+      assert.ok(await evaluate("document.documentElement.scrollWidth===innerWidth"));
+      const columns=await evaluate("Array.from("+headers+",row=>Array.from(row.children,c=>Math.round(c.getBoundingClientRect().left)))");
+      assert.deepEqual(columns[0],columns[1]); assert.deepEqual(columns[1],columns[2]);
+      assert.ok(await evaluate("Array.from(document.querySelectorAll('button')).filter(b=>b.checkVisibility()).every(b=>b.offsetHeight>=44 && b.offsetWidth>=44)"));
+      if(process.env.SCREENSHOT_DIR){
+        await mkdir(process.env.SCREENSHOT_DIR,{recursive:true});
+        const {data}=await send("Page.captureScreenshot",{format:"png"},sessionId);
+        await writeFile(join(process.env.SCREENSHOT_DIR,"accordion-"+mode+"-"+width+".png"),Buffer.from(data,"base64"))
+      }
+    }
+    await row(0);await open(0,false);await capture("collapsed");
+    await row(0);await row(1);await open(1,true);await capture("expanded");
+    await edit("#field-strength-occurrence textarea","Synthetic exercise note");
+    await row(0);await open(0,false);
+    await send("Page.navigate",{url},sessionId);await click("Resume Workout");
+    await until("document.querySelector('#field-strength-occurrence textarea')?.value==='Synthetic exercise note'");
+    await click("Edit");
+    await edit("fieldset[aria-label='Set 1'] input","7");
+    await edit("#field-overall textarea","Synthetic overall draft");
+    await click("Complete Workout");await click("Confirm Complete Workout");
+    await until("document.querySelector('[role=alert]')?.textContent.includes('Single-arm half-kneeling overhead press · set 1')");
+    await click("Confirm Complete Workout");
+    await until("document.querySelector('[role=alert]')?.textContent.includes('Overall Workout Notes')");
+    await click("Keep my draft");await click("Confirm Complete Workout");
+    await until("document.body.textContent.includes('Completed — workout saved')");
+    await evaluate("window.__beforeReload=true");
+    await send("Page.reload",{},sessionId);
+    await until("!window.__beforeReload && document.readyState==='complete'");
+    await until("document.body.textContent.includes('Completed — workout saved')");
+    const state=await evaluate("JSON.parse(sessionStorage.getItem('synthetic-61-"+width+"'))");
+    assert.equal(state.data.notes,"Synthetic overall draft");assert.equal(state.data.status,"completed");
+    const sets=state.data.entries.filter(e=>e.kind==="strength_set");
+    assert.equal(sets.length,1);assert.equal(sets[0].value.reps,7);assert.equal(sets[0].value.load,null);
+    assert.equal(Object.keys(state.receipts).length,4);assert.ok(new Set(state.keys).size<state.keys.length);
+    assert.ok(await evaluate(headers+"[0].textContent.includes('7–8') && "+headers+"[0].textContent.includes('✓')"));
+    console.log(JSON.stringify({width,accordion:true,autoSave:true,staleRecovery:true,idempotentRetry:true,finalizedReload:true}))
   }
 } finally {
   server.close();
