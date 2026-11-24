@@ -310,6 +310,16 @@ try {
     async function capture(mode) {
       assert.ok(await evaluate("document.documentElement.scrollWidth===innerWidth"));
       const columns=await evaluate("Array.from("+headers+",row=>Array.from(row.children,c=>Math.round(c.getBoundingClientRect().left)))");
+      const rpe = await evaluate(`(() => {
+        const cell = ${headers}[0].children[2];
+        const range = document.createRange();
+        range.selectNodeContents(cell);
+        const lines = Array.from(range.getClientRects());
+        const bounds = cell.getBoundingClientRect();
+        return { text: cell.textContent, lines: lines.length,
+          fits: lines.every(line => line.left >= bounds.left && line.right <= bounds.right) };
+      })()`);
+      assert.deepEqual(rpe, { text: "7.5–8.5", lines: 1, fits: true });
       assert.deepEqual(columns[0],columns[1]); assert.deepEqual(columns[1],columns[2]);
       assert.ok(await evaluate("Array.from(document.querySelectorAll('button')).filter(b=>b.checkVisibility()).every(b=>b.offsetHeight>=44 && b.offsetWidth>=44)"));
       if(process.env.SCREENSHOT_DIR){
@@ -342,7 +352,7 @@ try {
     const sets=state.data.entries.filter(e=>e.kind==="strength_set");
     assert.equal(sets.length,1);assert.equal(sets[0].value.reps,7);assert.equal(sets[0].value.load,null);
     assert.equal(Object.keys(state.receipts).length,4);assert.ok(new Set(state.keys).size<state.keys.length);
-    assert.ok(await evaluate(headers+"[0].textContent.includes('7–8') && "+headers+"[0].textContent.includes('✓')"));
+    assert.ok(await evaluate(headers+"[0].textContent.includes('7.5–8.5') && "+headers+"[0].textContent.includes('✓')"));
     console.log(JSON.stringify({width,accordion:true,autoSave:true,staleRecovery:true,idempotentRetry:true,finalizedReload:true}))
   }
 } finally {

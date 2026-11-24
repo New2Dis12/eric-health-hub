@@ -92,7 +92,7 @@ const flow=structuredClone(strengthSession);
 flow.id="synthetic-accordion";
 const snapshot=flow.snapshot!;
 snapshot.title="Strength and conditioning";
-snapshot.exercises[0]={...snapshot.exercises[0],name:"Single-arm half-kneeling overhead press",sets:1,reps:null,repsRange:{min:6,max:8},restSeconds:150,rpe:{min:7,max:8},loadBasis:"per_hand"};
+snapshot.exercises[0]={...snapshot.exercises[0],name:"Single-arm half-kneeling overhead press",sets:1,reps:null,repsRange:{min:6,max:8},restSeconds:150,rpe:{min:7.5,max:8.5},loadBasis:"per_hand"};
 snapshot.exercises.push({...snapshot.exercises[0],key:"hold",name:"Side plank hold",sets:2,repsRange:undefined,durationSeconds:45,rpe:undefined,warmups:[]},
   {...steady.snapshot!.exercises[0],key:"ride",name:"Bike cooldown",durationSeconds:180});
 snapshot.occurrences.push({id:"hold",key:"hold",exercise:1,type:"exercise"},{id:"ride",key:"ride",exercise:2,type:"exercise"});
