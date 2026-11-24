@@ -1,21 +1,11 @@
 {
-  "issue": 59,
-  "owner": "stunna-issue59-correction1-20261123",
-  "epoch": 2,
-  "state": "review",
-  "spec": "9e3449702b2007bc634ed8d875cb492e14c7b19d1bc4b3f8b20cf2153fa1f82c",
-  "heartbeat": "2026-11-23T05:33:17.893Z",
-  "expires": "2026-11-23T06:18:17.893Z",
-  "attempts": 1,
-  "checkpoint": "Correction 1/3: aligned source SQL tie ID ordering with final global paging; fixed body_measurements filters and displayed date to use stored per-record timezone. Added synthetic tie-page and Tokyo/Chicago-midnight regression tests. Nine focused historical tests PASS, full pnpm test PASS, typecheck PASS, build PASS; blob hashes independently verified. Awaiting exact-head CI/independent re-review.",
-  "corrections": [
-    {
-      "attempt": 1,
-      "reviewedHead": "45198d938a86cf43f8d8ba7d5869c37502bb96b4",
-      "findings": [
-        "history-pagination-order-mismatch",
-        "history-measurement-calendar-timezone"
-      ]
-    }
-  ]
+  "issue": 61,
+  "epoch": 1,
+  "owner": "codex-e4e09064-81e4-42d3-b51e-0340b5494b61",
+  "state": "in-progress",
+  "spec": "d4b892ac2963f1bfd013f4f56153732469062b6711a49b8550d846812218bcfa",
+  "attempts": 0,
+  "heartbeat": "2026-11-24T00:11:44.123Z",
+  "expires": "2026-11-24T01:06:44.126Z",
+  "checkpoint": "Approved player work reserved; deployment exclusion installed."
 }
