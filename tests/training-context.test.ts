@@ -142,7 +142,7 @@ test('overview revisions preserve prior prescriptions and share authored summari
   assert.equal(first.prescription!.overview, null)
   assert.equal(durationEstimate(first), 'Duration not specified')
   assert.equal(effortSummary(first), 'Intensity not specified')
-  assert.match(exerciseSummary(first.prescription!.exercises[0]), /3 rounds.*90 sec work.*75 sec recovery/)
+  assert.match(exerciseSummary(first.prescription!.exercises[0]), /3 rounds.*1.5 minutes work.*1.25 minutes recovery/)
   await db.transaction(async tx => {
     await tx.exec("SET LOCAL stunna.allow_synthetic_seed='on'")
     await tx.exec(await file('../db/fixtures/sprint-2-overviews.sql'))

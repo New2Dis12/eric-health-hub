@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import './workout-source-results.css'
+import { durationClock } from '@/lib/training/duration'
 import type { SessionResults } from '@/lib/training/logging-models'
 import { parseSourceReceipt, sourceReceiptMatches } from '@/lib/training/source-evidence-client'
 import type { CandidateResult, SourceLinkInput, SourceResult, RecordingOrigin } from '@/lib/training/source-evidence-models'
@@ -24,17 +25,7 @@ const metricLabel=(field:string)=>labels[field]??field
 const originLabel = (origin?:RecordingOrigin) => origin === 'peloton_import' ? 'Peloton' : origin === 'garmin_device' ? 'Garmin' : 'Garmin Connect · origin unverified'
 const localTime = (utc:string|null) => utc ? new Date(utc).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}) : 'Time unavailable'
 const overviewFields = ['elapsedSeconds','distanceMeters','avgHeartRateBpm','avgPowerWatts','avgSpeedMetersPerSecond','avgCadenceCyclesPerMinute','avgSplitSecondsPer500m','avgStrokeRate']
-const hundredths = new Intl.NumberFormat('en-US', {
-  useGrouping:false, minimumFractionDigits:2, maximumFractionDigits:2,
-})
-export function formatDuration(seconds:number) {
-  // Round decimal seconds first so a carry can change the number of clock segments.
-  const [whole,fraction]=hundredths.format(seconds).split('.')
-  const total=Number(whole)
-  const pad=(n:number)=>String(n).padStart(2,'0')
-  const hours=Math.floor(total/3600)
-  return (hours ? pad(hours)+':' : '')+pad(Math.floor(total/60)%60)+':'+pad(total%60)+'.'+fraction
-}
+export const formatDuration = (seconds:number) => durationClock(seconds,true)
 function displayMetric(metric:{field:string;value:number|null;unit:string}) {
   if(metric.value===null) return 'Unavailable'
   if(metric.unit==='s' && (metric.field==='elapsedSeconds' || metric.field==='timerSeconds')) return formatDuration(metric.value)
@@ -190,7 +181,7 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
         {page.candidates.filter(c=>!c.linked).map(c=><label className="device-row" key={c.activityId}>
           <input type="checkbox" value={c.activityId} checked={selected.includes(c.activityId)}
             disabled={!selected.includes(c.activityId) && identities.length>=2} onChange={()=>toggle(c.activityId)}/>
-          <span><strong>{originLabel(c.origin)} · {c.name}</strong><small>{localTime(c.startUtc)} · {c.durationSeconds===null?'Duration unavailable':formatDuration(c.durationSeconds)}</small>
+          <span><strong>{originLabel(c.origin)} · {c.name}</strong><small>{localTime(c.startUtc)} · {c.durationSeconds===null?'Duration unavailable':durationClock(c.durationSeconds)}</small>
           <small>{c.modality??'Modality unavailable'} · activity {c.activityId}</small></span>
         </label>)}
         {!page.candidates.some(c=>!c.linked) && <p>{page.status==='unavailable'?page.reason:'No additional recordings available.'}</p>}

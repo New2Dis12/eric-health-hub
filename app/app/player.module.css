@@ -229,3 +229,17 @@
 .finishPanel button { min-height: 44px; max-width: 100%; margin-top: .5rem; }
 .finishPanel p { overflow-wrap: anywhere; }
 @media (max-width: 390px) { .finishPanel { padding: .75rem; } .finishPanel button { width: 100%; } }
+
+.player { gap: .45rem }
+.exercise { padding: 0 }
+.columnLabels, .player .exerciseRow {
+  display:grid; grid-template-columns:minmax(0,1fr) 4.5rem 2.5rem 1.25rem 1rem;
+  align-items:center; gap:.25rem; width:100%; box-sizing:border-box;
+  padding:.5rem .25rem; text-align:center; line-height:1.25;
+}
+.columnLabels { font-size:.75rem; font-weight:700 }
+.player .exerciseRow { min-height:48px; margin:0; background:#20352a; color:#f4f7f4; border:1px solid #567460; font-size:.9rem }
+.exerciseRow span:first-child,.columnLabels span:first-child { text-align:left }
+.player button,.finishPanel button,.back { min-width:44px; min-height:44px; cursor:pointer }
+.finishPanel button,.back { background:#c9f779; color:#142417; border:1px solid #87a950; border-radius:.5rem; padding:.65rem; font-weight:750 }
+.finishPanel :focus-visible { outline:3px solid #bae973; outline-offset:2px }

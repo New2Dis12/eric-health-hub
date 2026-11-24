@@ -119,7 +119,7 @@ test("strength warm-ups are ordered full-width instructions before intact work s
   assert.equal(group.props.className, "warmups");
   const items = group.findAllByType("li");
   assert.equal(items.length, 2);
-  assert.deepEqual(items[0].findAllByType("p").map(p => p.children.join("")), [label, "3:00"]);
+  assert.deepEqual(items[0].findAllByType("p").map(p => p.children.join("")), [label, "03:00"]);
   assert(items[1].findAllByType("p").some(p => p.children.join("").includes("1 sets · 8 reps · 5 lb")));
   assert.equal(group.findAllByType("button").length, 0);
   assert.equal(group.findAllByType("input").length, 0);
@@ -182,7 +182,7 @@ test("mobile component hierarchy has unsaved upper-bound proposed reps, native h
   const cardioRows = tree.root.findAll((node) => node.type === "div" && node.props.className === "cardioRow");
   assert.deepEqual(cells(rows[0]), ["Completion", "Set", "Load (lb)", "Reps", "Edit"]);
   assert.deepEqual(cells(cardioRows[0]), ["Time", "Segment", "Speed", "Incline"]);
-  assert.deepEqual(cardioRows.slice(1).map((row) => row.findAllByType("span")[0].props.children), ["0:00–1:00", "1:00–1:30", "1:30–2:30", "2:30–3:00"]);
+  assert.deepEqual(cardioRows.slice(1).map((row) => row.findAllByType("span")[0].props.children), ["00:00–01:00", "01:00–01:30", "01:30–02:30", "02:30–03:00"]);
   assert.deepEqual(cells(rows[1]).filter((_, i) => i !== 1), ["Log Set 1", "—", 10, "Edit"]);
   assert.equal(tree.root.findAllByType("input").length, 0);
   const edit = (row: number) => rows[row].findAllByType("button").at(-1)!;
@@ -206,11 +206,11 @@ test("mobile component hierarchy has unsaved upper-bound proposed reps, native h
   assert.equal(rpe.findAllByType("option").length, 22);
   const sections = tree.root.findAllByType("section");
   assert.equal(sections.length, 2);
-  const navigate=tree.root.findAllByType("select").find(n=>n.props.value===0)!;
-  assert.deepEqual(sections.map(section=>section.props.hidden),[false,true]);
-  await act(async()=>navigate.props.onChange({target:{value:"1"}}));
-  assert.deepEqual(sections.map(section=>section.props.hidden),[true,false]);
-  await act(async()=>navigate.props.onChange({target:{value:"0"}}));
+  const headers=sections.map(section=>section.findAllByType("button").find(b=>b.props["aria-controls"])!);
+  assert.deepEqual(headers.map(row=>row.props["aria-expanded"]),[true,false]);
+  await act(async()=>headers[1].props.onClick());
+  assert.deepEqual(headers.map(row=>row.props["aria-expanded"]),[true,true]);
+  await act(async()=>headers[1].props.onClick());
   assert.equal(writes,0);
   for (const section of sections)
     assert.match(
@@ -545,7 +545,7 @@ test("one tap submits verified prescription, retries identical bytes, and checks
     )!;
     await act(async () => bubble().props.onClick());
     assert.match(text(tree), /Failed/);
-    assert.doesNotMatch(text(tree), /✓/);
+    assert.equal(tree.root.findAllByProps({"aria-label":"Logged"}).length,0);
     exposeActual = true;
     await act(async () => bubble().props.onClick());
     assert.equal(payloads.length, 2);
@@ -553,7 +553,7 @@ test("one tap submits verified prescription, retries identical bytes, and checks
     assert.deepEqual(JSON.parse(payloads[0]).item.actual, {
       reps: 10, load: { value: 20, unit: "lb", basis: "per_hand" }, rpe: null, source: "user_reported",
     });
-    assert.match(text(tree), /✓/);
+    assert.equal(tree.root.findAllByProps({"aria-label":"Logged"}).length,1);
   } finally {
     if (tree) await act(async () => tree.unmount());
     globalThis.fetch = previousFetch;
@@ -583,7 +583,7 @@ test("steady rows retain pinned output and unknown interval durations invalidate
     const cell = row.children[0];
     return typeof cell === "string" ? cell : cell.props.children;
   });
-  assert.deepEqual(time(), ["Time", "0:00–10:00", "10:00–11:00", "", "1:00", ""]);
+  assert.deepEqual(time(), ["Time", "00:00–10:00", "10:00–11:00", "", "01:00", ""]);
   assert.match(text(tree), /500–600 sec\/mi/);
   assert.match(text(tree), /7–8 mph/);
   assert.doesNotMatch(text(tree), /\(mph\)/);
@@ -599,7 +599,7 @@ test("steady rows retain pinned output and unknown interval durations invalidate
     ],
   }];
   await act(async () => tree.update(render(steady)));
-  assert.deepEqual(time(), ["Time", "6:00"]);
+  assert.deepEqual(time(), ["Time", "06:00"]);
   assert.match(text(tree), /140–150 W/);
   assert.match(text(tree), /85–90/);
   assert.equal(rows()[0].findAllByType("span")[2].props.children, "Output");
@@ -633,7 +633,7 @@ test("steady cycling keeps its bike columns and cross-modality running warmup ta
       return cell.props.role === "columnheader" ? cell.props["aria-label"] ?? cell.props.children : cell.props.children;
     })));
   assert.deepEqual(tables, [
-    [["Time", "Segment", "Speed (mph)", "Incline"], ["2:00", "Run warm-up", "4–5", ""]],
+    [["Time", "Segment", "Speed (mph)", "Incline"], ["02:00", "Run warm-up", "4–5", ""]],
     [["Time", "Segment", "Output", "RPM", "Resistance"], ["10:00", "Steady bike", "120–160 W", "75–90", ""]],
   ]);
   assert.equal(tree.root.findAllByType("textarea").length, 2);
@@ -763,7 +763,7 @@ test("steady and interval sections share Time-first headings and accumulate plan
     const cell = row.children[0];
     return typeof cell === "string" ? cell : cell.props.children;
   });
-  assert.deepEqual(column, ["Time", "6:00", "Time", "6:00–7:00", "7:00–7:30", "7:30–8:30", "8:30–9:00"]);
+  assert.deepEqual(column, ["Time", "06:00", "Time", "06:00–07:00", "07:00–07:30", "07:30–08:30", "08:30–09:00"]);
   assert.equal(rows.flatMap((row) => row.findAllByType("button")).length, 0);
   await act(async () => tree.unmount());
 });
@@ -801,10 +801,10 @@ test("rowing has separate targets, exercise notes and exactly one overall note",
   const rows = table.findAllByProps({ role: "row" }).map(row => row.findAllByType("span").map(cell => cell.props.children));
   assert.deepEqual(rows, [
     ["Time", "Segment", "Distance", "SPM", "Split /500m"],
-    ["", "Work 1", "400 m", "20–22", "2:45.5–2:55.5"],
-    ["1:30", "Recovery 1", "", "", ""],
-    ["", "Work 2", "400 m", "20–22", "2:45.5–2:55.5"],
-    ["1:30", "Recovery 2", "", "", ""],
+    ["", "Work 1", "400 m", "20–22", "02:45.5–02:55.5"],
+    ["01:30", "Recovery 1", "", "", ""],
+    ["", "Work 2", "400 m", "20–22", "02:45.5–02:55.5"],
+    ["01:30", "Recovery 2", "", "", ""],
   ]);
   assert.equal(table.findAllByType("button").length, 0);
   assert.match(text(tree), /Overall Workout Notes/);
@@ -1079,7 +1079,7 @@ test('player completion confirms partial strength and notes, then becomes read-o
     await act(async()=>tree.unmount())
   } finally {globalThis.fetch=previousFetch;Object.assign(globalThis,{window:previousWindow})}
 })
-test('unsaved notes draft prevents completion and warns before any write',async()=>{
+test('unverified note save identifies the field and prevents finalization',async()=>{
   const previousFetch=globalThis.fetch,previousWindow=globalThis.window
   Object.assign(globalThis,{window:{addEventListener(){},removeEventListener(){},confirm(){return true}}})
   let posts=0,tree!:ReactTestRenderer
@@ -1093,8 +1093,17 @@ test('unsaved notes draft prevents completion and warns before any write',async(
     const click=(label:string)=>tree.root.findAllByType('button').find(b=>b.props.children===label)!.props.onClick()
     await act(async()=>click('Complete Workout'))
     await act(async()=>click('Confirm Complete Workout'))
-    assert.match(text(tree),/Unsaved drafts are not included/)
-    assert.equal(posts,0)
+    assert.match(text(tree),/Overall Workout Notes.*Notes save unverified/)
+    assert.equal(posts,1)
     await act(async()=>tree.unmount())
   }finally{globalThis.fetch=previousFetch;Object.assign(globalThis,{window:previousWindow})}
+})
+
+test('prescribed duration prose and routine clocks preserve units and precision',async()=>{
+  const { durationWords, durationClock, instructionDurations }=await import('../lib/training/duration')
+  assert.deepEqual([150,180,45,61].map(durationWords),['2.5 minutes','3 minutes','45 seconds','1 minute 1 second'])
+  assert.equal(instructionDurations('Rest for 150s then hold for 45 sec. Pace 150s/500m.'),'Rest for 2.5 minutes then hold for 45 seconds. Pace 150s/500m.')
+  assert.equal(durationClock(3600),'01:00:00')
+  assert.equal(durationClock(150.25,true),'02:30.25')
+  assert.equal(durationClock(150,true),'02:30')
 })
