@@ -5,7 +5,7 @@
   "state": "in-progress",
   "spec": "d497a9cf3db782344621dbaa7f1daf832b5c4862dff7c9c38a9a43cb022440d9",
   "attempts": 0,
-  "heartbeat": "2026-11-28T09:47:23.131109+00:00",
-  "expires": "2026-11-28T10:42:23.131109+00:00",
+  "heartbeat": "2026-11-28T09:47:23.131Z",
+  "expires": "2026-11-28T10:42:23.131Z",
   "checkpoint": "Cycling-only implementation reserved"
 }
