@@ -289,24 +289,66 @@ try {
       await writeFile(join(process.env.SCREENSHOT_DIR, `stunna-cardio-${width}.png`), Buffer.from(data, "base64"));
     }
     console.log(JSON.stringify(evidence));
-    for (const mode of ["neither","rpm","res","both"]){
-      await send("Page.navigate",{url:"http://127.0.0.1:"+server.address().port+"/?cycling="+mode},sessionId);
-      await until("document.querySelector('tbody tr:last-child') && document.fonts.check('16px Geist')");
-      const measured=await evaluate(`(()=>{
-        const table=document.querySelector('table'),cells=[...table.querySelectorAll('td')];
-        const bad=cells.filter(c=>{const r=document.createRange();r.selectNodeContents(c);
-          const bounds=r.getBoundingClientRect(),box=c.getBoundingClientRect();
-          return c.textContent && (r.getClientRects().length!==1 || bounds.right>box.right+.1 || bounds.left<box.left-.1)});
-        return {size:getComputedStyle(cells[0]).fontSize,headers:[...table.querySelectorAll('th')].map(c=>c.textContent),
-          overflow:document.documentElement.scrollWidth>innerWidth,invalid:bad.length,notes:document.querySelectorAll('textarea').length,
-          accordion:!!document.querySelector('button[aria-controls]')};
-      })()`);
-      assert.deepEqual(measured.headers,["Time","Seg.","Output(W)",...(["rpm","both"].includes(mode)?["RPM"]:[]),...(["res","both"].includes(mode)?["Res.(%)"]:[])]);
-      assert.equal(measured.notes,1);assert.equal(measured.invalid,0);assert.equal(measured.overflow,false);assert.equal(measured.accordion,false);
-      if(mode==='neither')assert.equal(measured.size,'16px');
-      console.log(JSON.stringify({width,mode,...measured}));
-      if(process.env.SCREENSHOT_DIR){const shot=await send("Page.captureScreenshot",{format:"png"},sessionId);
-        await writeFile(join(process.env.SCREENSHOT_DIR,"cycling-"+mode+"-"+width+".png"),Buffer.from(shot.data,"base64"))}
+    for (const status of ["active","finalized"]) {
+      for (const mode of ["neither","rpm","res","both"]){
+        await send("Page.navigate",{url:"http://127.0.0.1:"+server.address().port+"/?cycling="+mode+"&status="+status},sessionId);
+        await until("document.querySelector('tbody tr:last-child') && document.fonts.check('16px Geist')");
+        const measured=await evaluate(`(()=>{
+          const table=document.querySelector('table'),cells=[...table.querySelectorAll('td')];
+          const bad=cells.filter(c=>{const r=document.createRange();r.selectNodeContents(c);
+            const bounds=r.getBoundingClientRect(),box=c.getBoundingClientRect();
+            return c.textContent && (r.getClientRects().length!==1 || bounds.right>box.right+.1 || bounds.left<box.left-.1)});
+          const headers=[...table.tHead.rows[0].cells];
+          const widths=headers.map(h=>h.getBoundingClientRect().width);
+          const spare=widths.map((width,i)=>{
+            const column=[headers[i],...Array.from(table.tBodies[0].rows,row=>row.cells[i])];
+            const minText=Math.max(...column.flatMap(cell=>{
+              const walker=document.createTreeWalker(cell,NodeFilter.SHOW_TEXT), widths=[];
+              for(let node; (node=walker.nextNode());){
+                const range=document.createRange();range.selectNodeContents(node);
+                widths.push(...Array.from(range.getClientRects(),rect=>rect.width));
+              }
+              return widths
+            }));
+            return +(width-minText).toFixed(1)
+          });
+          const aligned=cells.every(cell=>{
+            const h=headers[cell.cellIndex].getBoundingClientRect(),v=cell.getBoundingClientRect();
+            const alignment=cell.cellIndex===0?"left":"center";
+              return Math.abs(h.left-v.left)<0.1 && Math.abs(h.right-v.right)<0.1 &&
+                getComputedStyle(cell).textAlign===alignment && getComputedStyle(headers[cell.cellIndex]).textAlign===alignment
+          });
+          const gap=Math.min(...Array.from(table.tBodies[0].rows,row=>{
+            const time=document.createRange(),seg=document.createRange();
+            time.selectNodeContents(row.cells[0]);seg.selectNodeContents(row.cells[1]);
+            return seg.getBoundingClientRect().left-time.getBoundingClientRect().right
+          }));
+          return {finalized:document.body.textContent.includes('Finalized · read only'),widths:widths.map(Math.round),spare,gap:+gap.toFixed(1),aligned,size:getComputedStyle(cells[0]).fontSize,headers:[...table.querySelectorAll('th')].map(c=>c.textContent),
+            overflow:document.documentElement.scrollWidth>innerWidth,invalid:bad.length,notes:document.querySelectorAll('textarea').length,
+            accordion:!!document.querySelector('button[aria-controls]')};
+        })()`);
+        assert.deepEqual(measured.headers,["Time","Seg.","Output(W)",...(["rpm","both"].includes(mode)?["RPM"]:[]),...(["res","both"].includes(mode)?["Res.(%)"]:[])]);
+        assert.equal(measured.notes,1);assert.equal(measured.invalid,0);assert.equal(measured.overflow,false);assert.equal(measured.accordion,false);
+        assert.ok(measured.aligned, "headers and values must share column boundaries");
+        assert.equal(measured.finalized, status === "finalized");
+        if(mode === "both"){
+          assert.ok(measured.spare.slice(0,2).every(space=>space<4), "dense layout keeps leading columns compact");
+          const baselineSize={402:15.3,390:14.8,375:14.2}[width];
+          assert.ok(Math.abs(parseFloat(measured.size)-baselineSize)<0.2, "preserve dense fixture's fitted size");
+        } else {
+          assert.equal(measured.size,"16px");
+          assert.ok(measured.gap>=10, "separate even the longest Time and adjacent segment");
+          if(mode==="neither"){
+            assert.ok(Math.min(...measured.widths)/Math.max(...measured.widths)>0.65, "balance three columns");
+          } else {
+            const total=measured.spare.reduce((sum,n)=>sum+n,0);
+            assert.ok(measured.spare.every(n=>n>2 && n<total*0.6), "share four-column surplus beyond cell padding");
+          }
+        }
+        console.log(JSON.stringify({width,mode,status,...measured}));
+        if(process.env.SCREENSHOT_DIR){const shot=await send("Page.captureScreenshot",{format:"png"},sessionId);
+          await writeFile(join(process.env.SCREENSHOT_DIR,"cycling-"+status+"-"+mode+"-"+width+".png"),Buffer.from(shot.data,"base64"))}
+      }
     }
   }
   async function evaluate(expression) {

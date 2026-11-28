@@ -2,10 +2,10 @@
   "issue": 68,
   "owner": "codex-0bbc8604-853f-44bb-8ca0-8eddfd70fb43",
   "epoch": 1,
-  "state": "in-progress",
+  "state": "review",
   "attempts": 0,
   "spec": "6a40b37d4573c4cc60f96e14bdafc16af3998e6f1d749d53c2f2798c84e9856e",
-  "heartbeat": "2026-11-28T19:52:34.229Z",
+  "heartbeat": "2026-11-28T19:55:32.219Z",
   "expires": "2026-11-28T20:47:34.229Z",
-  "checkpoint": "Reserve approved cycling spacing work and disable branch deployment"
+  "checkpoint": "Count-aware cycling column spacing implemented; active/finalized geometry, 24 screenshots, regressions, typecheck and build validated."
 }
