@@ -5,7 +5,7 @@
   "state": "in-progress",
   "attempts": 0,
   "spec": "312865df0e5116c0455d6e7b2407348a26005d686176225001f020172ec6c41d",
-  "heartbeat": "2026-11-28T13:57:40.968Z",
-  "expires": "2026-11-28T14:52:40.969Z",
-  "checkpoint": "Reserve issue 66; disable branch deployment"
+  "heartbeat": "2026-11-28T14:42:24.561Z",
+  "expires": "2026-11-28T15:37:24.561Z",
+  "checkpoint": "Resumed on owner request; baseline reproduction confirmed, classifier fixed, verifying synthetic cases."
 }
