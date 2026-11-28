@@ -1,4 +1,5 @@
 import 'server-only'
+import { cyclingOnly } from './cycling-only'
 import { randomUUID, createHash } from 'node:crypto'
 import { GarminRequestError } from '../garmin'
 import { ApiError } from '../private-api'
@@ -29,12 +30,15 @@ export function assertSourceAccess(principal: TrainingPrincipal, scope: 'trainin
   if (process.env.STUNNA_ENABLED!=='true' || process.env.GARMIN_MCP_ENABLED!=='true') throw new ApiError(404,'Garmin source integration unavailable')
   if (principal.source!=='browser' && !principal.healthScopes?.includes('garmin.read')) throw new ApiError(403,'Garmin read scope required')
 }
-async function owned(tx: Queryable, subject: string, session: string, lock=false) {
+async function owned(tx: Queryable, subject: string, session: string, lock=false, discoveryEnd?:Date) {
   const a=(await tx.query<{id:string}>('SELECT id FROM stunna.athletes WHERE auth0_sub=$1'+(lock?' FOR UPDATE':''),[subject])).rows[0]
   if (!a) throw new ApiError(404,'Session not found')
   const s=(await tx.query<{id:string;revision:number;status:string;started_at:Date;completed_at:Date;prescription_snapshot:SessionSnapshot}>(
     'SELECT id,revision,status,started_at,completed_at,prescription_snapshot FROM stunna.actual_sessions WHERE athlete_id=$1 AND id=$2',[a.id,session])).rows[0]
   if (!s) throw new ApiError(404,'Session not found')
+  if (discoveryEnd && s.status==='in_progress' && cyclingOnly(s.prescription_snapshot)) {
+    return {athlete:a.id,session:{...s,completed_at:discoveryEnd}}
+  }
   if (s.status!=='completed' || !s.prescription_snapshot) throw new ApiError(409,'Completed pinned session required')
   return {athlete:a.id,session:s}
 }
@@ -86,7 +90,7 @@ export function createSourceEvidenceService(database: TrainingDatabase, garmin: 
     async candidates(principal:TrainingPrincipal,sessionId:unknown, discover=false): Promise<CandidateResult> {
       assertSourceAccess(principal,'training.read')
       if (!sourceLinkInput.shape.sessionId.safeParse(sessionId).success) throw new ApiError(400,'Invalid session ID')
-      const c=await context(principal,sessionId as string)
+      const c=discover && principal.source==="browser" ? await database.transaction(principal.subject,tx=>owned(tx,principal.subject,sessionId as string,false,now())) : await context(principal,sessionId as string)
       if(!await database.transaction(principal.subject,sourceStorageAvailable)) return {status:'unavailable',candidates:[],reason:'Source storage is not available; saved workout results are unchanged.',sessionRevision:c.session.revision,evidenceRevision:0}
       const saved=await database.transaction(principal.subject,tx=>readSourceResult(tx,c.athlete,c.session.id))
       const sources=saved.evidence.filter(e=>e.evidence.provider==='garmin')

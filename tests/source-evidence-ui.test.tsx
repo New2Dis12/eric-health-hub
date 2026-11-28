@@ -166,3 +166,53 @@ for(const modality of ['run','bike','row']) {
     assert.match(compact(),/0 m<\/strong><small>Peloton/)
   })
 }
+
+for(const changed of [false,true]) test('cycling completion revalidates selected recording, candidate changed='+changed,async()=>{
+  const original=globalThis.fetch, handoff={current:null as string|null}
+  let finalized=false,writes=0,tree!:ReactTestRenderer
+  const candidates=structuredClone(page)
+  candidates.candidates.forEach(c=>{c.modality='bike'})
+  globalThis.fetch=async(_url,init)=>{
+    if(init?.method==='POST'){assert.ok(finalized);writes++;return Response.json(receipt)}
+    return Response.json(candidates)
+  }
+  const props={sessionId,sessionRevision:2,refresh:async()=>readback(102),handoff}
+  try {
+    await act(async()=>{tree=create(<WorkoutSourceResults {...props} finish={async selection=>{finalized=true;handoff.current=selection}}/>)})
+    await select(tree,'102');await click(tree,'Complete workout and attach')
+    assert.ok(finalized);assert.equal(writes,0)
+    if(changed)candidates.candidates[1].durationSeconds=601
+    await act(async()=>{tree.update(<WorkoutSourceResults key="completed" {...props}/>)})
+    assert.equal(writes,changed?0:1)
+    if(changed)assert.match(text(tree),/Recordings changed/)
+  } finally {globalThis.fetch=original;await act(async()=>tree?.unmount())}
+})
+
+test('cycling confirms both verified sources only after finalization and fresh discovery',async()=>{
+  const original=globalThis.fetch,handoff={current:null as string|null},ids=[101,102]
+  const candidates=structuredClone(page)
+  candidates.verifiedPairs=[ids];candidates.suggestedPair=ids
+  candidates.candidates.forEach((c,i)=>{c.modality='bike';c.origin=i?'peloton_import':'garmin_device'})
+  const result=readback()
+  result.sourceResult!.evidence=[]
+  const events:string[]=[]
+  let finalized=false,tree!:ReactTestRenderer
+  globalThis.fetch=async(_url,init)=>{
+    if(init?.method!=='POST'){events.push(finalized?'read finalized candidates':'read active candidates');return Response.json(candidates)}
+    assert.ok(finalized)
+    const cmd=JSON.parse(String(init.body)), saved=readback(cmd.activityId).sourceResult!.evidence[0]
+    saved.id=cmd.activityId===101?evidenceId:'33333333-3333-4333-8333-333333333333'
+    if(cmd.activityId===102)assert.equal(cmd.pairedWithEvidenceId,evidenceId)
+    events.push('attach '+cmd.activityId)
+    result.sourceResult!.evidence.push(saved)
+    return Response.json({...receipt,evidenceId:saved.id})
+  }
+  const props={sessionId,sessionRevision:2,refresh:async()=>result,handoff}
+  try{
+    await act(async()=>{tree=create(<WorkoutSourceResults {...props} finish={async selection=>{events.push('complete');handoff.current=selection;finalized=true}}/>)})
+    await click(tree,'Complete workout and attach')
+    await act(async()=>{tree.update(<WorkoutSourceResults key="final" {...props}/>)})
+    assert.deepEqual(events.slice(0,5),['read active candidates','complete','read finalized candidates','attach 101','attach 102'])
+    assert.match(text(tree),/saved and re-read/)
+  }finally{globalThis.fetch=original;await act(async()=>tree?.unmount())}
+})

@@ -133,8 +133,16 @@ if(query.has("flow")) {
     persist();return Response.json(receipt)
   }
 }
+const mode=query.get("cycling");
+const sample=session("Cycling intervals",bike);
+const example=sample.snapshot!.exercises[0];
+example.warmups=[{...bike,phase:"warmup",label:"Easy spin",durationSeconds:4200,targets:[]}];
+example.intervalBlocks=[{repeat:12,segments:[{...bike,durationSeconds:150,targets:[target("power","W",225.5,250.5),
+  ...(["rpm","both"].includes(mode??"")?[target("cycling_cadence","rpm",95,105)]:[]),
+  ...(["res","both"].includes(mode??"")?[target("resistance","%",52.5,57.5)]:[])]},
+  {...bike,phase:"recovery",durationSeconds:60,targets:mode==="both"?[target("resistance","%",0)]:[]}]}];
 createRoot(document.querySelector("#root")!).render(
-  query.has("flow")?<main className={shell.shell}><div className={shell.content}><article className={shell.workout}>
+  mode?<main className={shell.shell}><div className={shell.content}><section aria-label="Workout player"><PlayerView workout={sample} data={result(sample)} busy={false} changed={()=>{}} save={async()=>{}}/></section></div></main>:query.has("flow")?<main className={shell.shell}><div className={shell.content}><article className={shell.workout}>
     {query.has("player")?<WorkoutPlayer workout={flow} returnHref={"?flow="+query.get("flow")}/>:<SessionStart workoutId={flow.id} prescriptionRevision={1}/>}
   </article></div></main>:<main className={shell.shell}><div className={shell.content}>
     {workouts.map(workout => <article className={shell.workout} key={workout.id}><div className={shell.startArea}>

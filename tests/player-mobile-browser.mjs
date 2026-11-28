@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { readFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { readFile, readdir, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -38,10 +38,14 @@ try {
     bundle: true, outfile: join(work, "player.js"), loader: { ".module.css": "local-css" },
   });
   const page = join(work, "index.html");
+  const media=process.env.STUNNA_BUILD_MEDIA??".next/static/media";
+  const font=(await readdir(media)).find(n=>n.includes("-s.p.") && n.endsWith(".woff2"));
+  assert.ok(font,"Build the application first to load its preloaded Latin Geist font");
+  const geist=(await readFile(join(media,font))).toString("base64");
   await writeFile(page, `<!doctype html><html lang="en"><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <link href="player.css" rel="stylesheet">
-    <style>*{box-sizing:border-box}body{margin:0;font:16px Arial,sans-serif}
+    <style>@font-face{font-family:Geist;src:url(data:font/woff2;base64,${geist})}*{box-sizing:border-box}body{margin:0;font:16px Geist,sans-serif}
     h3,h4,p{margin:0}button,input,select,textarea{font:inherit}fieldset{min-width:0;margin-inline:0}</style>
     <div id="root"></div><script src="player.js"></script></html>`);
   browser = spawn(binary, [
@@ -113,7 +117,7 @@ try {
 
   function inspectLayout() {
     const tables = [...document.querySelectorAll('[role="table"]')];
-    if (tables.length !== 4) return null;
+    if (tables.length !== 2 || document.querySelectorAll('table[aria-label="Prescribed cycling"]').length !== 2) return null;
     const errors = [];
     let measured = 0;
     function textRects(cell) {
@@ -177,10 +181,11 @@ try {
     if (JSON.stringify(rowCells.slice(0, 2)) !== JSON.stringify([
       ["", "Work 1", "400 m", "20–22", "02:45.5–02:55.5"], ["01:30", "Recovery 1", "", "", ""],
     ])) errors.push("rowing targets or recovery time incorrect");
-    if (!["120–160 W", "75–90", "12–18 level"].every(value => tables[2].textContent.includes(value)) ||
-        !tables[2].closest("article").textContent.includes("Finalized · read only"))
+    const completedBike=document.querySelector('table[aria-label="Prescribed cycling"]');
+    if (!["120–160", "75–90", "12–18"].every(value => completedBike.textContent.includes(value)) ||
+        !completedBike.closest("article").textContent.includes("Finalized · read only"))
       errors.push("bike targets or finalized status missing");
-    if (!tables[2].closest("article").querySelector('[aria-label="Device source results"]'))
+    if (!completedBike.closest("article").querySelector('[aria-label="Device source results"]'))
       errors.push("completed cardio device-evidence panel missing");
     if (!document.querySelector('[data-completion-probe="strength"] button'))
       errors.push("strength completion player missing");
@@ -284,6 +289,25 @@ try {
       await writeFile(join(process.env.SCREENSHOT_DIR, `stunna-cardio-${width}.png`), Buffer.from(data, "base64"));
     }
     console.log(JSON.stringify(evidence));
+    for (const mode of ["neither","rpm","res","both"]){
+      await send("Page.navigate",{url:"http://127.0.0.1:"+server.address().port+"/?cycling="+mode},sessionId);
+      await until("document.querySelector('tbody tr:last-child') && document.fonts.check('16px Geist')");
+      const measured=await evaluate(`(()=>{
+        const table=document.querySelector('table'),cells=[...table.querySelectorAll('td')];
+        const bad=cells.filter(c=>{const r=document.createRange();r.selectNodeContents(c);
+          const bounds=r.getBoundingClientRect(),box=c.getBoundingClientRect();
+          return c.textContent && (r.getClientRects().length!==1 || bounds.right>box.right+.1 || bounds.left<box.left-.1)});
+        return {size:getComputedStyle(cells[0]).fontSize,headers:[...table.querySelectorAll('th')].map(c=>c.textContent),
+          overflow:document.documentElement.scrollWidth>innerWidth,invalid:bad.length,notes:document.querySelectorAll('textarea').length,
+          accordion:!!document.querySelector('button[aria-controls]')};
+      })()`);
+      assert.deepEqual(measured.headers,["Time","Seg.","Output(W)",...(["rpm","both"].includes(mode)?["RPM"]:[]),...(["res","both"].includes(mode)?["Res.(%)"]:[])]);
+      assert.equal(measured.notes,1);assert.equal(measured.invalid,0);assert.equal(measured.overflow,false);assert.equal(measured.accordion,false);
+      if(mode==='neither')assert.equal(measured.size,'16px');
+      console.log(JSON.stringify({width,mode,...measured}));
+      if(process.env.SCREENSHOT_DIR){const shot=await send("Page.captureScreenshot",{format:"png"},sessionId);
+        await writeFile(join(process.env.SCREENSHOT_DIR,"cycling-"+mode+"-"+width+".png"),Buffer.from(shot.data,"base64"))}
+    }
   }
   async function evaluate(expression) {
     const {result,exceptionDetails}=await send("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true},sessionId);

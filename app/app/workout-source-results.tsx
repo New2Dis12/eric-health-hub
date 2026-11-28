@@ -48,7 +48,8 @@ function rememberCommand(command: SourceLinkInput) {
 function forgetCommand(sessionId:string) {
   try { sessionStorage.removeItem('stunna.source-confirmation.'+sessionId) } catch { /* Storage is optional. */ }
 }
-export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}: {
+export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh,finish,finishing,handoff}: {
+  finish?:(recordings:string|null)=>Promise<void>; finishing?:boolean; handoff?:{current:string|null};
   sessionId:string;sessionRevision:number;result?:SourceResult;refresh:()=>Promise<SessionResults|null>
 }) {
   const [page,setPage]=useState<CandidateResult|null>(null)
@@ -73,7 +74,15 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
         if(!Array.isArray(current?.candidates)) throw new Error()
         if(controller.signal.aborted) return
         setPage(current)
-        setSelected((current.suggestedPair??[]).filter(id=>current.candidates.some(c=>c.activityId===id && !c.linked)))
+        let remembered:number[]=[]
+        if(handoff){
+          try { remembered=JSON.parse(sessionStorage.getItem('stunna.cycling-picks.'+sessionId)??'[]') } catch { /* optional tab storage */ }
+          if(!finish && handoff.current) remembered=JSON.parse(handoff.current).ids
+          if(!Array.isArray(remembered)) remembered=[]
+        }
+        if(remembered.length) {
+          setSelected(remembered.filter(id=>current.candidates.some(c=>c.activityId===id && !c.linked)))
+        } else setSelected((current.suggestedPair??[]).filter(id=>current.candidates.some(c=>c.activityId===id && !c.linked)))
       } catch { if(!controller.signal.aborted) setMessage('Recordings unavailable. Retry discovery.') }
       finally {if(!controller.signal.aborted) setLoading(false)}
     }
@@ -82,7 +91,9 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
   },[sessionId,sessionRevision,reload,paired])
 
   function toggle(id:number) {
-    setSelected(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id])
+    const next=selected.includes(id)?selected.filter(x=>x!==id):[...selected,id]
+    setSelected(next)
+    if(handoff) remember(next)
     setMessage('')
   }
   const anchor=page?.pairAnchor
@@ -90,6 +101,22 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
   const validSelection=selected.length>0 && (identities.length===1
     ? page?.candidates.find(c=>c.activityId===selected[0])?.origin!=='peloton_import'
     : page?.verifiedPairs?.some(pair=>pair.length===identities.length && pair.every(id=>identities.includes(id))))
+  const fingerprint=page && validSelection ? JSON.stringify({ids:selected,candidates:page.candidates,pairs:page.verifiedPairs??[],anchor:page.pairAnchor??null}) : null
+  function remember(ids:number[]){
+    try { sessionStorage.setItem('stunna.cycling-picks.'+sessionId,JSON.stringify(ids)) } catch { /* optional */ }
+  }
+  async function finishWith(ids:number[]){
+    if(!finish || !handoff || finishing) return
+    remember(ids)
+    await finish(ids.length?fingerprint:null)
+  }
+  useEffect(()=>{
+    if(finish || !handoff?.current || !page || loading) return
+    const wanted=handoff.current
+    handoff.current=null
+    if(fingerprint===wanted) void confirm()
+    else setMessage('Workout saved. Recordings changed. Review and confirm the current selection.')
+  },[page,loading,finish,handoff,fingerprint])
   async function confirm() {
     if(active.current || (!pending.current && (!page || !validSelection))) return
     if(!pending.current && page) {
@@ -134,6 +161,7 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
         }
         batch.index++
       }
+      if(handoff) remember([])
       pending.current=null;setSelected([]);setPage(null);setReload(n=>n+1)
       setMessage('Selected recordings saved and re-read.')
     } catch {
@@ -147,7 +175,7 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
   const mainMetrics=measured.filter(m=>overviewFields.includes(m.field))
   const summary=mainMetrics.length?mainMetrics:measured.slice(0,4)
   return <section className="device-results" aria-label="Device source results">
-    <h4>Device results</h4>
+    <h4>{finish?'Workout recordings':'Device results'}</h4>
     {sources.length>0 && <>
       <h5>Workout summary</h5>
       {result?.reconciled && !measured.some(m=>m.field==='distanceMeters') && <p>Peloton distance unavailable.</p>}
@@ -177,7 +205,7 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
       {!sources.length && <p>Device results not yet attached.</p>}
       {sources.map(s=><p key={s.id}>Saved · {originLabel(s.evidence.recording?.origin)} · activity {s.evidence.sourceId}</p>)}
       {loading && <p role="status">Finding recordings…</p>}
-      {page && <fieldset disabled={saving || !!pending.current}><legend>Select recordings for this workout</legend>
+      {page && <fieldset disabled={finishing || saving || !!pending.current}><legend>Select recordings for this workout</legend>
         {page.candidates.filter(c=>!c.linked).map(c=><label className="device-row" key={c.activityId}>
           <input type="checkbox" value={c.activityId} checked={selected.includes(c.activityId)}
             disabled={!selected.includes(c.activityId) && identities.length>=2} onChange={()=>toggle(c.activityId)}/>
@@ -187,7 +215,11 @@ export function WorkoutSourceResults({sessionId,sessionRevision,result,refresh}:
         {!page.candidates.some(c=>!c.linked) && <p>{page.status==='unavailable'?page.reason:'No additional recordings available.'}</p>}
       </fieldset>}
       {selected.length>0 && !validSelection && <p>Select a Garmin recording or a verified pair for this workout.</p>}
-      {(page || pending.current) && <button className="device-confirm" type="button" disabled={saving || (!pending.current && !validSelection)} onClick={()=>void confirm()}>
+      {finish && <>
+        {selected.length>0 && <button type="button" disabled={finishing || !validSelection || loading} onClick={()=>void finishWith(selected)}>Complete workout and attach selected recordings</button>}
+        <button type="button" disabled={finishing} onClick={()=>void finishWith([])}>Complete workout without recordings</button>
+      </>}
+      {!finish && (page || pending.current) && <button className="device-confirm" type="button" disabled={saving || (!pending.current && !validSelection)} onClick={()=>void confirm()}>
         {saving?'Saving recordings…':pending.current?'Retry confirmation':'Confirm selected recordings'}</button>}
       <button type="button" disabled={loading || saving || !!pending.current} onClick={()=>{setMessage('');setReload(n=>n+1)}}>Refresh recordings</button>
     </>}

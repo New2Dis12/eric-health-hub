@@ -1,4 +1,6 @@
 "use client";
+import { CyclingTable } from "./cycling-table";
+import { cyclingOnly } from "@/lib/training/cycling-only";
 import { WorkoutSourceResults } from "./workout-source-results";
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { WorkoutSession } from "@/lib/training/session";
@@ -585,6 +587,7 @@ export function PlayerView({
   const snapshot = workout.snapshot;
   if (!snapshot)
     return <p>Legacy session — prescription not pinned. Read only.</p>;
+  const bike=cyclingOnly(snapshot);
   const disabled = data.status === "completed";
   const progress=completionSummary(workout,data);
   let clockStart: number | null = 0;
@@ -601,7 +604,7 @@ export function PlayerView({
         <p>{progress.prescribed>0 && <>{progress.recorded} of {progress.prescribed} working sets logged</>}</p>
       </header>
       {noteError && <p role="alert">{noteError}</p>}
-      <div className={styles.columnLabels} aria-hidden="true"><span>Exercise</span><span>Sets × reps</span><span>RPE</span><span>✓</span><span /></div>
+      {bike ? <CyclingTable snapshot={snapshot}/> : <div className={styles.columnLabels} aria-hidden="true"><span>Exercise</span><span>Sets × reps</span><span>RPE</span><span>✓</span><span /></div>}
       {snapshot.exercises.map((exercise, index) => {
         const occurrence = snapshot.occurrences.find(
           (o) => o.exercise === index && o.type === "exercise",
@@ -663,14 +666,14 @@ export function PlayerView({
         })}
         return (
           <section className={styles.exercise} key={occurrence.id}>
-            <button type="button" className={styles.exerciseRow} aria-expanded={open.has(index)}
+            {bike ? <h4>{exercise.name}</h4> : <button type="button" className={styles.exerciseRow} aria-expanded={open.has(index)}
               aria-controls={"detail-"+occurrence.id} disabled={busy} onClick={()=>void toggle(index,occurrence.id)}>
               <span>{exercise.name}{exercise.optional ? " · Optional" : ""}</span>
               <span>{work}</span><span>{exercise.rpe ? showRange(exercise.rpe) : "—"}</span>
               <span className={complete?styles.checked:undefined} aria-label={complete?"All working sets saved":"Unfinished"}>{complete?"✓":"○"}</span>
               <span aria-hidden="true">{open.has(index)?"▴":"▾"}</span>
-            </button>
-            <div id={"detail-"+occurrence.id} hidden={!open.has(index)}>
+            </button>}
+            <div id={"detail-"+occurrence.id} hidden={!bike && !open.has(index)}>
             <div className={styles.plan}>
               {strength && <p>
                 {exercise.sets ?? "Unspecified"} sets ·{" "}
@@ -718,7 +721,7 @@ export function PlayerView({
                 </ol>
               </div>
             )}
-            {cardioRows.length > 0 && <>
+            {!bike && cardioRows.length > 0 && <>
               {separateWarmups && <CardioRows rows={warmupRows} clockStart={start} intervals={false} layout={warmupLayout} />}
               <CardioRows rows={separateWarmups ? [steadyRow] : cardioRows} clockStart={start}
                 intervals={blocks.length > 0} layout={layout} />
@@ -756,7 +759,7 @@ export function PlayerView({
                 ))}
               </div>
             )}
-            <Note
+            {(!bike || snapshot.exercises.length>1 || !!note) && <Note
               title="Exercise Notes"
               fieldLabel={exercise.name+" · Exercise Notes"}
               reveal={()=>focusField(occurrence.id)}
@@ -768,13 +771,13 @@ export function PlayerView({
               busy={busy}
               save={save}
               changed={changed}
-            />
+            />}
             </div>
           </section>
         );
       })}
       <Note
-        title="Overall Workout Notes"
+        title={bike?"Workout Notes":"Overall Workout Notes"}
         fieldLabel="Overall Workout Notes"
         reveal={()=>{if(typeof document!=="undefined") document.getElementById("field-overall")?.querySelector("textarea")?.focus()}}
         identity="overall"
@@ -935,7 +938,7 @@ export function WorkoutPlayer({
       return true;
     } finally {flushing.current=false;setBatchBusy(false)}
   }
-  async function complete() {
+  async function complete(recordings:string|null=null) {
     if (!data || data.sessionId !== workout.id || inFlight.current || error || data.status === 'completed') return;
     if (!await flushDrafts()) return;
     completionPending.current ??= {
@@ -948,12 +951,14 @@ export function WorkoutPlayer({
     setCompletionError('');
     try {
       const current = await completePlayerWorkout(fetch, workout.id, completionPending.current);
+      selection.current=recordings;
       accept(current);
       setConfirming(false);
       completionPending.current = null;
     } catch (e) {
       if (e instanceof PlayerError && e.kind === 'conflict') {
         completionPending.current = null;
+        selection.current = null;
         setConfirming(false);
         await refresh();
       }
@@ -970,6 +975,8 @@ export function WorkoutPlayer({
   const currentData = data?.sessionId === workout.id ? data : null;
   const summary = currentData ? completionSummary(workout, currentData) : null;
   const cardio = hasCardioExercise(workout);
+  const bike = cyclingOnly(workout.snapshot);
+  const selection = useRef<string | null>(null);
   return (
     <section aria-label="Workout player">
       <button
@@ -1007,11 +1014,12 @@ export function WorkoutPlayer({
         <div className={styles.finishPanel} role="status">
           <strong>Completed — workout saved</strong>
           <p>Saved actuals and notes are read only.</p>
-          {cardio && <WorkoutSourceResults key={workout.id} sessionId={workout.id} sessionRevision={currentData.sessionRevision} result={currentData.sourceResult} refresh={refresh} />}
+          {cardio && <WorkoutSourceResults key={workout.id} handoff={bike ? selection : undefined} sessionId={workout.id} sessionRevision={currentData.sessionRevision} result={currentData.sourceResult} refresh={refresh} />}
         </div>
       ) : currentData && workout.snapshot && !error ? (
         <div className={styles.finishPanel}>
-          {!confirming ? (
+          {bike ? <WorkoutSourceResults sessionId={workout.id} sessionRevision={currentData.sessionRevision} refresh={refresh}
+            handoff={selection} finish={complete} finishing={busy || batchBusy} /> : !confirming ? (
             <button type="button" disabled={busy || batchBusy} onClick={() => {
               setCompletionError('');
               setConfirming(true);

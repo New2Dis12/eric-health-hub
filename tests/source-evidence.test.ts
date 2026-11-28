@@ -46,7 +46,7 @@ const client:GarminClient={list:async limit=>{listCalls++;assert.equal(limit,20)
   return {activityId:id,...decodeGarminFitArchive(malformed?Buffer.alloc(10):syntheticFit(id%100===2?'cycling':id%100===3?'rowing':'running',id===103,id>=200?'peloton':'garmin',id>=200?140:refreshHr),30,120,0,0,20,true)}
 }}
 const service=createTrainingService(database,()=>new Date('2026-10-28T00:00:00Z'),client)
-let athlete:string,run:string,bike:string,row:string,discoverySession:string,second:string,inProgress:string
+let athlete:string,run:string,bike:string,row:string,discoverySession:string,second:string,inProgress:string,activeBike:string
 const reject=(status:number)=>(e:unknown)=>e instanceof ApiError && e.status===status
 const command=(sessionId:string,activityId:number,expectedEvidenceRevision=0)=>({sessionId,activityId,expectedSessionRevision:2,expectedEvidenceRevision,confirmed:true,idempotencyKey:randomUUID(),reason:'Synthetic explicit owner confirmation'})
 before(async()=>{
@@ -57,14 +57,14 @@ before(async()=>{
   athlete=randomUUID();const block=randomUUID()
   await db.query('INSERT INTO stunna.athletes(id,auth0_sub) VALUES($1,$2)',[athlete,subject])
   await db.query("INSERT INTO stunna.training_blocks(id,athlete_id,title,goal,starts_on,ends_on,source) VALUES($1,$2,'Synthetic','Fixture','2026-10-01','2026-10-31','manual')",[block,athlete])
-  for(const kind of ['run','bike','other','run','run','run']) {
+  for(const kind of ['run','bike','other','run','run','run','bike']) {
     const plan=randomUUID(),id=randomUUID()
     await db.query("INSERT INTO stunna.planned_sessions(id,athlete_id,block_id,planned_on,time_zone,kind,purpose,source) VALUES($1,$2,$3,'2026-10-27','UTC',$4,'Synthetic','manual')",[plan,athlete,block,kind])
     const active=!!second
-    const snapshot={title:'Synthetic pinned workout',kind,purpose:'Fixture',overview:null,exercises:kind==='other'?[{key:'row',name:'Synthetic rowing',sets:null,reps:null,durationSeconds:1800,target:null,restSeconds:null,notes:null,intervalBlocks:[{repeat:1,segments:[{modality:'row'}]}]}]:[],occurrences:[]}
+    const snapshot={title:'Synthetic pinned workout',kind,purpose:'Fixture',overview:null,exercises:kind==='other'?[{key:'row',name:'Synthetic rowing',sets:null,reps:null,durationSeconds:1800,target:null,restSeconds:null,notes:null,intervalBlocks:[{repeat:1,segments:[{modality:'row'}]}]}]:kind==='bike'?[{key:'bike',name:'Ride',sets:null,reps:null,durationSeconds:1800,target:null,restSeconds:null,notes:null}]:[],occurrences:[]}
     await db.query("INSERT INTO stunna.prescription_revisions(athlete_id,planned_session_id,revision,title,exercises,change_reason,source) VALUES($1,$2,1,'Synthetic',$3,'Fixture','synthetic')",[athlete,plan,JSON.stringify([{key:'synthetic',name:'Synthetic',sets:null,reps:null,durationSeconds:1800,target:null,restSeconds:null,notes:null}])])
     await db.query("INSERT INTO stunna.actual_sessions(id,athlete_id,planned_session_id,started_at,completed_at,status,source,revision,prescription_revision,prescription_snapshot) VALUES($1,$2,$3,$4,$5,$6,'manual',2,1,$7)",[id,athlete,plan,start,active?null:end,active?'in_progress':'completed',JSON.stringify(snapshot)])
-    if(!run)run=id;else if(!bike)bike=id;else if(!row)row=id;else if(!discoverySession)discoverySession=id;else if(!second)second=id;else inProgress=id
+    if(!run)run=id;else if(!bike)bike=id;else if(!row)row=id;else if(!discoverySession)discoverySession=id;else if(!second)second=id;else if(!inProgress)inProgress=id;else activeBike=id
   }
 })
 after(()=>db.close())
@@ -351,4 +351,17 @@ test('completed-session discovery suggests only a unique verified pair and write
   assert.equal((await read()).suggestedPair,undefined)
   await assert.rejects(discovery.candidates({...principal,subject:'synthetic-wrong-owner'},discoverySession,true),reject(403))
   assert.equal((await db.query('SELECT id FROM stunna.audit_events')).rows.length,baseline)
+})
+
+test('active discovery is read-only and limited to owned pinned cycling browser sessions',async()=>{
+  const browser:TrainingPrincipal={...principal,source:'browser'}
+  for(const session of [inProgress,activeBike]) await assert.rejects(service.sources.link(browser,command(session,102)),reject(409))
+  await assert.rejects(service.sources.candidates(browser,inProgress,true),reject(409))
+  await assert.rejects(service.sources.candidates(principal,activeBike,true),reject(409))
+  await assert.rejects(service.sources.candidates({...browser,subject:'synthetic-unowned'},activeBike,true),reject(403))
+  const discovery=createTrainingService(database,()=>new Date(end),{...client,list:async()=>[metadata(702,"indoor_cycling")]})
+  const page=await discovery.sources.candidates(browser,activeBike,true)
+  assert.equal(page.sessionRevision,2)
+  assert.ok(page.candidates.some(c=>c.modality==='bike'))
+  assert.equal((await service.results(browser,activeBike)).sourceResult?.evidence.length,0)
 })

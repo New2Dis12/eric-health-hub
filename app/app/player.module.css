@@ -250,3 +250,13 @@
 .player button,.finishPanel button,.back { min-width:44px; min-height:44px; cursor:pointer }
 .finishPanel button,.back { background:#c9f779; color:#142417; border:1px solid #87a950; border-radius:.5rem; padding:.65rem; font-weight:750 }
 .finishPanel :focus-visible { outline:3px solid #bae973; outline-offset:2px }
+
+.bikeGrid { width:100%; min-width:0 }
+.bikeGrid table { width:100%; border-collapse:collapse; font-size:16px; line-height:1.4 }
+.bikeGrid th,.bikeGrid td { white-space:nowrap; padding:.3em 1px; text-align:center; border:0; border-bottom:1px solid #405048 }
+.bikeGrid th:first-child,.bikeGrid td:first-child { text-align:left; width:1% }
+.bikeGrid th:nth-child(2),.bikeGrid td:nth-child(2) { width:1% }
+.bikeGrid th small {display:block}
+@media (max-width:480px) {
+  .bikeGrid { width:min(calc(100vw - 8px), calc(100% + 24px)); justify-self:center }
+}
