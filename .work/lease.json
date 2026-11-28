@@ -1,11 +1,11 @@
 {
-  "issue": 61,
+  "issue": 64,
   "epoch": 1,
-  "owner": "codex-e4e09064-81e4-42d3-b51e-0340b5494b61",
-  "state": "review",
-  "spec": "d4b892ac2963f1bfd013f4f56153732469062b6711a49b8550d846812218bcfa",
+  "owner": "codex-9feb546c-ecbc-4220-b0e8-4b197054ca6a",
+  "state": "in-progress",
+  "spec": "d497a9cf3db782344621dbaa7f1daf832b5c4862dff7c9c38a9a43cb022440d9",
   "attempts": 0,
-  "heartbeat": "2026-11-24T00:18:30.575Z",
-  "expires": "2026-11-24T01:06:44.126Z",
-  "checkpoint": "Implemented and validated player accordion, draft-safe completion and durations. Ready for independent review."
+  "heartbeat": "2026-11-28T09:47:23.131109+00:00",
+  "expires": "2026-11-28T10:42:23.131109+00:00",
+  "checkpoint": "Cycling-only implementation reserved"
 }
