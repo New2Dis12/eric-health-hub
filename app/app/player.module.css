@@ -254,8 +254,9 @@
 .bikeGrid { width:100%; min-width:0 }
 .bikeGrid table { width:100%; border-collapse:collapse; font-size:16px; line-height:1.4 }
 .bikeGrid th,.bikeGrid td { white-space:nowrap; padding:.3em 1px; text-align:center; border:0; border-bottom:1px solid #405048 }
-.bikeGrid th:first-child,.bikeGrid td:first-child { text-align:left; width:1% }
-.bikeGrid th:nth-child(2),.bikeGrid td:nth-child(2) { width:1% }
+.bikeGrid th:first-child,.bikeGrid td:first-child { text-align:left }
+.bikeGrid [data-columns="3"] th { width:33.333% }
+.bikeGrid [data-columns="5"] :is(th, td):nth-child(-n+2) { width:1% }
 .bikeGrid th small {display:block}
 @media (max-width:480px) {
   .bikeGrid { width:min(calc(100vw - 8px), calc(100% + 24px)); justify-self:center }

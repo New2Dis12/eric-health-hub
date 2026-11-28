@@ -136,7 +136,7 @@ if(query.has("flow")) {
   }
 }
 const mode=query.get("cycling");
-const sample=session("Cycling intervals",bike);
+const sample=session("Cycling intervals",bike,query.get("status")==="finalized");
 const example=sample.snapshot!.exercises[0];
 example.warmups=[{...bike,phase:"warmup",label:"Easy spin",durationSeconds:4200,targets:[]}];
 example.intervalBlocks=[{repeat:12,segments:[{...bike,durationSeconds:150,targets:[target("power","W",225.5,250.5),

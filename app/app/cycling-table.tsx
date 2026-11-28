@@ -39,7 +39,7 @@ export function CyclingTable({snapshot}:{snapshot:SessionSnapshot}) {
     if(!t?.range) return ''
     return (t.range.min===t.range.max?String(t.range.min):t.range.min+'–'+t.range.max)+(metric==='resistance'&&!resUnit?' '+t.unit:'')
   }
-  return <div ref={ref} className={styles.bikeGrid}><table aria-label="Prescribed cycling"><thead><tr>
+  return <div ref={ref} className={styles.bikeGrid}><table aria-label="Prescribed cycling" data-columns={2 + metrics.length}><thead><tr>
     <th>Time</th><th>Seg.</th>{metrics.map(m=><th key={m}>{m==='power'?'Output':m==='resistance'?'Res.':'RPM'}{m==='power'||(m==='resistance'&&resUnit)?<small>({m==='power'?'W':resUnit})</small>:null}</th>)}
     </tr></thead><tbody>{rows.map((r,i)=>{
       const start:number|null=clock

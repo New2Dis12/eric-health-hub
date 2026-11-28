@@ -1,11 +1,11 @@
 {
-  "issue": 66,
-  "owner": "codex-d066fbb3-c4b8-4b32-b208-dff1e2e8be8d",
+  "issue": 68,
+  "owner": "codex-0bbc8604-853f-44bb-8ca0-8eddfd70fb43",
   "epoch": 1,
   "state": "review",
   "attempts": 0,
-  "spec": "312865df0e5116c0455d6e7b2407348a26005d686176225001f020172ec6c41d",
-  "heartbeat": "2026-11-28T14:43:03.789Z",
-  "expires": "2026-11-28T15:37:24.561Z",
-  "checkpoint": "Reproduced metadata regression and validated classifier fix. Ready for independent review."
+  "spec": "6a40b37d4573c4cc60f96e14bdafc16af3998e6f1d749d53c2f2798c84e9856e",
+  "heartbeat": "2026-11-28T19:55:32.219Z",
+  "expires": "2026-11-28T20:47:34.229Z",
+  "checkpoint": "Count-aware cycling column spacing implemented; active/finalized geometry, 24 screenshots, regressions, typecheck and build validated."
 }
