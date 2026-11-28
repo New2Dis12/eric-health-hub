@@ -1,11 +1,11 @@
 {
-  "issue": 64,
+  "issue": 66,
+  "owner": "codex-d066fbb3-c4b8-4b32-b208-dff1e2e8be8d",
   "epoch": 1,
-  "owner": "codex-9feb546c-ecbc-4220-b0e8-4b197054ca6a",
-  "state": "review",
-  "spec": "d497a9cf3db782344621dbaa7f1daf832b5c4862dff7c9c38a9a43cb022440d9",
+  "state": "in-progress",
   "attempts": 0,
-  "heartbeat": "2026-11-28T09:53:53.513Z",
-  "expires": "2026-11-28T10:42:23.131Z",
-  "checkpoint": "Cycling player, read-only active discovery and post-finalization attachment implemented; synthetic validation passed."
+  "spec": "312865df0e5116c0455d6e7b2407348a26005d686176225001f020172ec6c41d",
+  "heartbeat": "2026-11-28T13:57:40.968Z",
+  "expires": "2026-11-28T14:52:40.969Z",
+  "checkpoint": "Reserve issue 66; disable branch deployment"
 }
