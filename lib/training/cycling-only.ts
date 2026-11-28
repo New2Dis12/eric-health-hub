@@ -7,7 +7,8 @@ export function cyclingOnly(snapshot: SessionSnapshot | null) {
     const blocks = exercise.intervalBlocks ?? []
     const segments = [...(exercise.warmups ?? []), ...blocks.flatMap(block => block.segments)]
     if (snapshot.kind !== 'bike' && !blocks.length) return false
-    if (exercise.sets != null || exercise.reps != null || exercise.repsRange || exercise.loadBasis ||
+    if (exercise.sets != null || exercise.reps != null || exercise.repsRange ||
+        (exercise.loadBasis != null && exercise.loadBasis !== 'unverified') ||
         exercise.target?.unit === 'kg' || exercise.target?.unit === 'lb') return false
     return segments.every(segment => segment.modality === 'bike' && !segment.strength)
   })

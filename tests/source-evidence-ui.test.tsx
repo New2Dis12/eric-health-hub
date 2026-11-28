@@ -1,4 +1,6 @@
 import React from 'react'
+import { WorkoutPlayer } from '../app/app/workout-player'
+import type { WorkoutSession } from '../lib/training/session'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { create, act, type ReactTestRenderer } from 'react-test-renderer'
@@ -216,3 +218,41 @@ test('cycling confirms both verified sources only after finalization and fresh d
     assert.match(text(tree),/saved and re-read/)
   }finally{globalThis.fetch=original;await act(async()=>tree?.unmount())}
 })
+
+for (const status of ['in_progress','completed'] as const) {
+  for (const metadata of [{}, {loadBasis:'unverified' as const}]) {
+    test(`bike player reads pinned ${status} session with ${metadata.loadBasis ?? 'absent'} load basis`, async()=>{
+      const session:WorkoutSession={id:sessionId,status,revision:2,prescriptionRevision:1,startedAt:'2026-10-27T18:52:01Z',
+        snapshot:{kind:'bike',title:'Synthetic ride',purpose:'Regression',overview:null,
+          exercises:[{key:'ride',name:'Ride',sets:null,reps:null,durationSeconds:1800,restSeconds:null,target:null,notes:null,...metadata}],
+          occurrences:[{id:'exercise',exercise:0,key:'ride',type:'exercise'}]}}
+      const saved=readback()
+      saved.status=status
+      saved.notes='Retained synthetic note'
+      saved.sourceResult!.evidence[0].evidence.modality='bike'
+      if(status==='in_progress') delete saved.sourceResult
+      if(status==='completed' && metadata.loadBasis) saved.entries.push({
+        id:'historical-note',item_key:'exercise',kind:'exercise_note',occurrence_id:'exercise',set_ordinal:0,
+        revision:1,session_revision:1,value:{notes:'Retained exercise note'},before_value:null,
+        actor_sub:'synthetic',source:'browser',reason:'Fixture',recorded_at:session.startedAt,
+      })
+      const previousWindow=globalThis.window
+      Object.assign(globalThis,{window:new EventTarget()})
+      const original=globalThis.fetch, calls:string[]=[]
+      let tree!:ReactTestRenderer
+      globalThis.fetch=async(url,init)=>{
+        calls.push(init?.method??'GET')
+        return Response.json(String(url).includes('/sources') ? {...page,candidates:[]} : saved)
+      }
+      try {
+        await act(async()=>{tree=create(<WorkoutPlayer workout={session}/>)})
+        assert.equal(tree.root.findAllByType('table').filter(t=>t.props['aria-label']==='Prescribed cycling').length,1)
+        assert.deepEqual(tree.root.findAllByType('textarea').map(n=>n.props.value),
+          saved.entries.length?['Retained exercise note',saved.notes]:[saved.notes])
+        if(status==='completed') assert.ok(tree.root.findAllByType('summary').some(node=>label(node).includes('activity 101')))
+        else assert.match(text(tree),/Complete workout without recordings/)
+        assert.deepEqual(calls,['GET','GET'])
+      } finally {globalThis.fetch=original;await act(async()=>tree?.unmount());Object.assign(globalThis,{window:previousWindow})}
+    })
+  }
+}

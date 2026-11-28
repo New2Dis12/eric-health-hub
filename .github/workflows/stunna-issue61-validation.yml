@@ -6,6 +6,7 @@ on:
       - work/issue-61
       - fix/mobile-rpe-spacing
       - work/issue-64
+      - work/issue-66
 
 permissions:
   contents: read

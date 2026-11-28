@@ -37,7 +37,9 @@ steady.snapshot!.exercises[0].durationSeconds = 600;
 steady.snapshot!.exercises[0].targets = bike.targets;
 const runSession = session("Synthetic intervals run", run);
 runSession.snapshot!.occurrences.push({ id: "warmup", key: "exercise", exercise: 0, type: "warmup", segment: 0 });
-const workouts = [runSession, session("Synthetic intervals row", row), session("Synthetic intervals bike", bike, true), steady];
+const finalizedBike = session("Synthetic intervals bike", bike, true);
+finalizedBike.snapshot!.exercises[0].loadBasis = "unverified";
+const workouts = [runSession, session("Synthetic intervals row", row), finalizedBike, steady];
 const result = (workout: WorkoutSession): SessionResults =>
   ({ sessionId: workout.id, status: workout.status, sessionRevision: 1, notes: "", notesRevision: 0, entries: [], nextOffset: null });
 

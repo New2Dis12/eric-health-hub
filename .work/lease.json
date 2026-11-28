@@ -2,10 +2,10 @@
   "issue": 66,
   "owner": "codex-d066fbb3-c4b8-4b32-b208-dff1e2e8be8d",
   "epoch": 1,
-  "state": "in-progress",
+  "state": "review",
   "attempts": 0,
   "spec": "312865df0e5116c0455d6e7b2407348a26005d686176225001f020172ec6c41d",
-  "heartbeat": "2026-11-28T14:42:24.561Z",
+  "heartbeat": "2026-11-28T14:43:03.789Z",
   "expires": "2026-11-28T15:37:24.561Z",
-  "checkpoint": "Resumed on owner request; baseline reproduction confirmed, classifier fixed, verifying synthetic cases."
+  "checkpoint": "Reproduced metadata regression and validated classifier fix. Ready for independent review."
 }
