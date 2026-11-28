@@ -5,6 +5,7 @@ on:
     branches:
       - work/issue-61
       - fix/mobile-rpe-spacing
+      - work/issue-64
 
 permissions:
   contents: read
@@ -53,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: synthetic-workout-player
-          path: ${{ runner.temp }}/player/accordion-*.png
+          path: ${{ runner.temp }}/player/*.png
       - name: Workflow regression suite
         run: node --test tests/workflow/*.test.mjs
       - name: Whitespace and deployment exclusion

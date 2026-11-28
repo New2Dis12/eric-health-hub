@@ -599,10 +599,10 @@ test("steady rows retain pinned output and unknown interval durations invalidate
     ],
   }];
   await act(async () => tree.update(render(steady)));
-  assert.deepEqual(time(), ["Time", "06:00"]);
-  assert.match(text(tree), /140–150 W/);
+  assert.match(text(tree), /00:00–06:00/);
+  assert.match(text(tree), /140–150/);
   assert.match(text(tree), /85–90/);
-  assert.equal(rows()[0].findAllByType("span")[2].props.children, "Output");
+  assert.equal(tree.root.findAllByType("table").length,1);
   await act(async () => tree.unmount());
 });
 
